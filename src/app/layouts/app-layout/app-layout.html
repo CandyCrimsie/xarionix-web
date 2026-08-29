@@ -1,0 +1,31 @@
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar__header">
+            <strong>ERP</strong>
+        </div>
+
+        <nav class="sidebar__navigation">
+            <a routerLink="/">
+                Главная
+            </a>
+        </nav>
+
+        <div class="sidebar__footer">
+            @if (auth.user(); as user) {
+            <div class="user">
+                <div class="user__name">
+                    {{ user.username }}
+                </div>
+
+                <button type="button" (click)="logout()">
+                    Выйти
+                </button>
+            </div>
+            }
+        </div>
+    </aside>
+
+    <main class="content">
+        <router-outlet />
+    </main>
+</div>
