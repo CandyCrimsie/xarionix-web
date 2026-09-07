@@ -5,6 +5,7 @@ import { AppLayout } from './layouts/app-layout/app-layout';
 
 import { Login } from './pages/login/login';
 import { Home } from './pages/home/home';
+import { Invite } from './pages/invite/invite';
 
 import { authGuard } from './core/auth/auth-guard';
 import { guestGuard } from './core/auth/guest-guard';
@@ -34,6 +35,10 @@ export const routes: Routes = [
             {
                 path: '',
                 component: Home
+            },
+            {
+                path: 'invite',
+                component: Invite
             }
         ]
     },

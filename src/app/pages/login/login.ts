@@ -2,14 +2,31 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
-import { finalize, firstValueFrom } from 'rxjs';
+import { switchMap, finalize, firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { CompanyContextService } from '../../core/company/company-context.service';
+
+import { HlmFieldImports } from '@spartan-ng/helm/field';
+import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideLoaderCircle } from '@ng-icons/lucide';
 
 @Component({
   selector: 'app-login',
   imports: [
-    ReactiveFormsModule
+    ReactiveFormsModule,
+    HlmFieldImports,
+    HlmInputImports,
+    HlmButtonImports,
+    NgIcon
+  ],
+  providers: [
+    provideIcons({
+      lucideLoaderCircle,
+    }),
   ],
   templateUrl: './login.html',
   styleUrl: './login.css',
@@ -19,6 +36,8 @@ export class Login {
   private readonly router = inject(Router);
 
   readonly auth = inject(AuthService);
+
+  private readonly companyContext = inject(CompanyContextService);
 
   readonly isSubmitting = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -30,7 +49,7 @@ export class Login {
       '',
       [
         Validators.required,
-        Validators.minLength(3),
+        Validators.email,
         Validators.maxLength(64),
       ],
     ],
@@ -58,6 +77,10 @@ export class Login {
     this.auth.login(
       this.form.getRawValue(),
     ).pipe(
+      switchMap(() =>
+        this.companyContext.initialize(),
+      ),
+
       finalize(() => {
         this.isSubmitting.set(false);
       }),
@@ -88,7 +111,7 @@ export class Login {
   ): void {
     if (error.status === 401) {
       this.errorMessage.set(
-        'Неверное имя пользователя или пароль',
+        'Неверное имя пользователя или пароль.',
       );
 
       return;
@@ -96,7 +119,7 @@ export class Login {
 
     if (error.status === 403) {
       this.errorMessage.set(
-        'Учетная запись заблокирована',
+        'Учетная запись заблокирована.',
       );
 
       return;

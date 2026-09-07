@@ -1,85 +1,70 @@
-<section class="login">
-    <div class="login__header">
-        <h1>Вход</h1>
+<section>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+        <div hlmFieldGroup>
 
-        <p>
-            Войдите в учетную запись ERP.
-        </p>
-    </div>
+            <!-- Имя пользователя -->
+            <div hlmField>
+                <label hlmFieldLabel for="username">
+                    Почта
+                </label>
 
-    <form class="login__form" [formGroup]="form" (ngSubmit)="submit()">
-        <div class="field">
-            <label for="username">
-                Имя пользователя
-            </label>
+                <input hlmInput id="username" type="email" formControlName="username" autocomplete="username"
+                    placeholder="Email" />
 
-            <input id="username" type="text" formControlName="username" autocomplete="username"
-                placeholder="Введите имя пользователя" />
+                <hlm-field-error validator="required">
+                    Укажите почту.
+                </hlm-field-error>
 
-            @if (
-            form.controls.username.touched &&
-            form.controls.username.invalid
-            ) {
-            <span class="field__error">
-                @if (
-                form.controls.username.hasError('required')
-                ) {
-                Укажите имя пользователя.
-                } @else if (
-                form.controls.username.hasError('minlength')
-                ) {
-                Минимум 3 символа.
-                } @else if (
-                form.controls.username.hasError('maxlength')
-                ) {
-                Максимум 64 символа.
-                }
-            </span>
+                <hlm-field-error validator="minlength">
+                    Минимум 3 символа.
+                </hlm-field-error>
+
+                <hlm-field-error validator="maxlength">
+                    Максимум 64 символа.
+                </hlm-field-error>
+            </div>
+
+
+            <!-- Пароль -->
+            <div hlmField>
+                <label hlmFieldLabel for="password">
+                    Пароль
+                </label>
+
+                <input hlmInput id="password" type="password" formControlName="password" autocomplete="current-password"
+                    placeholder="Введите пароль" />
+
+                <hlm-field-error validator="required">
+                    Укажите пароль.
+                </hlm-field-error>
+
+                <hlm-field-error validator="minlength">
+                    Минимум 8 символов.
+                </hlm-field-error>
+
+                <hlm-field-error validator="maxlength">
+                    Максимум 128 символов.
+                </hlm-field-error>
+            </div>
+
+            <!-- Кнопка -->
+            <div hlmField>
+                <button hlmBtn type="submit" class="w-full" [disabled]="isSubmitting()">
+                    @if (isSubmitting()) {
+                    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                    } @else {
+                    Войти
+                    }
+                </button>
+            </div>
+
+            <!-- Ошибка авторизации -->
+            @if (errorMessage()) {
+            <div class="login__error" role="alert">
+                {{ errorMessage() }}
+            </div>
             }
+
         </div>
-
-        <div class="field">
-            <label for="password">
-                Пароль
-            </label>
-
-            <input id="password" type="password" formControlName="password" autocomplete="current-password"
-                placeholder="Введите пароль" />
-
-            @if (
-            form.controls.password.touched &&
-            form.controls.password.invalid
-            ) {
-            <span class="field__error">
-                @if (
-                form.controls.password.hasError('required')
-                ) {
-                Укажите пароль.
-                } @else if (
-                form.controls.password.hasError('minlength')
-                ) {
-                Минимум 8 символов.
-                } @else if (
-                form.controls.password.hasError('maxlength')
-                ) {
-                Максимум 128 символов.
-                }
-            </span>
-            }
-        </div>
-
-        @if (errorMessage()) {
-        <div class="login__error" role="alert">
-            {{ errorMessage() }}
-        </div>
-        }
-
-        <button type="submit" [disabled]="isSubmitting()">
-            @if (isSubmitting()) {
-            Входим...
-            } @else {
-            Войти
-            }
-        </button>
     </form>
 </section>

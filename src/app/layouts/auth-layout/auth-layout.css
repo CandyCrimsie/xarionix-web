@@ -1,7 +1,5 @@
-.auth-layout {
-    min-height: 100vh;
+@import "tailwindcss";
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.auth-layout {
+    @apply min-h-screen flex items-center justify-center p-4;
 }

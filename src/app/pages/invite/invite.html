@@ -1,0 +1,45 @@
+<div class="block w-full h-full px-4 pb-4 gap-4">
+    <hlm-tabs tab="my-invites" class="flex flex-col gap-4">
+
+        <!-- Табы -->
+        <div class=" flex gap-4">
+            <hlm-tabs-list aria-label="tabs example">
+                <button hlmTabsTrigger="my-invites">Мои приглашения</button>
+                <button hlmTabsTrigger="all-invites">Все приглашения</button>
+            </hlm-tabs-list>
+
+            <hlm-dialog>
+                <button hlmDialogTrigger hlmBtn variant="secondary">
+                    <ng-icon name="lucidePlus" />
+                </button>
+                <hlm-dialog-content *hlmDialogPortal="let ctx">
+                    <hlm-dialog-header>
+                        <h3 hlmDialogTitle>Создание приглашения</h3>
+                        <p hlmDialogDescription>Одноразовая ссылка для регистрации новых пользователей</p>
+                    </hlm-dialog-header>
+                    <hlm-field-group>
+                        <hlm-field>
+                            <label hlmFieldLabel for="username">Примечание</label>
+                            <input hlmInput id="username" />
+                        </hlm-field>
+                    </hlm-field-group>
+                    <hlm-dialog-footer>
+                        <button hlmBtn variant="outline" hlmDialogClose>Отмена</button>
+                        <button hlmBtn type="submit">Создать</button>
+                    </hlm-dialog-footer>
+                </hlm-dialog-content>
+            </hlm-dialog>
+        </div>
+
+        <!-- Мои приглашения -->
+        <div hlmTabsContent="my-invites">
+            <app-invite-table />
+        </div>
+
+        <!-- Все приглашения -->
+        <div hlmTabsContent="all-invites">
+            <app-invite-table />
+        </div>
+
+    </hlm-tabs>
+</div>

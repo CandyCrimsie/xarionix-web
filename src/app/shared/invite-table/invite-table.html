@@ -1,0 +1,144 @@
+<!-- Таблица -->
+<div class="overflow-hidden rounded-md border">
+
+    <div hlmTableContainer>
+
+        <table hlmTable>
+
+            <thead hlmTHead>
+                @for (headerGroup of _table.getHeaderGroups(); track headerGroup.id) {
+                <tr hlmTr>
+                    @for (header of headerGroup.headers; track header.id) {
+                    <th hlmTh [attr.colSpan]="header.colSpan">
+
+                        @if (!header.isPlaceholder) {
+                        <ng-container *flexRenderHeader="header; let headerContent">
+                            {{ headerContent }}
+                        </ng-container>
+                        }
+
+                    </th>
+                    }
+                </tr>
+                }
+            </thead>
+
+            <tbody hlmTBody>
+
+                @for (row of _table.getRowModel().rows; track row.id) {
+
+                <tr hlmTr>
+
+                    @for (cell of row.getVisibleCells(); track cell.id) {
+
+                    <td hlmTd>
+
+                        <!-- Код приглашения -->
+                        @if (cell.column.id === 'code') {
+
+                        <div class="flex items-center gap-2">
+
+                            <span class="font-mono">
+                                {{ row.original.code }}
+                            </span>
+
+                            <button type="button" hlmBtn variant="ghost" class="h-7 w-7 p-0"
+                                [attr.aria-label]="'Скопировать код ' + row.original.code"
+                                (click)="_copyCode(row.original.code)">
+
+                                @if (_copiedCode() === row.original.code) {
+                                <ng-icon name="lucideCheck" class="size-4" />
+                                } @else {
+                                <ng-icon name="lucideCopy" class="size-4" />
+                                }
+
+                            </button>
+
+                        </div>
+
+                        }
+
+                        <!-- Статус -->
+                        @else if (cell.column.id === 'status') {
+
+                        <span hlmBadge [variant]="_getStatusVariant(row.original.status)">
+
+                            @switch (row.original.status) {
+
+                            @case ('success') {
+                            <ng-icon name="lucideCheck" />
+                            }
+
+                            @case ('pending') {
+                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                            }
+
+                            @case ('expired') {
+                            <ng-icon name="lucideX" />
+                            }
+
+                            }
+
+                            {{ _getStatusLabel(row.original.status) }}
+
+                        </span>
+
+                        }
+
+                        <!-- Обычные ячейки -->
+                        @else {
+
+                        <ng-container *flexRenderCell="cell; let cellContent">
+                            {{ cellContent }}
+                        </ng-container>
+
+                        }
+
+                    </td>
+
+                    }
+
+                </tr>
+
+                } @empty {
+
+                <tr hlmTr>
+                    <td hlmTd class="h-24 text-center" [attr.colspan]="_table.getVisibleLeafColumns().length">
+                        Приглашения не найдены
+                    </td>
+                </tr>
+
+                }
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- Footer -->
+<div class="flex pt-4 justify-center">
+
+    @if (_table.getRowCount() > 0) {
+
+
+    <!-- Pagination -->
+    <div class="flex gap-2">
+
+        <button hlmBtn size="sm" variant="outline" [disabled]="!_table.getCanPreviousPage()"
+            (click)="_table.previousPage()">
+            <ng-icon name="lucideArrowLeft " />
+        </button>
+
+        <button hlmBtn size="sm" variant="outline" [disabled]="!_table.getCanNextPage()" (click)="_table.nextPage()">
+            <ng-icon name="lucideArrowRight " />
+        </button>
+
+    </div>
+
+    }
+
+</div>

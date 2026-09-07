@@ -1,31 +1,191 @@
-<div class="app-layout">
-    <aside class="sidebar">
-        <div class="sidebar__header">
-            <strong>ERP</strong>
-        </div>
+<hlm-toaster position="bottom-right" />
 
-        <nav class="sidebar__navigation">
-            <a routerLink="/">
-                Главная
-            </a>
-        </nav>
-
-        <div class="sidebar__footer">
-            @if (auth.user(); as user) {
-            <div class="user">
-                <div class="user__name">
-                    {{ user.username }}
+<div hlmSidebarWrapper class="text-zinc-50">
+    <hlm-sidebar collapsible="icon">
+        <!-- Хедер -->
+        <div hlmSidebarHeader>
+            <button type="button" hlmSidebarMenuButton size="lg" class="flex w-full items-center"
+                [hlmDropdownMenuTrigger]="companyMenu" side="right" align="start">
+                <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-50">
+                    <ng-icon name="lucideBriefcaseBusiness" color="#161616" />
                 </div>
 
-                <button type="button" (click)="logout()">
-                    Выйти
-                </button>
-            </div>
-            }
-        </div>
-    </aside>
+                @if (companyContext.activeCompany(); as company) {
+                <div class="min-w-0 flex flex-col items-start">
+                    <span class="max-w-full truncate font-semibold text-sm">
+                        {{ company.short_name || company.name }}
+                    </span>
 
-    <main class="content">
+                    <span class="text-xs text-zinc-400">
+                        @if (company.parent_id === null) {
+                        Основная компания
+                        } @else {
+                        Дочерняя компания
+                        }
+                    </span>
+                </div>
+                } @else {
+                <div class="min-w-0 flex flex-col items-start">
+                    <span class="font-semibold text-sm">
+                        Компания не выбрана
+                    </span>
+
+                    <span class="text-xs text-zinc-400">
+                        Нет активной компании
+                    </span>
+                </div>
+                }
+
+                <div class="ml-auto flex">
+                    <ng-icon name="lucideChevronsUpDown" color="#FAFAFA" />
+                </div>
+            </button>
+
+            <ng-template #companyMenu>
+                <hlm-dropdown-menu class="w-64">
+                    <hlm-dropdown-menu-label>
+                        Компании
+                    </hlm-dropdown-menu-label>
+
+                    <hlm-dropdown-menu-separator />
+
+                    @for (
+                    company of companyContext.availableCompanies();
+                    track company.id
+                    ) {
+                    <button hlmDropdownMenuItem (triggered)="switchCompany(company.id)">
+                        <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
+                            <ng-icon name="lucideBriefcaseBusiness" />
+                        </div>
+
+                        <div class="min-w-0 flex flex-col items-start">
+                            <span class="max-w-44 truncate">
+                                {{ company.short_name || company.name }}
+                            </span>
+
+                            <span class="text-xs text-zinc-500">
+                                @if (company.parent_id === null) {
+                                Основная компания
+                                } @else {
+                                Дочерняя компания
+                                }
+                            </span>
+                        </div>
+
+                        @if (
+                        companyContext.activeCompanyId() === company.id
+                        ) {
+                        <ng-icon name="lucideCheck" class="ml-auto" />
+                        }
+                    </button>
+                    } @empty {
+                    <button hlmDropdownMenuItem disabled>
+                        Нет доступных компаний
+                    </button>
+                    }
+                </hlm-dropdown-menu>
+            </ng-template>
+        </div>
+
+        <!-- Контент -->
+        <div hlmSidebarContent>
+            <!-- Группа 1 -->
+            <div hlmSidebarGroup>
+                <a hlmSidebarMenuButton routerLink="/">
+                    <ng-icon name="lucideBell" />
+                    <span>Уведомления</span>
+                </a>
+
+                <a hlmSidebarMenuButton routerLink="/">
+                    <ng-icon name="lucideLayoutDashboard" />
+                    <span>Дашборд</span>
+                </a>
+            </div>
+
+            <!-- Группа 2 -->
+            <div hlmSidebarGroup>
+                <div hlmSidebarGroupLabel>
+                    Сотрудники
+                </div>
+
+                <ul hlmSidebarMenu>
+
+                    <li hlmSidebarMenuItem>
+                        <a hlmSidebarMenuButton routerLink="/invite">
+                            <ng-icon name="lucideUserRoundPlus" />
+                            <span>Пригласить</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Футер -->
+        @if (auth.user(); as user) {
+        <div hlmSidebarFooter class="p-2">
+            <button hlmSidebarMenuButton size="lg" [hlmDropdownMenuTrigger]="userMenu" class="flex w-full h-full p-2">
+                <div class="flex size-8 shrink-0 items-center justify-center bg-zinc-50 rounded-full">
+                    <ng-icon name="lucideUserRound" color="#161616" />
+                </div>
+
+                <div class="flex flex-col">
+                    <span class="font-semibold text-xs">candy</span>
+                    <span class="text-xs">{{ user.username }}</span>
+                </div>
+
+                <div class="ml-auto flex">
+                    <ng-icon name="lucideChevronsUpDown" color="#FAFAFA" />
+                </div>
+
+                <!-- Дропдаун меню -->
+                <ng-template #userMenu>
+                    <hlm-dropdown-menu class="w-60">
+
+                        <!-- Профиль -->
+                        <hlm-dropdown-menu-label class="flex gap-2 items-center p-2">
+                            <div>
+                                <div class="flex size-8 shrink-0 bg-zinc-50 rounded-full items-center justify-center">
+                                    <ng-icon name="lucideUserRound" color="#161616" />
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col">
+                                <span class="text-sm font-semibold">candy</span>
+                                <span class="text-xs">{{user.username}}</span>
+                            </div>
+                        </hlm-dropdown-menu-label>
+
+                        <hlm-dropdown-menu-separator />
+
+                        <!-- Кнопки -->
+                        <button hlmDropdownMenuItem>
+                            <ng-icon name="lucideUserRound" />
+                            <span>Профиль</span>
+                        </button>
+
+                        <button hlmDropdownMenuItem>
+                            <ng-icon name="lucideSettings2" />
+                            <span>Настройки</span>
+                        </button>
+
+                        <hlm-dropdown-menu-separator />
+
+                        <button hlmDropdownMenuItem type="button" (click)="logout()">
+                            <ng-icon name="lucideLogOut" />
+                            <span>Выйти</span>
+                        </button>
+                    </hlm-dropdown-menu>
+                </ng-template>
+            </button>
+        </div>
+        }
+    </hlm-sidebar>
+
+    <main hlmSidebarInset class="flex flex-col">
+        <header class="h-12 shrink-0 flex items-center pl-4">
+            <button hlmSidebarTrigger></button>
+        </header>
+
         <router-outlet />
     </main>
 </div>
