@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@reference "../../../styles.css";
 
 .home-layout {
     @apply block w-full h-full px-4 pb-4;

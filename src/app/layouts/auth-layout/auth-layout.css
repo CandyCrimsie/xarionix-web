@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@reference "../../../styles.css";
 
 .auth-layout {
     @apply min-h-screen flex items-center justify-center p-4;

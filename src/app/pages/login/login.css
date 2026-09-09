@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@reference "../../../styles.css";
 
 :host {
     @apply block w-full max-w-72;
