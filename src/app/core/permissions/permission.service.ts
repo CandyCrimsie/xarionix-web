@@ -1,4 +1,10 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import {
+  computed,
+  inject,
+  Injectable,
+  Signal,
+  signal,
+} from '@angular/core';
 
 import { HttpClient } from '@angular/common/http';
 
@@ -23,6 +29,10 @@ import {
   PermissionScope,
   PermissionState,
 } from './permission.models';
+
+import {
+  isScopeAtLeast,
+} from './permission.utils';
 
 
 @Injectable({
@@ -71,6 +81,19 @@ export class PermissionService {
   readonly isReady = computed(
     () => this._state() === 'ready',
   );
+
+  readonly isCurrentContextReady =
+    computed(() => {
+      const companyId =
+        this.companyContext.activeCompanyId();
+
+      return (
+        this._state() === 'ready'
+        && companyId !== null
+        && this._loadedCompanyId()
+        === companyId
+      );
+    });
 
 
   initialize(): Observable<void> {
@@ -205,6 +228,127 @@ export class PermissionService {
       this._scopes()[permission]
       ?? null
     );
+  }
+
+
+  hasAny(
+    permissions: readonly PermissionCode[],
+  ): boolean {
+    if (!this.isCurrentContextReady()) {
+      return false;
+    }
+
+    return permissions.some(
+      permission =>
+        this._permissions().has(
+          permission,
+        ),
+    );
+  }
+
+
+  hasAll(
+    permissions: readonly PermissionCode[],
+  ): boolean {
+    if (!this.isCurrentContextReady()) {
+      return false;
+    }
+
+    return permissions.every(
+      permission =>
+        this._permissions().has(
+          permission,
+        ),
+    );
+  }
+
+
+  hasMinimumScope(
+    permission: PermissionCode,
+    minimumScope: PermissionScope,
+  ): boolean {
+    if (!this.isCurrentContextReady()) {
+      return false;
+    }
+
+    if (
+      !this._permissions().has(
+        permission,
+      )
+    ) {
+      return false;
+    }
+
+    const actualScope =
+      this.scope(
+        permission,
+      );
+
+    if (actualScope === null) {
+      return false;
+    }
+
+    return isScopeAtLeast(
+      actualScope,
+      minimumScope,
+    );
+  }
+
+
+  can(
+    permission: PermissionCode,
+    minimumScope?: PermissionScope,
+  ): boolean {
+    if (!this.isCurrentContextReady()) {
+      return false;
+    }
+
+    if (
+      !this._permissions().has(
+        permission,
+      )
+    ) {
+      return false;
+    }
+
+    if (minimumScope === undefined) {
+      return true;
+    }
+
+    return this.hasMinimumScope(
+      permission,
+      minimumScope,
+    );
+  }
+
+
+  canSignal(
+    permission: PermissionCode,
+    minimumScope?: PermissionScope,
+  ): Signal<boolean> {
+    return computed(() =>
+      this.can(
+        permission,
+        minimumScope,
+      ),
+    );
+  }
+
+
+  scopeSignal(
+    permission: PermissionCode,
+  ): Signal<PermissionScope | null> {
+    return computed(() => {
+      if (
+        !this.isCurrentContextReady()
+      ) {
+        return null;
+      }
+
+      return this.scope(
+        permission,
+      );
+    });
   }
 
 
