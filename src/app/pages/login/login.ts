@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
-import { switchMap, finalize, firstValueFrom } from 'rxjs';
+import { switchMap, finalize } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { CompanyContextService } from '../../core/company/company-context.service';
@@ -13,6 +13,11 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLoaderCircle } from '@ng-icons/lucide';
+
+import {
+  PermissionService,
+} from '../../core/permissions/permission.service';
+
 
 @Component({
   selector: 'app-login',
@@ -32,6 +37,9 @@ import { lucideLoaderCircle } from '@ng-icons/lucide';
   styleUrl: './login.css',
 })
 export class Login {
+  private readonly permissions =
+    inject(PermissionService);
+
   private readonly formBuilder = inject(FormBuilder);
   private readonly router = inject(Router);
 
@@ -79,6 +87,10 @@ export class Login {
     ).pipe(
       switchMap(() =>
         this.companyContext.initialize(),
+      ),
+
+      switchMap(() =>
+        this.permissions.initialize(),
       ),
 
       finalize(() => {

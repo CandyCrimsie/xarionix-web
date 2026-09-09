@@ -12,6 +12,10 @@ import { AuthService } from './core/auth/auth.service';
 import { companyInterceptor } from './core/company/company-interceptor';
 import { CompanyContextService } from './core/company/company-context.service';
 
+import {
+  PermissionService,
+} from './core/permissions/permission.service';
+
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -35,9 +39,16 @@ export const appConfig: ApplicationConfig = {
       const companyContext =
         inject(CompanyContextService);
 
+      const permissions =
+        inject(PermissionService);
+
       return auth.initialize().pipe(
         switchMap(() =>
           companyContext.initialize(),
+        ),
+
+        switchMap(() =>
+          permissions.initialize(),
         ),
       );
     }),

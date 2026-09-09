@@ -73,6 +73,46 @@ export class PermissionService {
   );
 
 
+  initialize(): Observable<void> {
+    const companyId =
+      this.companyContext.activeCompanyId();
+
+    if (companyId === null) {
+      this.reset();
+
+      return of(undefined);
+    }
+
+    /*
+     * Permissions для этой компании
+     * уже загружены.
+     *
+     * Повторный initializer не должен
+     * делать лишний HTTP request.
+     */
+    if (
+      this._state() === 'ready'
+      && this._loadedCompanyId()
+      === companyId
+    ) {
+      return of(undefined);
+    }
+
+    /*
+     * Ошибка permissions не должна
+     * ломать bootstrap всего Angular.
+     *
+     * load() сам переведёт state в error
+     * и очистит старые permissions.
+     */
+    return this.load().pipe(
+      catchError(() =>
+        of(undefined),
+      ),
+    );
+  }
+
+
   load(): Observable<void> {
     const companyId =
       this.companyContext.activeCompanyId();

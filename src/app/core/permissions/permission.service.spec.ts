@@ -275,5 +275,129 @@ describe(
         ).toBe('loading');
       },
     );
+
+    it(
+      'should initialize permissions for active company',
+      () => {
+        http.get.mockReturnValue(
+          of({
+            permissions: [
+              PermissionCode.MembersRead,
+            ],
+
+            scopes: {
+              [
+                PermissionCode
+                  .MembersRead
+              ]:
+                PermissionScope.Company,
+            },
+          }),
+        );
+
+        service.initialize().subscribe();
+
+        expect(
+          http.get,
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          service.state(),
+        ).toBe('ready');
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBe(1);
+
+        expect(
+          service.has(
+            PermissionCode.MembersRead,
+          ),
+        ).toBe(true);
+      },
+    );
+
+    it(
+      'should not reload permissions when active company is already initialized',
+      () => {
+        http.get.mockReturnValue(
+          of({
+            permissions: [
+              PermissionCode.CompaniesRead,
+            ],
+
+            scopes: {
+              [
+                PermissionCode
+                  .CompaniesRead
+              ]:
+                PermissionScope.Company,
+            },
+          }),
+        );
+
+        service.initialize().subscribe();
+
+        service.initialize().subscribe();
+
+        expect(
+          http.get,
+        ).toHaveBeenCalledTimes(1);
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBe(1);
+
+        expect(
+          service.state(),
+        ).toBe('ready');
+      },
+    );
+
+    it(
+      'should keep initialization resilient when permission loading fails',
+      () => {
+        http.get.mockReturnValue(
+          throwError(
+            () => new Error(
+              'Permissions unavailable',
+            ),
+          ),
+        );
+
+        let completed = false;
+        let emittedError = false;
+
+        service.initialize().subscribe({
+          complete: () => {
+            completed = true;
+          },
+
+          error: () => {
+            emittedError = true;
+          },
+        });
+
+        expect(
+          completed,
+        ).toBe(true);
+
+        expect(
+          emittedError,
+        ).toBe(false);
+
+        expect(
+          service.state(),
+        ).toBe('error');
+
+        expect(
+          service.permissions().size,
+        ).toBe(0);
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBeNull();
+      },
+    );
   },
 );
