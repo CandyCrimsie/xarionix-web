@@ -11,7 +11,10 @@ import {
 
 @Component({
   selector: 'app-forbidden',
-  imports: [],
+  imports: [
+    RouterLink,
+    HlmButtonImports
+  ],
   templateUrl: './forbidden.html',
   styleUrl: './forbidden.css',
 })

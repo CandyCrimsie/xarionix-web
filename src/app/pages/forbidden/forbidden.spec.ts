@@ -58,9 +58,7 @@ describe(
     it(
       'should render access denied message',
       () => {
-        const element =
-          fixture.nativeElement
-            as HTMLElement;
+        const element: HTMLElement = fixture.nativeElement;
 
         expect(
           element.textContent,
