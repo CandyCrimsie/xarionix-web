@@ -26,6 +26,7 @@ import {
     lucideLoaderCircle,
     lucideRefreshCw,
     lucidePlus,
+    lucidePencil,
 } from '@ng-icons/lucide';
 
 import {
@@ -95,7 +96,8 @@ type RolesState =
         provideIcons({
             lucideLoaderCircle,
             lucideRefreshCw,
-            lucidePlus
+            lucidePlus,
+            lucidePencil
         }),
     ],
 
@@ -145,6 +147,29 @@ export class Roles {
         signal(false);
 
     readonly createError =
+        signal<string | null>(
+            null,
+        );
+
+
+    readonly selectedRole =
+        signal<Role | null>(
+            null,
+        );
+
+    readonly editName =
+        signal('');
+
+    readonly editDescription =
+        signal('');
+
+    readonly editActive =
+        signal(true);
+
+    readonly updating =
+        signal(false);
+
+    readonly editError =
         signal<string | null>(
             null,
         );
@@ -326,6 +351,201 @@ export class Roles {
         this.createName.set('');
         this.createDescription.set('');
         this.createError.set(null);
+    }
+
+
+    openEditRole(
+        role: Role,
+    ): void {
+        if (
+            !this.canManageRoles()
+            || role.is_system
+        ) {
+            return;
+        }
+
+        this.selectedRole.set(
+            role,
+        );
+
+        this.editName.set(
+            role.name,
+        );
+
+        this.editDescription.set(
+            role.description ?? '',
+        );
+
+        this.editActive.set(
+            role.is_active,
+        );
+
+        this.editError.set(
+            null,
+        );
+    }
+
+
+    updateRole(
+        dialog: BrnDialog,
+    ): void {
+        const role =
+            this.selectedRole();
+
+        if (
+            !role
+            || role.is_system
+            || this.updating()
+            || !this.canManageRoles()
+        ) {
+            return;
+        }
+
+
+        const name =
+            this.editName().trim();
+
+        const descriptionValue =
+            this.editDescription().trim();
+
+
+        if (!name) {
+            this.editError.set(
+                'Укажите название роли',
+            );
+
+            return;
+        }
+
+        if (name.length > 100) {
+            this.editError.set(
+                'Название роли не должно превышать 100 символов',
+            );
+
+            return;
+        }
+
+        if (
+            descriptionValue.length > 500
+        ) {
+            this.editError.set(
+                'Описание не должно превышать 500 символов',
+            );
+
+            return;
+        }
+
+
+        this.updating.set(
+            true,
+        );
+
+        this.editError.set(
+            null,
+        );
+
+
+        this.roleApi
+            .update(
+                role.id,
+                {
+                    name,
+
+                    description:
+                        descriptionValue
+                        || null,
+
+                    is_active:
+                        this.editActive(),
+                },
+            )
+            .subscribe({
+                next: () => {
+                    this.updating.set(
+                        false,
+                    );
+
+                    this.resetEditForm();
+
+                    dialog.close({});
+
+                    this.retry();
+                },
+
+                error: error => {
+                    this.updating.set(
+                        false,
+                    );
+
+                    this.editError.set(
+                        this.getEditRoleError(
+                            error,
+                        ),
+                    );
+                },
+            });
+    }
+
+
+    setEditActive(
+        event: Event,
+    ): void {
+        const input = event.target as HTMLInputElement;
+
+        this.editActive.set(
+            input.checked,
+        );
+    }
+
+
+    resetEditForm(): void {
+        this.selectedRole.set(
+            null,
+        );
+
+        this.editName.set('');
+        this.editDescription.set('');
+
+        this.editActive.set(
+            true,
+        );
+
+        this.editError.set(
+            null,
+        );
+    }
+
+
+    private getEditRoleError(
+        error: unknown,
+    ): string {
+        if (
+            error instanceof
+            HttpErrorResponse
+            && error.status === 409
+        ) {
+            const detail =
+                typeof error.error?.detail
+                    === 'string'
+                    ? error.error.detail
+                    : null;
+
+            if (
+                detail ===
+                'System role is managed by the system'
+            ) {
+                return (
+                    'Системную роль нельзя изменять'
+                );
+            }
+
+            return (
+                'Роль с таким названием '
+                + 'уже существует'
+            );
+        }
+
+        return 'Не удалось изменить роль';
     }
 
 

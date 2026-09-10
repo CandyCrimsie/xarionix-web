@@ -71,6 +71,9 @@ describe(
 
             create:
                 vi.fn(),
+
+            update:
+                vi.fn(),
         };
 
         const permissions = {
@@ -640,6 +643,244 @@ describe(
             },
         );
 
+        it(
+            'should show edit action only for custom role when roles manage permission is available',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    getEditRoleAction(
+                        customRole.id,
+                    ),
+                ).not.toBeNull();
+
+                expect(
+                    getEditRoleAction(
+                        systemRole.id,
+                    ),
+                ).toBeNull();
+            },
+        );
+
+
+        it(
+            'should populate edit state from custom role',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                component.openEditRole(
+                    customRole,
+                );
+
+
+                expect(
+                    component.selectedRole(),
+                ).toEqual(
+                    customRole,
+                );
+
+                expect(
+                    component.editName(),
+                ).toBe(
+                    customRole.name,
+                );
+
+                expect(
+                    component.editDescription(),
+                ).toBe(
+                    customRole.description,
+                );
+
+                expect(
+                    component.editActive(),
+                ).toBe(true);
+            },
+        );
+
+
+        it(
+            'should refuse to edit system role',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                component.openEditRole(
+                    systemRole,
+                );
+
+
+                expect(
+                    component.selectedRole(),
+                ).toBeNull();
+
+                expect(
+                    roleApi.update,
+                ).not.toHaveBeenCalled();
+            },
+        );
+
+
+        it(
+            'should update custom role and reload roles',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                component.openEditRole(
+                    customRole,
+                );
+
+                component.editName.set(
+                    'Senior Dispatcher',
+                );
+
+                component.editDescription.set(
+                    'Manages dispatching',
+                );
+
+                component.editActive.set(
+                    false,
+                );
+
+
+                const updatedRole: Role = {
+                    ...customRole,
+
+                    name:
+                        'Senior Dispatcher',
+
+                    description:
+                        'Manages dispatching',
+
+                    is_active:
+                        false,
+                };
+
+
+                roleApi.update.mockReturnValue(
+                    of(updatedRole),
+                );
+
+
+                const close =
+                    vi.fn();
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.updateRole(
+                    dialog,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    roleApi.update,
+                ).toHaveBeenCalledWith(
+                    customRole.id,
+                    {
+                        name:
+                            'Senior Dispatcher',
+
+                        description:
+                            'Manages dispatching',
+
+                        is_active:
+                            false,
+                    },
+                );
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(1);
+
+                expect(
+                    component.selectedRole(),
+                ).toBeNull();
+
+                /*
+                 * Initial GET + reload
+                 * после PATCH.
+                 */
+                expect(
+                    roleApi.list,
+                ).toHaveBeenCalledTimes(2);
+            },
+        );
+
+
+        it(
+            'should show conflict error when updated role name already exists',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                component.openEditRole(
+                    customRole,
+                );
+
+                component.editName.set(
+                    'Administrator',
+                );
+
+
+                roleApi.update.mockReturnValue(
+                    throwError(
+                        () =>
+                            new HttpErrorResponse({
+                                status: 409,
+
+                                error: {
+                                    detail:
+                                        'Role with this name already exists',
+                                },
+                            }),
+                    ),
+                );
+
+
+                const close =
+                    vi.fn();
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.updateRole(
+                    dialog,
+                );
+
+
+                expect(
+                    close,
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    component.editError(),
+                ).toBe(
+                    'Роль с таким названием уже существует',
+                );
+
+                expect(
+                    component.updating(),
+                ).toBe(false);
+            },
+        );
+
 
         function getRoleRow(
             roleId: number,
@@ -650,6 +891,18 @@ describe(
 
             return element.querySelector(
                 `[data-testid="role-row-${roleId}"]`,
+            );
+        }
+
+        function getEditRoleAction(
+            roleId: number,
+        ): Element | null {
+            const element:
+                HTMLElement =
+                fixture.nativeElement;
+
+            return element.querySelector(
+                `[data-testid="edit-role-action-${roleId}"]`,
             );
         }
     },
