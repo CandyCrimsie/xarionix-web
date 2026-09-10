@@ -41,6 +41,8 @@ import {
 } from './app-layout';
 
 import {
+  PermissionCode,
+  PermissionScope,
   PermissionState,
 } from '../../core/permissions/permission.models';
 
@@ -55,6 +57,9 @@ describe(
       ComponentFixture<AppLayout>;
 
     const canManageMembers =
+      signal(false);
+
+    const canReadRoles =
       signal(false);
 
     const permissionState =
@@ -97,9 +102,26 @@ describe(
     const permissions = {
       canSignal:
         vi.fn(
-          () =>
-            canManageMembers
-              .asReadonly(),
+          (
+            permission:
+              PermissionCode,
+
+            minimumScope?:
+              PermissionScope,
+          ) => {
+            if (
+              permission
+              === PermissionCode.RolesRead
+              && minimumScope
+              === PermissionScope.Company
+            ) {
+              return canReadRoles
+                .asReadonly();
+            }
+
+            return canManageMembers
+              .asReadonly();
+          },
         ),
 
       state:
@@ -134,6 +156,10 @@ describe(
 
       activeCompanyId.set(
         null,
+      );
+
+      canReadRoles.set(
+        false,
       );
 
       await TestBed
@@ -525,6 +551,50 @@ describe(
         expect(
           companyContext.switchCompany,
         ).not.toHaveBeenCalled();
+      },
+    );
+
+    it(
+      'should hide roles navigation without roles read permission',
+      () => {
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+        expect(
+          element.querySelector(
+            '[data-testid="roles-nav-item"]',
+          ),
+        ).toBeNull();
+      },
+    );
+
+
+    it(
+      'should show roles navigation with roles read company permission',
+      () => {
+        canReadRoles.set(
+          true,
+        );
+
+        fixture.detectChanges();
+
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+        expect(
+          element.querySelector(
+            '[data-testid="roles-nav-item"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          permissions.canSignal,
+        ).toHaveBeenCalledWith(
+          PermissionCode.RolesRead,
+          PermissionScope.Company,
+        );
       },
     );
   },

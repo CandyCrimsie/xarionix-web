@@ -121,21 +121,39 @@
             </div>
 
             <!-- Группа 2 -->
-            @if (canManageMembers()) {
+            @if (
+            canManageMembers()
+            || canReadRoles()
+            ) {
             <div hlmSidebarGroup data-testid="employees-group">
                 <div hlmSidebarGroupLabel>
                     Сотрудники
                 </div>
 
                 <ul hlmSidebarMenu>
+                    @if (canManageMembers()) {
                     <li hlmSidebarMenuItem>
                         <a hlmSidebarMenuButton routerLink="/invite" data-testid="invite-nav-item">
                             <ng-icon name="lucideUserRoundPlus" />
+
                             <span>
                                 Пригласить
                             </span>
                         </a>
                     </li>
+                    }
+
+                    @if (canReadRoles()) {
+                    <li hlmSidebarMenuItem>
+                        <a hlmSidebarMenuButton routerLink="/roles" data-testid="roles-nav-item">
+                            <ng-icon name="lucideSettings2" />
+
+                            <span>
+                                Роли
+                            </span>
+                        </a>
+                    </li>
+                    }
                 </ul>
             </div>
             }

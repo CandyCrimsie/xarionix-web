@@ -26,7 +26,10 @@ import {
   lucideTriangleAlert,
 } from '@ng-icons/lucide';
 
-import { PermissionCode } from '../../core/permissions/permission.models';
+import {
+  PermissionCode,
+  PermissionScope
+} from '../../core/permissions/permission.models';
 import { PermissionService } from '../../core/permissions/permission.service';
 
 
@@ -72,6 +75,12 @@ export class AppLayout {
   readonly canManageMembers =
     this.permissions.canSignal(
       PermissionCode.MembersManage,
+    );
+
+  readonly canReadRoles =
+    this.permissions.canSignal(
+      PermissionCode.RolesRead,
+      PermissionScope.Company,
     );
 
   private readonly router = inject(Router);

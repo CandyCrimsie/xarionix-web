@@ -1,0 +1,114 @@
+<div class="flex flex-col gap-4 px-4 pb-4">
+    <div>
+        <h1 class="text-2xl font-semibold">
+            Роли
+        </h1>
+
+        <p class="mt-1 text-sm text-zinc-500">
+            Роли и группы прав текущей компании
+        </p>
+    </div>
+
+
+    @if (state() === 'loading') {
+    <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500" data-testid="roles-loading">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+        <span>
+            Загружаем роли...
+        </span>
+    </div>
+    } @else if (state() === 'error') {
+    <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="roles-error">
+        <span class="text-sm text-zinc-500">
+            Не удалось загрузить роли
+        </span>
+
+        <button hlmBtn variant="outline" type="button" data-testid="roles-retry" (click)="retry()">
+            <ng-icon name="lucideRefreshCw" />
+
+            Повторить
+        </button>
+    </div>
+    } @else {
+    <div class="overflow-hidden rounded-md border" data-testid="roles-table">
+        <div hlmTableContainer>
+            <table hlmTable>
+                <thead hlmTHead>
+                    <tr hlmTr>
+                        <th hlmTh>
+                            Название
+                        </th>
+
+                        <th hlmTh>
+                            Описание
+                        </th>
+
+                        <th hlmTh>
+                            Тип
+                        </th>
+
+                        <th hlmTh>
+                            Статус
+                        </th>
+                    </tr>
+                </thead>
+
+                <tbody hlmTBody>
+                    @for (
+                    role of roles();
+                    track role.id
+                    ) {
+                    <tr hlmTr [attr.data-testid]="
+                                    'role-row-' + role.id
+                                ">
+                        <td hlmTd>
+                            <span class="font-medium">
+                                {{ role.name }}
+                            </span>
+                        </td>
+
+                        <td hlmTd class="text-zinc-500">
+                            {{
+                            role.description
+                            || '—'
+                            }}
+                        </td>
+
+                        <td hlmTd>
+                            @if (role.is_system) {
+                            <span hlmBadge variant="secondary">
+                                Системная
+                            </span>
+                            } @else {
+                            <span hlmBadge variant="outline">
+                                Пользовательская
+                            </span>
+                            }
+                        </td>
+
+                        <td hlmTd>
+                            @if (role.is_active) {
+                            <span hlmBadge>
+                                Активна
+                            </span>
+                            } @else {
+                            <span hlmBadge variant="secondary">
+                                Отключена
+                            </span>
+                            }
+                        </td>
+                    </tr>
+                    } @empty {
+                    <tr hlmTr>
+                        <td hlmTd colspan="4" class="h-24 text-center text-zinc-500" data-testid="roles-empty">
+                            Роли не найдены
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    }
+</div>

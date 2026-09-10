@@ -52,7 +52,6 @@ describe(
             },
         );
 
-
         it(
             'should keep forbidden route free from permission guards',
             () => {
@@ -75,6 +74,44 @@ describe(
                 expect(
                     forbiddenRoute?.canActivate,
                 ).toBeUndefined();
+            },
+        );
+
+        it(
+            'should protect roles route with a permission guard',
+            () => {
+                const appRoute =
+                    routes.find(
+                        route =>
+                            route.path === '',
+                    );
+
+                const rolesRoute =
+                    appRoute
+                        ?.children
+                        ?.find(
+                            route =>
+                                route.path === 'roles',
+                        );
+
+                expect(
+                    rolesRoute,
+                ).toBeDefined();
+
+                expect(
+                    rolesRoute?.canActivate,
+                ).toBeDefined();
+
+                expect(
+                    rolesRoute?.canActivate?.length,
+                ).toBe(1);
+
+                expect(
+                    rolesRoute
+                        ?.runGuardsAndResolvers,
+                ).toBe(
+                    'always',
+                );
             },
         );
     },

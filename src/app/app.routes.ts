@@ -6,13 +6,17 @@ import { AppLayout } from './layouts/app-layout/app-layout';
 import { Login } from './pages/login/login';
 import { Home } from './pages/home/home';
 import { Invite } from './pages/invite/invite';
+import { Forbidden } from './pages/forbidden/forbidden';
+import { Roles } from './core/roles/roles';
 
 import { authGuard } from './core/auth/auth-guard';
 import { guestGuard } from './core/auth/guest-guard';
 import { permissionGuard } from './core/permissions/permission-guard';
 
-import { PermissionCode } from './core/permissions/permission.models';
-import { Forbidden } from './pages/forbidden/forbidden';
+import {
+    PermissionCode,
+    PermissionScope
+} from './core/permissions/permission.models';
 
 
 
@@ -51,6 +55,21 @@ export const routes: Routes = [
                 ],
                 runGuardsAndResolvers: 'always',
                 component: Invite,
+            },
+            {
+                path: 'roles',
+
+                canActivate: [
+                    permissionGuard(
+                        PermissionCode.RolesRead,
+                        PermissionScope.Company,
+                    ),
+                ],
+
+                runGuardsAndResolvers:
+                    'always',
+
+                component: Roles,
             },
             {
                 path: 'forbidden',
