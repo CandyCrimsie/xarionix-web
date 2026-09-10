@@ -87,10 +87,18 @@ export class AppLayout {
   switchCompany(
     companyId: number,
   ): void {
+    if (
+      this.permissions.isLoading()
+    ) {
+      return;
+    }
+
     const previousCompanyId =
       this.companyContext.activeCompanyId();
 
-    if (previousCompanyId === companyId) {
+    if (
+      previousCompanyId === companyId
+    ) {
       return;
     }
 
@@ -109,24 +117,10 @@ export class AppLayout {
       'Компания изменена',
       {
         description:
-          `Активная компания: ${company.short_name || company.name
+          `Активная компания: ${company.short_name
+          || company.name
           }`,
       },
-    );
-  }
-
-
-  onCompanyChange(
-    event: Event,
-  ): void {
-    const select =
-      event.target as HTMLSelectElement;
-
-    const companyId =
-      Number(select.value);
-
-    this.companyContext.switchCompany(
-      companyId,
     );
   }
 

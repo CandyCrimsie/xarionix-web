@@ -5,7 +5,8 @@
         <!-- Хедер -->
         <div hlmSidebarHeader>
             <button type="button" hlmSidebarMenuButton size="lg" class="flex w-full items-center"
-                [hlmDropdownMenuTrigger]="companyMenu" side="right" align="start">
+                [hlmDropdownMenuTrigger]="companyMenu" [disabled]="permissions.isLoading()"
+                data-testid="company-switcher-trigger" side="right" align="start">
                 <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-50">
                     <ng-icon name="lucideBriefcaseBusiness" color="#161616" />
                 </div>
@@ -16,6 +17,11 @@
                         {{ company.short_name || company.name }}
                     </span>
 
+                    @if (permissions.isLoading()) {
+                    <span class="text-xs text-zinc-400" data-testid="company-switching-state">
+                        Обновляем доступ...
+                    </span>
+                    } @else {
                     <span class="text-xs text-zinc-400">
                         @if (company.parent_id === null) {
                         Основная компания
@@ -23,6 +29,7 @@
                         Дочерняя компания
                         }
                     </span>
+                    }
                 </div>
                 } @else {
                 <div class="min-w-0 flex flex-col items-start">
@@ -37,7 +44,11 @@
                 }
 
                 <div class="ml-auto flex">
+                    @if (permissions.isLoading()) {
+                    <ng-icon name="lucideLoaderCircle" class="animate-spin" color="#FAFAFA" />
+                    } @else {
                     <ng-icon name="lucideChevronsUpDown" color="#FAFAFA" />
+                    }
                 </div>
             </button>
 
@@ -53,7 +64,14 @@
                     company of companyContext.availableCompanies();
                     track company.id
                     ) {
-                    <button hlmDropdownMenuItem (triggered)="switchCompany(company.id)">
+                    <button hlmDropdownMenuItem [disabled]="
+        permissions.isLoading()
+        || companyContext.activeCompanyId()
+            === company.id
+    " [attr.data-testid]="
+        'company-switch-item-'
+        + company.id
+    " (triggered)="switchCompany(company.id)">
                         <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
                             <ng-icon name="lucideBriefcaseBusiness" />
                         </div>
@@ -137,7 +155,11 @@
                 </div>
 
                 <div class="ml-auto flex">
+                    @if (permissions.isLoading()) {
+                    <ng-icon name="lucideLoaderCircle" class="animate-spin" color="#FAFAFA" />
+                    } @else {
                     <ng-icon name="lucideChevronsUpDown" color="#FAFAFA" />
+                    }
                 </div>
 
                 <!-- Дропдаун меню -->
