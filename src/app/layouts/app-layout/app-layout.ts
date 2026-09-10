@@ -20,7 +20,11 @@ import {
   lucideSettings2,
   lucideUserRound,
   lucideUserRoundPlus,
+  lucideCheck
 } from '@ng-icons/lucide';
+
+import { PermissionCode } from '../../core/permissions/permission.models';
+import { PermissionService } from '../../core/permissions/permission.service';
 
 
 @Component({
@@ -45,6 +49,7 @@ import {
       lucideLogOut,
       lucideBell,
       lucideUserRoundPlus,
+      lucideCheck,
     }),
   ],
   templateUrl: './app-layout.html',
@@ -54,6 +59,14 @@ export class AppLayout {
   readonly auth = inject(AuthService);
 
   readonly companyContext = inject(CompanyContextService);
+
+  readonly permissions =
+    inject(PermissionService);
+
+  readonly canManageMembers =
+    this.permissions.canSignal(
+      PermissionCode.MembersManage,
+    );
 
   private readonly router = inject(Router);
 

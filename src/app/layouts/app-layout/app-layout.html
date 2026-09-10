@@ -103,21 +103,24 @@
             </div>
 
             <!-- Группа 2 -->
-            <div hlmSidebarGroup>
+            @if (canManageMembers()) {
+            <div hlmSidebarGroup data-testid="employees-group">
                 <div hlmSidebarGroupLabel>
                     Сотрудники
                 </div>
 
                 <ul hlmSidebarMenu>
-
                     <li hlmSidebarMenuItem>
-                        <a hlmSidebarMenuButton routerLink="/invite">
+                        <a hlmSidebarMenuButton routerLink="/invite" data-testid="invite-nav-item">
                             <ng-icon name="lucideUserRoundPlus" />
-                            <span>Пригласить</span>
+                            <span>
+                                Пригласить
+                            </span>
                         </a>
                     </li>
                 </ul>
             </div>
+            }
         </div>
 
         <!-- Футер -->
