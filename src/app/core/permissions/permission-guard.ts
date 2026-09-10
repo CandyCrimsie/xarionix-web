@@ -38,12 +38,7 @@ export function permissionGuard(
         }
 
         return router.createUrlTree(
-            ['/'],
-            {
-                queryParams: {
-                    accessDenied: '1',
-                },
-            },
+            ['/forbidden'],
         );
     };
 }

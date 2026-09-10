@@ -1,0 +1,21 @@
+@reference "../../../styles.css";
+
+.forbidden-layout {
+    @apply flex flex-1 items-center justify-center px-4 pb-12;
+}
+
+.forbidden-card {
+    @apply flex max-w-md flex-col items-center text-center;
+}
+
+.forbidden-code {
+    @apply mb-2 text-sm font-semibold text-zinc-500;
+}
+
+.forbidden-title {
+    @apply text-2xl font-semibold;
+}
+
+.forbidden-description {
+    @apply mt-2 mb-6 text-sm text-zinc-500;
+}

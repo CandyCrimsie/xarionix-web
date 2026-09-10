@@ -9,6 +9,7 @@ import { Invite } from './pages/invite/invite';
 
 import { authGuard } from './core/auth/auth-guard';
 import { guestGuard } from './core/auth/guest-guard';
+import { Forbidden } from './pages/forbidden/forbidden';
 
 
 export const routes: Routes = [
@@ -39,6 +40,10 @@ export const routes: Routes = [
             {
                 path: 'invite',
                 component: Invite
+            },
+            {
+                path: 'forbidden',
+                component: Forbidden
             }
         ]
     },

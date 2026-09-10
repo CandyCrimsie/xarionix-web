@@ -126,12 +126,7 @@ describe(
                 expect(
                     router.createUrlTree,
                 ).toHaveBeenCalledWith(
-                    ['/'],
-                    {
-                        queryParams: {
-                            accessDenied: '1',
-                        },
-                    },
+                    ['/forbidden'],
                 );
             },
         );
