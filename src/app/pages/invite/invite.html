@@ -8,6 +8,7 @@
                 <button hlmTabsTrigger="all-invites">Все приглашения</button>
             </hlm-tabs-list>
 
+            @if (canCreateInvite()) {
             <hlm-dialog>
                 <button hlmDialogTrigger hlmBtn variant="secondary">
                     <ng-icon name="lucidePlus" />
@@ -29,6 +30,7 @@
                     </hlm-dialog-footer>
                 </hlm-dialog-content>
             </hlm-dialog>
+            }
         </div>
 
         <!-- Мои приглашения -->
