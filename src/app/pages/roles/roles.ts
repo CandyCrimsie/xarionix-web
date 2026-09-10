@@ -27,6 +27,7 @@ import {
     lucideRefreshCw,
     lucidePlus,
     lucidePencil,
+    lucideShieldCheck,
 } from '@ng-icons/lucide';
 
 import {
@@ -70,6 +71,10 @@ import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
 
+import {
+    RolePermissionEditor,
+} from './role-permission-editor/role-permission-editor';
+
 
 type RolesState =
     | 'idle'
@@ -90,6 +95,7 @@ type RolesState =
         HlmBadgeImports,
         HlmButtonImports,
         HlmTableImports,
+        RolePermissionEditor,
     ],
 
     providers: [
@@ -97,7 +103,8 @@ type RolesState =
             lucideLoaderCircle,
             lucideRefreshCw,
             lucidePlus,
-            lucidePencil
+            lucidePencil,
+            lucideShieldCheck,
         }),
     ],
 

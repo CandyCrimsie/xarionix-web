@@ -881,6 +881,23 @@ describe(
             },
         );
 
+        it(
+            'should show permissions action for system and custom roles',
+            () => {
+                expect(
+                    getRolePermissionsAction(
+                        systemRole.id,
+                    ),
+                ).not.toBeNull();
+
+                expect(
+                    getRolePermissionsAction(
+                        customRole.id,
+                    ),
+                ).not.toBeNull();
+            },
+        );
+
 
         function getRoleRow(
             roleId: number,
@@ -903,6 +920,18 @@ describe(
 
             return element.querySelector(
                 `[data-testid="edit-role-action-${roleId}"]`,
+            );
+        }
+
+        function getRolePermissionsAction(
+            roleId: number,
+        ): Element | null {
+            const element:
+                HTMLElement =
+                fixture.nativeElement;
+
+            return element.querySelector(
+                `[data-testid="role-permissions-action-${roleId}"]`,
             );
         }
     },

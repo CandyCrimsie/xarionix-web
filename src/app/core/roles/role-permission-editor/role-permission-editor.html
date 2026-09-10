@@ -1,0 +1,190 @@
+@if (state() === 'loading') {
+<div class="flex min-h-48 items-center justify-center gap-2 text-sm text-zinc-500"
+    data-testid="permission-editor-loading">
+    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+    Загружаем права роли...
+</div>
+} @else if (state() === 'error') {
+<div class="flex min-h-48 flex-col items-center justify-center gap-3" data-testid="permission-editor-error">
+    <span class="text-sm text-zinc-500">
+        Не удалось загрузить права роли
+    </span>
+
+    <button hlmBtn variant="outline" type="button" data-testid="permission-editor-retry" (click)="retry()">
+        <ng-icon name="lucideRefreshCw" />
+
+        Повторить
+    </button>
+</div>
+} @else {
+<div class="flex flex-col gap-4">
+
+    @if (isReadOnly()) {
+    <div class="rounded-md border bg-zinc-50 px-4 py-3 text-sm text-zinc-600" data-testid="permission-editor-readonly">
+        @if (role().is_system) {
+        Системная роль управляется системой.
+        Права доступны только для просмотра.
+        } @else {
+        У вас нет права изменять эту роль.
+        Права доступны только для просмотра.
+        }
+    </div>
+    }
+
+
+    <div class="flex flex-col gap-4">
+        @for (
+        group of groups();
+        track group.module
+        ) {
+        <section class="overflow-hidden rounded-md border" [attr.data-testid]="
+                        'permission-group-'
+                        + group.module
+                    ">
+            <div class="border-b bg-zinc-50 px-4 py-3">
+                <h4 class="font-medium">
+                    {{ group.label }}
+                </h4>
+            </div>
+
+
+            <div class="divide-y">
+                @for (
+                permission
+                of group.permissions;
+                track permission.id
+                ) {
+                <div class="grid gap-4 px-4 py-3 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
+                    <label class="flex min-w-0 items-start gap-3">
+                        <input type="checkbox" class="mt-1" [checked]="
+                                            isAssigned(
+                                                permission.id
+                                            )
+                                        " [disabled]="
+                                            isReadOnly()
+                                            || !permission.is_active
+                                        " [attr.data-testid]="
+                                            'permission-toggle-'
+                                            + permission.id
+                                        " (change)="
+                                            togglePermission(
+                                                permission,
+                                                $any(
+                                                    $event.target
+                                                ).checked
+                                            )
+                                        " />
+
+
+                        <span class="flex min-w-0 flex-col">
+                            <span class="font-medium">
+                                {{ permission.name }}
+                            </span>
+
+                            <span class="text-xs text-zinc-500">
+                                {{ permission.code }}
+                            </span>
+
+                            @if (
+                            permission.description
+                            ) {
+                            <span class="mt-1 text-sm text-zinc-500">
+                                {{
+                                permission.description
+                                }}
+                            </span>
+                            }
+
+                            @if (
+                            !permission.is_active
+                            ) {
+                            <span class="mt-1 text-xs text-destructive">
+                                Permission отключён
+                            </span>
+                            }
+                        </span>
+                    </label>
+
+
+                    @if (
+                    isAssigned(
+                    permission.id
+                    )
+                    ) {
+                    <select
+                        class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        [value]="
+                                            scopeFor(
+                                                permission.id
+                                            )
+                                        " [disabled]="
+                                            isReadOnly()
+                                            || !permission.is_active
+                                        " [attr.data-testid]="
+                                            'permission-scope-'
+                                            + permission.id
+                                        " (change)="
+                                            changeScope(
+                                                permission,
+                                                $any(
+                                                    $event.target
+                                                ).value
+                                            )
+                                        ">
+                        @for (
+                        scope
+                        of permission.allowed_scopes;
+                        track scope
+                        ) {
+                        <option [value]="scope">
+                            {{
+                            scopeLabel(
+                            scope
+                            )
+                            }}
+                        </option>
+                        }
+                    </select>
+                    } @else {
+                    <span class="text-sm text-zinc-400">
+                        Не назначено
+                    </span>
+                    }
+                </div>
+                }
+            </div>
+        </section>
+        }
+    </div>
+
+
+    @if (saveError(); as error) {
+    <p class="text-sm text-destructive" data-testid="permission-editor-save-error">
+        {{ error }}
+    </p>
+    }
+
+    @if (saved()) {
+    <p class="text-sm text-zinc-500" data-testid="permission-editor-saved">
+        Права сохранены
+    </p>
+    }
+
+
+    @if (!isReadOnly()) {
+    <div class="flex justify-end">
+        <button hlmBtn type="button" data-testid="permission-editor-save" [disabled]="saving()"
+            (click)="savePermissions()">
+            @if (saving()) {
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+            Сохраняем...
+            } @else {
+            Сохранить права
+            }
+        </button>
+    </div>
+    }
+</div>
+}

@@ -186,71 +186,104 @@
                         </td>
 
                         <td hlmTd class="text-right">
-                            @if (
-                            canManageRoles()
-                            && !role.is_system
-                            ) {
-                            <hlm-dialog #editDialog>
-                                <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
-                                    [attr.data-testid]="
+                            <div class="flex justify-end gap-1">
+                                <hlm-dialog>
+                                    <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                        [attr.data-testid]="
+                    'role-permissions-action-'
+                    + role.id
+                ">
+                                        <ng-icon name="lucideShieldCheck" />
+
+                                        Права
+                                    </button>
+
+
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx"
+                                        class="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+                                        <hlm-dialog-header>
+                                            <h3 hlmDialogTitle>
+                                                Права роли
+                                            </h3>
+
+                                            <p hlmDialogDescription>
+                                                {{ role.name }}
+                                            </p>
+                                        </hlm-dialog-header>
+
+
+                                        <app-role-permission-editor [role]="role" [canManage]="
+                        canManageRoles()
+                    " />
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+
+
+                                @if (
+                                canManageRoles()
+                                && !role.is_system
+                                ) {
+                                <hlm-dialog #editDialog>
+                                    <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                        [attr.data-testid]="
                     'edit-role-action-'
                     + role.id
                 " (click)="
                     openEditRole(role)
                 ">
-                                    <ng-icon name="lucidePencil" />
+                                        <ng-icon name="lucidePencil" />
 
-                                    Изменить
-                                </button>
-
-
-                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
-                                    <hlm-dialog-header>
-                                        <h3 hlmDialogTitle>
-                                            Изменение роли
-                                        </h3>
-
-                                        <p hlmDialogDescription>
-                                            Измените параметры
-                                            пользовательской роли
-                                        </p>
-                                    </hlm-dialog-header>
+                                        Изменить
+                                    </button>
 
 
-                                    <hlm-field-group>
-                                        <hlm-field>
-                                            <label hlmFieldLabel for="edit-role-name">
-                                                Название
-                                            </label>
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+                                        <hlm-dialog-header>
+                                            <h3 hlmDialogTitle>
+                                                Изменение роли
+                                            </h3>
 
-                                            <input hlmInput id="edit-role-name" maxlength="100" autocomplete="off"
-                                                data-testid="edit-role-name" [ngModel]="editName()" (ngModelChange)="
+                                            <p hlmDialogDescription>
+                                                Измените параметры
+                                                пользовательской роли
+                                            </p>
+                                        </hlm-dialog-header>
+
+
+                                        <hlm-field-group>
+                                            <hlm-field>
+                                                <label hlmFieldLabel for="edit-role-name">
+                                                    Название
+                                                </label>
+
+                                                <input hlmInput id="edit-role-name" maxlength="100" autocomplete="off"
+                                                    data-testid="edit-role-name" [ngModel]="editName()" (ngModelChange)="
                                 editName.set($event)
                             " />
-                                        </hlm-field>
+                                            </hlm-field>
 
 
-                                        <hlm-field>
-                                            <label hlmFieldLabel for="edit-role-description">
-                                                Описание
-                                            </label>
+                                            <hlm-field>
+                                                <label hlmFieldLabel for="edit-role-description">
+                                                    Описание
+                                                </label>
 
-                                            <textarea id="edit-role-description" maxlength="500" rows="4"
-                                                data-testid="edit-role-description"
-                                                class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                                [ngModel]="
+                                                <textarea id="edit-role-description" maxlength="500" rows="4"
+                                                    data-testid="edit-role-description"
+                                                    class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                    [ngModel]="
                                 editDescription()
                             " (ngModelChange)="
                                 editDescription.set(
                                     $event
                                 )
                             "></textarea>
-                                        </hlm-field>
+                                            </hlm-field>
 
 
-                                        <hlm-field>
-                                            <label class="flex items-center gap-3">
-                                                <input type="checkbox" data-testid="edit-role-active" [checked]="
+                                            <hlm-field>
+                                                <label class="flex items-center gap-3">
+                                                    <input type="checkbox" data-testid="edit-role-active" [checked]="
                                     editActive()
                                 " (change)="
                                     setEditActive(
@@ -258,52 +291,52 @@
                                     )
                                 " />
 
-                                                <span>
-                                                    Роль активна
-                                                </span>
-                                            </label>
-                                        </hlm-field>
-                                    </hlm-field-group>
+                                                    <span>
+                                                        Роль активна
+                                                    </span>
+                                                </label>
+                                            </hlm-field>
+                                        </hlm-field-group>
 
 
-                                    @if (
-                                    editError();
-                                    as error
-                                    ) {
-                                    <p class="text-sm text-destructive" data-testid="edit-role-error">
-                                        {{ error }}
-                                    </p>
-                                    }
+                                        @if (
+                                        editError();
+                                        as error
+                                        ) {
+                                        <p class="text-sm text-destructive" data-testid="edit-role-error">
+                                            {{ error }}
+                                        </p>
+                                        }
 
 
-                                    <hlm-dialog-footer>
-                                        <button hlmBtn variant="outline" type="button" hlmDialogClose
-                                            [disabled]="updating()" (click)="
+                                        <hlm-dialog-footer>
+                                            <button hlmBtn variant="outline" type="button" hlmDialogClose
+                                                [disabled]="updating()" (click)="
                             resetEditForm()
                         ">
-                                            Отмена
-                                        </button>
+                                                Отмена
+                                            </button>
 
-                                        <button hlmBtn type="button" data-testid="edit-role-submit"
-                                            [disabled]="updating()" (click)="
+                                            <button hlmBtn type="button" data-testid="edit-role-submit"
+                                                [disabled]="updating()" (click)="
                             updateRole(editDialog)
                         ">
-                                            @if (updating()) {
-                                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                                                @if (updating()) {
+                                                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
-                                            Сохраняем...
-                                            } @else {
-                                            Сохранить
-                                            }
-                                        </button>
-                                    </hlm-dialog-footer>
-                                </hlm-dialog-content>
-                            </hlm-dialog>
-                            } @else {
-                            <span class="text-zinc-400">
-                                —
-                            </span>
-                            }
+                                                Сохраняем...
+                                                } @else {
+                                                Сохранить
+                                                }
+                                            </button>
+                                        </hlm-dialog-footer>
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+                                } @else {
+                                <span class="text-zinc-400">
+                                    —
+                                </span>
+                                }
                         </td>
                     </tr>
                     } @empty {
