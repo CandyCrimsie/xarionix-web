@@ -59,6 +59,9 @@ describe(
     const canManageMembers =
       signal(false);
 
+    const canReadMembers =
+      signal(false);
+
     const canReadRoles =
       signal(false);
 
@@ -111,6 +114,22 @@ describe(
           ) => {
             if (
               permission
+              === PermissionCode.MembersRead
+            ) {
+              return canReadMembers
+                .asReadonly();
+            }
+
+            if (
+              permission
+              === PermissionCode.MembersManage
+            ) {
+              return canManageMembers
+                .asReadonly();
+            }
+
+            if (
+              permission
               === PermissionCode.RolesRead
               && minimumScope
               === PermissionScope.Company
@@ -119,8 +138,9 @@ describe(
                 .asReadonly();
             }
 
-            return canManageMembers
-              .asReadonly();
+            return signal(
+              false,
+            ).asReadonly();
           },
         ),
 
@@ -145,6 +165,10 @@ describe(
 
     beforeEach(async () => {
       vi.clearAllMocks();
+
+      canReadMembers.set(
+        false,
+      );
 
       canManageMembers.set(
         false,
@@ -595,6 +619,83 @@ describe(
           PermissionCode.RolesRead,
           PermissionScope.Company,
         );
+      },
+    );
+
+    it(
+      'should show members navigation with members read permission',
+      () => {
+        canReadMembers.set(
+          true,
+        );
+
+        fixture.detectChanges();
+
+
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+
+        expect(
+          element.querySelector(
+            '[data-testid="employees-group"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          element.querySelector(
+            '[data-testid="members-nav-item"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          element.querySelector(
+            '[data-testid="invite-nav-item"]',
+          ),
+        ).toBeNull();
+
+
+        expect(
+          permissions.canSignal,
+        ).toHaveBeenCalledWith(
+          PermissionCode.MembersRead,
+        );
+      },
+    );
+
+
+    it(
+      'should hide members navigation when members read permission is lost',
+      () => {
+        canReadMembers.set(
+          true,
+        );
+
+        fixture.detectChanges();
+
+
+        expect(
+          fixture.nativeElement
+            .querySelector(
+              '[data-testid="members-nav-item"]',
+            ),
+        ).not.toBeNull();
+
+
+        canReadMembers.set(
+          false,
+        );
+
+        fixture.detectChanges();
+
+
+        expect(
+          fixture.nativeElement
+            .querySelector(
+              '[data-testid="members-nav-item"]',
+            ),
+        ).toBeNull();
       },
     );
   },

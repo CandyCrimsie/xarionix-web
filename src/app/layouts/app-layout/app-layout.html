@@ -122,7 +122,8 @@
 
             <!-- Группа 2 -->
             @if (
-            canManageMembers()
+            canReadMembers()
+            || canManageMembers()
             || canReadRoles()
             ) {
             <div hlmSidebarGroup data-testid="employees-group">
@@ -131,7 +132,17 @@
                 </div>
 
                 <ul hlmSidebarMenu>
-                    @if (canManageMembers()) {
+                    @if (canReadMembers()) {
+                    <li hlmSidebarMenuItem>
+                        <a hlmSidebarMenuButton routerLink="/members" data-testid="members-nav-item">
+                            <ng-icon name="lucideUserRound" />
+
+                            <span>
+                                Сотрудники
+                            </span>
+                        </a>
+                    </li>
+                    } @if (canManageMembers()) {
                     <li hlmSidebarMenuItem>
                         <a hlmSidebarMenuButton routerLink="/invite" data-testid="invite-nav-item">
                             <ng-icon name="lucideUserRoundPlus" />

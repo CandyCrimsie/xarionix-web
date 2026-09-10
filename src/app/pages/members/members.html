@@ -1,0 +1,151 @@
+<div class="flex flex-col gap-4 px-4 pb-4">
+    <div>
+        <h1 class="text-2xl font-semibold">
+            Сотрудники
+        </h1>
+
+        <p class="mt-1 text-sm text-zinc-500">
+            Сотрудники, доступные вам
+            в текущей компании
+        </p>
+    </div>
+
+
+    @if (state() === 'loading') {
+    <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500" data-testid="members-loading">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+        Загружаем сотрудников...
+    </div>
+    } @else if (state() === 'error') {
+    <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="members-error">
+        <span class="text-sm text-zinc-500">
+            Не удалось загрузить сотрудников
+        </span>
+
+        <button hlmBtn variant="outline" type="button" data-testid="members-retry" (click)="retry()">
+            <ng-icon name="lucideRefreshCw" />
+
+            Повторить
+        </button>
+    </div>
+    } @else if (state() === 'ready') {
+    <div class="overflow-hidden rounded-md border" data-testid="members-table">
+        <div hlmTableContainer>
+            <table hlmTable>
+                <thead hlmTHead>
+                    <tr hlmTr>
+                        <th hlmTh>
+                            Сотрудник
+                        </th>
+
+                        <th hlmTh>
+                            Подразделение
+                        </th>
+
+                        <th hlmTh>
+                            Доступ в компанию
+                        </th>
+
+                        <th hlmTh>
+                            Аккаунт
+                        </th>
+                    </tr>
+                </thead>
+
+
+                <tbody hlmTBody>
+                    @for (
+                    member of members();
+                    track member.id
+                    ) {
+                    <tr hlmTr [attr.data-testid]="
+                                    'member-row-'
+                                    + member.id
+                                ">
+                        <td hlmTd>
+                            <div class="flex flex-col">
+                                <span class="font-medium">
+                                    {{
+                                    member.username
+                                    }}
+                                </span>
+
+                                <span class="text-xs text-zinc-500">
+                                    User ID:
+                                    {{
+                                    member.user_id
+                                    }}
+                                </span>
+                            </div>
+                        </td>
+
+
+                        <td hlmTd>
+                            @if (
+                            member.primary_unit_name
+                            && member.primary_unit_type
+                            ) {
+                            <div class="flex flex-col">
+                                <span>
+                                    {{
+                                    member.primary_unit_name
+                                    }}
+                                </span>
+
+                                <span class="text-xs text-zinc-500">
+                                    {{
+                                    unitTypeLabel(
+                                    member.primary_unit_type
+                                    )
+                                    }}
+                                </span>
+                            </div>
+                            } @else {
+                            <span class="text-zinc-400">
+                                Не назначено
+                            </span>
+                            }
+                        </td>
+
+
+                        <td hlmTd>
+                            @if (member.is_active) {
+                            <span hlmBadge>
+                                Активен
+                            </span>
+                            } @else {
+                            <span hlmBadge variant="secondary">
+                                Отключён
+                            </span>
+                            }
+                        </td>
+
+
+                        <td hlmTd>
+                            @if (
+                            member.user_is_active
+                            ) {
+                            <span hlmBadge variant="outline">
+                                Активен
+                            </span>
+                            } @else {
+                            <span hlmBadge variant="destructive">
+                                Заблокирован
+                            </span>
+                            }
+                        </td>
+                    </tr>
+                    } @empty {
+                    <tr hlmTr>
+                        <td hlmTd colspan="4" class="h-24 text-center text-zinc-500" data-testid="members-empty">
+                            Сотрудники не найдены
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    }
+</div>

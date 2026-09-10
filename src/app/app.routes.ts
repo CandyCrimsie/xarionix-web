@@ -8,6 +8,7 @@ import { Home } from './pages/home/home';
 import { Invite } from './pages/invite/invite';
 import { Forbidden } from './pages/forbidden/forbidden';
 import { Roles } from './pages/roles/roles';
+import { Members } from './pages/members/members';
 
 import { authGuard } from './core/auth/auth-guard';
 import { guestGuard } from './core/auth/guest-guard';
@@ -55,6 +56,20 @@ export const routes: Routes = [
                 ],
                 runGuardsAndResolvers: 'always',
                 component: Invite,
+            },
+            {
+                path: 'members',
+
+                canActivate: [
+                    permissionGuard(
+                        PermissionCode.MembersRead,
+                    ),
+                ],
+
+                runGuardsAndResolvers:
+                    'always',
+
+                component: Members,
             },
             {
                 path: 'roles',
