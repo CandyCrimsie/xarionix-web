@@ -12,9 +12,8 @@ import { AuthService } from './core/auth/auth.service';
 import { companyInterceptor } from './core/company/company-interceptor';
 import { CompanyContextService } from './core/company/company-context.service';
 
-import {
-  PermissionService,
-} from './core/permissions/permission.service';
+import { PermissionService } from './core/permissions/permission.service';
+import { PermissionRouteRevalidationService } from './core/permissions/permission-route-revalidation.service';
 
 
 export const appConfig: ApplicationConfig = {
@@ -41,6 +40,13 @@ export const appConfig: ApplicationConfig = {
 
       const permissions =
         inject(PermissionService);
+
+      const permissionRouteRevalidation =
+        inject(
+          PermissionRouteRevalidationService,
+        );
+
+      permissionRouteRevalidation.start();
 
       return auth.initialize().pipe(
         switchMap(() =>

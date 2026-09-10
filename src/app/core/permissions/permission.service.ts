@@ -20,7 +20,8 @@ import {
   of,
   tap,
   throwError,
-  switchMap
+  switchMap,
+  Subject
 } from 'rxjs';
 
 import { API_BASE_URL } from '../api/api.config';
@@ -55,6 +56,13 @@ export class PermissionService {
     signal<ReadonlySet<PermissionCode>>(
       new Set(),
     );
+
+  private readonly _companyPermissionsSettled =
+    new Subject<number>();
+
+  readonly companyPermissionsSettled$ =
+    this._companyPermissionsSettled
+      .asObservable();
 
   private readonly _scopes =
     signal<
@@ -247,16 +255,19 @@ export class PermissionService {
           }
 
           return this.load().pipe(
-            /*
-             * Ошибка permissions не должна
-             * ломать event subscription.
-             *
-             * load() уже выставит
-             * state = error.
-             */
-            catchError(() =>
-              of(undefined),
-            ),
+            tap(() => {
+              this._companyPermissionsSettled.next(
+                companyId,
+              );
+            }),
+
+            catchError(() => {
+              this._companyPermissionsSettled.next(
+                companyId,
+              );
+
+              return of(undefined);
+            }),
           );
         }),
 

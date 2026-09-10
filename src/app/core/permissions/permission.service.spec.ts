@@ -869,5 +869,93 @@ describe(
         ).toBe(0);
       },
     );
+
+    it(
+      'should emit settled company after automatic permission reload succeeds',
+      () => {
+        const settledCompanies:
+          number[] = [];
+
+        service
+          .companyPermissionsSettled$
+          .subscribe(companyId => {
+            settledCompanies.push(
+              companyId,
+            );
+          });
+
+        http.get.mockReturnValue(
+          of({
+            permissions: [
+              PermissionCode.TasksRead,
+            ],
+
+            scopes: {
+              [
+                PermissionCode
+                  .TasksRead
+              ]:
+                PermissionScope.Self,
+            },
+          }),
+        );
+
+        activeCompanyId.set(2);
+
+        companyChanged.next(2);
+
+        expect(
+          settledCompanies,
+        ).toEqual([
+          2,
+        ]);
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBe(2);
+      },
+    );
+
+    it(
+      'should emit settled company after automatic permission reload fails',
+      () => {
+        const settledCompanies:
+          number[] = [];
+
+        service
+          .companyPermissionsSettled$
+          .subscribe(companyId => {
+            settledCompanies.push(
+              companyId,
+            );
+          });
+
+        http.get.mockReturnValue(
+          throwError(
+            () => new Error(
+              'Permissions unavailable',
+            ),
+          ),
+        );
+
+        activeCompanyId.set(2);
+
+        companyChanged.next(2);
+
+        expect(
+          settledCompanies,
+        ).toEqual([
+          2,
+        ]);
+
+        expect(
+          service.state(),
+        ).toBe('error');
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBeNull();
+      },
+    );
   },
 );

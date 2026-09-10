@@ -42,6 +42,13 @@ describe(
                 expect(
                     inviteRoute?.canActivate?.length,
                 ).toBe(1);
+
+                expect(
+                    inviteRoute
+                        ?.runGuardsAndResolvers,
+                ).toBe(
+                    'always',
+                );
             },
         );
 

@@ -79,10 +79,6 @@ export class AppLayout {
       return;
     }
 
-    void this.router.navigateByUrl(
-      '/dashboard',
-    );
-
     toast.success(
       'Компания изменена',
       {

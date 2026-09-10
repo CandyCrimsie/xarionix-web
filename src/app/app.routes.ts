@@ -49,7 +49,7 @@ export const routes: Routes = [
                         PermissionCode.MembersManage,
                     ),
                 ],
-
+                runGuardsAndResolvers: 'always',
                 component: Invite,
             },
             {
