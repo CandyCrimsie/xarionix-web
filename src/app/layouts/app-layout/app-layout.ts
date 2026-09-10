@@ -20,7 +20,10 @@ import {
   lucideSettings2,
   lucideUserRound,
   lucideUserRoundPlus,
-  lucideCheck
+  lucideCheck,
+  lucideLoaderCircle,
+  lucideRefreshCw,
+  lucideTriangleAlert,
 } from '@ng-icons/lucide';
 
 import { PermissionCode } from '../../core/permissions/permission.models';
@@ -50,6 +53,9 @@ import { PermissionService } from '../../core/permissions/permission.service';
       lucideBell,
       lucideUserRoundPlus,
       lucideCheck,
+      lucideLoaderCircle,
+      lucideRefreshCw,
+      lucideTriangleAlert,
     }),
   ],
   templateUrl: './app-layout.html',
@@ -69,6 +75,13 @@ export class AppLayout {
     );
 
   private readonly router = inject(Router);
+
+
+  retryPermissions(): void {
+    this.permissions
+      .initialize()
+      .subscribe();
+  }
 
 
   switchCompany(

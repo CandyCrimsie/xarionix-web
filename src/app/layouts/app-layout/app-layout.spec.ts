@@ -1,5 +1,6 @@
 import {
   signal,
+  computed
 } from '@angular/core';
 
 import {
@@ -39,6 +40,10 @@ import {
   AppLayout,
 } from './app-layout';
 
+import {
+  PermissionState,
+} from '../../core/permissions/permission.models';
+
 
 describe(
   'AppLayout',
@@ -51,6 +56,11 @@ describe(
 
     const canManageMembers =
       signal(false);
+
+    const permissionState =
+      signal<PermissionState>(
+        'ready',
+      );
 
     const auth = {
       user: signal(null).asReadonly(),
@@ -87,6 +97,23 @@ describe(
             canManageMembers
               .asReadonly(),
         ),
+
+      state:
+        permissionState
+          .asReadonly(),
+
+      isLoading:
+        computed(
+          () =>
+            permissionState()
+            === 'loading',
+        ),
+
+      initialize:
+        vi.fn(
+          () =>
+            of(undefined),
+        ),
     };
 
 
@@ -95,6 +122,10 @@ describe(
 
       canManageMembers.set(
         false,
+      );
+
+      permissionState.set(
+        'ready',
       );
 
       await TestBed
@@ -236,6 +267,135 @@ describe(
         expect(
           element.querySelector(
             '[data-testid="invite-nav-item"]',
+          ),
+        ).toBeNull();
+      },
+    );
+
+    it(
+      'should show permission loading state',
+      () => {
+        permissionState.set(
+          'loading',
+        );
+
+        fixture.detectChanges();
+
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+        expect(
+          element.querySelector(
+            '[data-testid="permissions-loading"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          element.querySelector(
+            '[data-testid="permissions-error"]',
+          ),
+        ).toBeNull();
+      },
+    );
+
+
+    it(
+      'should show permission error state',
+      () => {
+        permissionState.set(
+          'error',
+        );
+
+        fixture.detectChanges();
+
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+        expect(
+          element.querySelector(
+            '[data-testid="permissions-error"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          element.querySelector(
+            '[data-testid="permissions-retry"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          element.querySelector(
+            '[data-testid="permissions-loading"]',
+          ),
+        ).toBeNull();
+      },
+    );
+
+
+    it(
+      'should retry permission initialization',
+      () => {
+        permissionState.set(
+          'error',
+        );
+
+        fixture.detectChanges();
+
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+        const retryButton =
+          element.querySelector<HTMLButtonElement>(
+            '[data-testid="permissions-retry"]',
+          );
+
+        expect(
+          retryButton,
+        ).not.toBeNull();
+
+        retryButton?.click();
+
+        expect(
+          permissions.initialize,
+        ).toHaveBeenCalledTimes(1);
+      },
+    );
+
+
+    it(
+      'should hide permission status when permissions are ready',
+      () => {
+        permissionState.set(
+          'loading',
+        );
+
+        fixture.detectChanges();
+
+        expect(
+          fixture.nativeElement.querySelector(
+            '[data-testid="permissions-loading"]',
+          ),
+        ).not.toBeNull();
+
+
+        permissionState.set(
+          'ready',
+        );
+
+        fixture.detectChanges();
+
+        expect(
+          fixture.nativeElement.querySelector(
+            '[data-testid="permissions-loading"]',
+          ),
+        ).toBeNull();
+
+        expect(
+          fixture.nativeElement.querySelector(
+            '[data-testid="permissions-error"]',
           ),
         ).toBeNull();
       },

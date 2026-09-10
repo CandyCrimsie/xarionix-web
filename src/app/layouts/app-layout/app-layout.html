@@ -185,8 +185,35 @@
     </hlm-sidebar>
 
     <main hlmSidebarInset class="flex flex-col">
-        <header class="h-12 shrink-0 flex items-center pl-4">
+        <header class="h-12 shrink-0 flex items-center justify-between px-4">
             <button hlmSidebarTrigger></button>
+
+            @if (permissions.isLoading()) {
+            <div class="flex items-center gap-2 text-xs text-zinc-500" data-testid="permissions-loading"
+                aria-live="polite">
+                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                <span>
+                    Обновляем права доступа...
+                </span>
+            </div>
+            } @else if (permissions.state() === 'error') {
+            <div class="flex items-center gap-2 text-xs text-destructive" data-testid="permissions-error"
+                aria-live="polite">
+                <ng-icon name="lucideTriangleAlert" />
+
+                <span>
+                    Не удалось загрузить права доступа
+                </span>
+
+                <button hlmBtn variant="ghost" size="sm" type="button" data-testid="permissions-retry"
+                    (click)="retryPermissions()">
+                    <ng-icon name="lucideRefreshCw" />
+
+                    Повторить
+                </button>
+            </div>
+            }
         </header>
 
         <router-outlet />
