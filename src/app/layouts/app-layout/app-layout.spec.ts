@@ -447,11 +447,14 @@ describe(
 
         fixture.detectChanges();
 
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
         const trigger =
-          fixture.nativeElement
-            .querySelector<HTMLButtonElement>(
-              '[data-testid="company-switcher-trigger"]',
-            );
+          element.querySelector<HTMLButtonElement>(
+            '[data-testid="company-switcher-trigger"]',
+          );
 
         expect(
           trigger,
