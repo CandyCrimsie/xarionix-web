@@ -7,7 +7,7 @@ import { Login } from './pages/login/login';
 import { Home } from './pages/home/home';
 import { Invite } from './pages/invite/invite';
 import { Forbidden } from './pages/forbidden/forbidden';
-import { Roles } from './core/roles/roles';
+import { Roles } from './pages/roles/roles';
 
 import { authGuard } from './core/auth/auth-guard';
 import { guestGuard } from './core/auth/guest-guard';
