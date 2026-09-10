@@ -41,8 +41,8 @@
 
                         <input hlmInput id="create-role-name" maxlength="100" autocomplete="off"
                             data-testid="create-role-name" [ngModel]="createName()" (ngModelChange)="
-                                createName.set($event)
-                            " />
+                                    createName.set($event)
+                                " />
                     </hlm-field>
 
 
@@ -55,8 +55,8 @@
                             data-testid="create-role-description"
                             class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             [ngModel]="createDescription()" (ngModelChange)="
-                                createDescription.set($event)
-                            "></textarea>
+                                    createDescription.set($event)
+                                "></textarea>
                     </hlm-field>
                 </hlm-field-group>
 
@@ -74,9 +74,8 @@
                         Отмена
                     </button>
 
-                    <button hlmBtn type="button" data-testid="create-role-submit" [disabled]="creating()" (click)="
-                            createRole(createDialog)
-                        ">
+                    <button hlmBtn type="button" data-testid="create-role-submit" [disabled]="creating()"
+                        (click)="createRole(createDialog)">
                         @if (creating()) {
                         <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
@@ -140,6 +139,7 @@
                     </tr>
                 </thead>
 
+
                 <tbody hlmTBody>
                     @for (
                     role of roles();
@@ -154,12 +154,14 @@
                             </span>
                         </td>
 
+
                         <td hlmTd class="text-zinc-500">
                             {{
                             role.description
                             || '—'
                             }}
                         </td>
+
 
                         <td hlmTd>
                             @if (role.is_system) {
@@ -173,6 +175,7 @@
                             }
                         </td>
 
+
                         <td hlmTd>
                             @if (role.is_active) {
                             <span hlmBadge>
@@ -185,50 +188,23 @@
                             }
                         </td>
 
+
                         <td hlmTd class="text-right">
                             <div class="flex justify-end gap-1">
+                                <!--
+                                            Просмотр / редактирование
+                                            permissions роли.
+                                        -->
                                 <hlm-dialog>
                                     <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
                                         [attr.data-testid]="
-                    'role-permissions-action-'
-                    + role.id
-                ">
+                                                    'role-permissions-action-'
+                                                    + role.id
+                                                ">
                                         <ng-icon name="lucideShieldCheck" />
 
                                         Права
                                     </button>
-
-                                    @if (canManageRoles()) {
-                                    <hlm-dialog>
-                                        <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
-                                            [attr.data-testid]="
-                'role-delegations-action-'
-                + role.id
-            ">
-                                            Делегирование
-                                        </button>
-
-
-                                        <hlm-dialog-content *hlmDialogPortal="let ctx"
-                                            class="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-                                            <hlm-dialog-header>
-                                                <h3 hlmDialogTitle>
-                                                    Делегирование ролей
-                                                </h3>
-
-                                                <p hlmDialogDescription>
-                                                    Какие роли может назначать
-                                                    {{ role.name }}
-                                                </p>
-                                            </hlm-dialog-header>
-
-
-                                            <app-role-delegation-editor [role]="role" [roles]="roles()" [canManage]="
-                    canManageRoles()
-                " />
-                                        </hlm-dialog-content>
-                                    </hlm-dialog>
-                                    }
 
 
                                     <hlm-dialog-content *hlmDialogPortal="let ctx"
@@ -245,12 +221,55 @@
 
 
                                         <app-role-permission-editor [role]="role" [canManage]="
-                        canManageRoles()
-                    " />
+                                                        canManageRoles()
+                                                    " />
                                     </hlm-dialog-content>
                                 </hlm-dialog>
 
 
+                                <!--
+                                            Delegations доступны только
+                                            при roles.manage/company,
+                                            потому что backend требует
+                                            это право даже для GET.
+                                        -->
+                                @if (canManageRoles()) {
+                                <hlm-dialog>
+                                    <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                        [attr.data-testid]="
+                                                        'role-delegations-action-'
+                                                        + role.id
+                                                    ">
+                                        Делегирование
+                                    </button>
+
+
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx"
+                                        class="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+                                        <hlm-dialog-header>
+                                            <h3 hlmDialogTitle>
+                                                Делегирование ролей
+                                            </h3>
+
+                                            <p hlmDialogDescription>
+                                                Какие роли может назначать
+                                                {{ role.name }}
+                                            </p>
+                                        </hlm-dialog-header>
+
+
+                                        <app-role-delegation-editor [role]="role" [roles]="roles()" [canManage]="
+                                                            canManageRoles()
+                                                        " />
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+                                }
+
+
+                                <!--
+                                            Метаданные системной роли
+                                            через обычный API не меняем.
+                                        -->
                                 @if (
                                 canManageRoles()
                                 && !role.is_system
@@ -258,11 +277,11 @@
                                 <hlm-dialog #editDialog>
                                     <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
                                         [attr.data-testid]="
-                    'edit-role-action-'
-                    + role.id
-                " (click)="
-                    openEditRole(role)
-                ">
+                                                        'edit-role-action-'
+                                                        + role.id
+                                                    " (click)="
+                                                        openEditRole(role)
+                                                    ">
                                         <ng-icon name="lucidePencil" />
 
                                         Изменить
@@ -289,9 +308,13 @@
                                                 </label>
 
                                                 <input hlmInput id="edit-role-name" maxlength="100" autocomplete="off"
-                                                    data-testid="edit-role-name" [ngModel]="editName()" (ngModelChange)="
-                                editName.set($event)
-                            " />
+                                                    data-testid="edit-role-name" [ngModel]="
+                                                                    editName()
+                                                                " (ngModelChange)="
+                                                                    editName.set(
+                                                                        $event
+                                                                    )
+                                                                " />
                                             </hlm-field>
 
 
@@ -304,24 +327,24 @@
                                                     data-testid="edit-role-description"
                                                     class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                                     [ngModel]="
-                                editDescription()
-                            " (ngModelChange)="
-                                editDescription.set(
-                                    $event
-                                )
-                            "></textarea>
+                                                                    editDescription()
+                                                                " (ngModelChange)="
+                                                                    editDescription.set(
+                                                                        $event
+                                                                    )
+                                                                "></textarea>
                                             </hlm-field>
 
 
                                             <hlm-field>
                                                 <label class="flex items-center gap-3">
                                                     <input type="checkbox" data-testid="edit-role-active" [checked]="
-                                    editActive()
-                                " (change)="
-                                    setEditActive(
-                                        $event
-                                    )
-                                " />
+                                                                        editActive()
+                                                                    " (change)="
+                                                                        setEditActive(
+                                                                            $event
+                                                                        )
+                                                                    " />
 
                                                     <span>
                                                         Роль активна
@@ -344,15 +367,17 @@
                                         <hlm-dialog-footer>
                                             <button hlmBtn variant="outline" type="button" hlmDialogClose
                                                 [disabled]="updating()" (click)="
-                            resetEditForm()
-                        ">
+                                                                resetEditForm()
+                                                            ">
                                                 Отмена
                                             </button>
 
                                             <button hlmBtn type="button" data-testid="edit-role-submit"
                                                 [disabled]="updating()" (click)="
-                            updateRole(editDialog)
-                        ">
+                                                                updateRole(
+                                                                    editDialog
+                                                                )
+                                                            ">
                                                 @if (updating()) {
                                                 <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
