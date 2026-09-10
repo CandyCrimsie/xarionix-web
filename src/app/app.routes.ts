@@ -9,7 +9,11 @@ import { Invite } from './pages/invite/invite';
 
 import { authGuard } from './core/auth/auth-guard';
 import { guestGuard } from './core/auth/guest-guard';
+import { permissionGuard } from './core/permissions/permission-guard';
+
+import { PermissionCode } from './core/permissions/permission.models';
 import { Forbidden } from './pages/forbidden/forbidden';
+
 
 
 export const routes: Routes = [
@@ -39,7 +43,14 @@ export const routes: Routes = [
             },
             {
                 path: 'invite',
-                component: Invite
+
+                canActivate: [
+                    permissionGuard(
+                        PermissionCode.MembersManage,
+                    ),
+                ],
+
+                component: Invite,
             },
             {
                 path: 'forbidden',
