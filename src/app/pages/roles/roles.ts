@@ -25,6 +25,7 @@ import {
 import {
     lucideLoaderCircle,
     lucideRefreshCw,
+    lucidePlus,
 } from '@ng-icons/lucide';
 
 import {
@@ -44,6 +45,30 @@ import type {
     Role,
 } from '../../core/roles/role.models';
 
+import {
+    FormsModule,
+} from '@angular/forms';
+
+import {
+    HttpErrorResponse,
+} from '@angular/common/http';
+
+import {
+    HlmDialogImports,
+} from '@spartan-ng/helm/dialog';
+
+import {
+    HlmFieldImports,
+} from '@spartan-ng/helm/field';
+
+import {
+    HlmInputImports,
+} from '@spartan-ng/helm/input';
+
+import type {
+    BrnDialog,
+} from '@spartan-ng/brain/dialog';
+
 
 type RolesState =
     | 'idle'
@@ -57,7 +82,10 @@ type RolesState =
 
     imports: [
         NgIcon,
-
+        FormsModule,
+        HlmDialogImports,
+        HlmFieldImports,
+        HlmInputImports,
         HlmBadgeImports,
         HlmButtonImports,
         HlmTableImports,
@@ -67,6 +95,7 @@ type RolesState =
         provideIcons({
             lucideLoaderCircle,
             lucideRefreshCw,
+            lucidePlus
         }),
     ],
 
@@ -97,6 +126,28 @@ export class Roles {
 
     readonly state =
         this._state.asReadonly();
+
+
+    readonly canManageRoles =
+        this.permissions.canSignal(
+            PermissionCode.RolesManage,
+            PermissionScope.Company,
+        );
+
+
+    readonly createName =
+        signal('');
+
+    readonly createDescription =
+        signal('');
+
+    readonly creating =
+        signal(false);
+
+    readonly createError =
+        signal<string | null>(
+            null,
+        );
 
 
     constructor() {
@@ -183,6 +234,116 @@ export class Roles {
             version =>
                 version + 1,
         );
+    }
+
+
+    createRole(
+        dialog: BrnDialog,
+    ): void {
+        if (
+            this.creating()
+            || !this.canManageRoles()
+        ) {
+            return;
+        }
+
+        const name =
+            this.createName().trim();
+
+        const descriptionValue =
+            this.createDescription().trim();
+
+        if (!name) {
+            this.createError.set(
+                'Укажите название роли',
+            );
+
+            return;
+        }
+
+        if (name.length > 100) {
+            this.createError.set(
+                'Название роли не должно превышать 100 символов',
+            );
+
+            return;
+        }
+
+        if (
+            descriptionValue.length > 500
+        ) {
+            this.createError.set(
+                'Описание не должно превышать 500 символов',
+            );
+
+            return;
+        }
+
+        this.creating.set(true);
+        this.createError.set(null);
+
+        this.roleApi
+            .create({
+                name,
+
+                description:
+                    descriptionValue
+                    || null,
+            })
+            .subscribe({
+                next: () => {
+                    this.creating.set(false);
+
+                    this.resetCreateForm();
+
+                    dialog.close({});
+
+                    /*
+                     * Не добавляем response вручную
+                     * в _roles.
+                     *
+                     * Повторная загрузка гарантирует,
+                     * что список соответствует именно
+                     * текущему company context.
+                     */
+                    this.retry();
+                },
+
+                error: error => {
+                    this.creating.set(false);
+
+                    this.createError.set(
+                        this.getCreateRoleError(
+                            error,
+                        ),
+                    );
+                },
+            });
+    }
+
+
+    resetCreateForm(): void {
+        this.createName.set('');
+        this.createDescription.set('');
+        this.createError.set(null);
+    }
+
+
+    private getCreateRoleError(
+        error: unknown,
+    ): string {
+        if (
+            error instanceof
+            HttpErrorResponse
+            && error.status === 409
+        ) {
+            return (
+                'Роль с таким названием '
+                + 'уже существует'
+            );
+        }
+
+        return 'Не удалось создать роль';
     }
 
 

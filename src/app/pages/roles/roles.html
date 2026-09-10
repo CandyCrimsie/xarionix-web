@@ -1,12 +1,94 @@
 <div class="flex flex-col gap-4 px-4 pb-4">
-    <div>
-        <h1 class="text-2xl font-semibold">
-            Роли
-        </h1>
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold">
+                Роли
+            </h1>
 
-        <p class="mt-1 text-sm text-zinc-500">
-            Роли и группы прав текущей компании
-        </p>
+            <p class="mt-1 text-sm text-zinc-500">
+                Роли и группы прав текущей компании
+            </p>
+        </div>
+
+
+        @if (canManageRoles()) {
+        <hlm-dialog #createDialog>
+            <button hlmDialogTrigger hlmBtn type="button" data-testid="create-role-action">
+                <ng-icon name="lucidePlus" />
+
+                Создать роль
+            </button>
+
+
+            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+                <hlm-dialog-header>
+                    <h3 hlmDialogTitle>
+                        Создание роли
+                    </h3>
+
+                    <p hlmDialogDescription>
+                        Создайте пользовательскую роль
+                        для текущей компании
+                    </p>
+                </hlm-dialog-header>
+
+
+                <hlm-field-group>
+                    <hlm-field>
+                        <label hlmFieldLabel for="create-role-name">
+                            Название
+                        </label>
+
+                        <input hlmInput id="create-role-name" maxlength="100" autocomplete="off"
+                            data-testid="create-role-name" [ngModel]="createName()" (ngModelChange)="
+                                createName.set($event)
+                            " />
+                    </hlm-field>
+
+
+                    <hlm-field>
+                        <label hlmFieldLabel for="create-role-description">
+                            Описание
+                        </label>
+
+                        <textarea id="create-role-description" maxlength="500" rows="4"
+                            data-testid="create-role-description"
+                            class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            [ngModel]="createDescription()" (ngModelChange)="
+                                createDescription.set($event)
+                            "></textarea>
+                    </hlm-field>
+                </hlm-field-group>
+
+
+                @if (createError(); as error) {
+                <p class="text-sm text-destructive" data-testid="create-role-error">
+                    {{ error }}
+                </p>
+                }
+
+
+                <hlm-dialog-footer>
+                    <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="creating()"
+                        (click)="resetCreateForm()">
+                        Отмена
+                    </button>
+
+                    <button hlmBtn type="button" data-testid="create-role-submit" [disabled]="creating()" (click)="
+                            createRole(createDialog)
+                        ">
+                        @if (creating()) {
+                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                        Создаём...
+                        } @else {
+                        Создать
+                        }
+                    </button>
+                </hlm-dialog-footer>
+            </hlm-dialog-content>
+        </hlm-dialog>
+        }
     </div>
 
 

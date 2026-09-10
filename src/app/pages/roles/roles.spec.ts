@@ -41,6 +41,14 @@ import {
     Roles,
 } from './roles';
 
+import {
+    HttpErrorResponse,
+} from '@angular/common/http';
+
+import type {
+    BrnDialog,
+} from '@spartan-ng/brain/dialog';
+
 
 describe(
     'Roles',
@@ -54,8 +62,14 @@ describe(
         const canReadRoles =
             signal(true);
 
+        const canManageRoles =
+            signal(false);
+
         const roleApi = {
             list:
+                vi.fn(),
+
+            create:
                 vi.fn(),
         };
 
@@ -84,6 +98,30 @@ describe(
                         }
 
                         return canReadRoles();
+                    },
+                ),
+
+            canSignal:
+                vi.fn(
+                    (
+                        permission:
+                            PermissionCode,
+
+                        minimumScope?:
+                            PermissionScope,
+                    ) => {
+                        if (
+                            permission
+                            === PermissionCode.RolesManage
+                            && minimumScope
+                            === PermissionScope.Company
+                        ) {
+                            return canManageRoles
+                                .asReadonly();
+                        }
+
+                        return signal(false)
+                            .asReadonly();
                     },
                 ),
         };
@@ -136,6 +174,10 @@ describe(
 
             canReadRoles.set(
                 true,
+            );
+
+            canManageRoles.set(
+                false,
             );
 
             roleApi.list.mockReturnValue(
@@ -395,6 +437,206 @@ describe(
                 ).toEqual([
                     customRole,
                 ]);
+            },
+        );
+
+        it(
+            'should hide create role action without roles manage permission',
+            () => {
+                const element:
+                    HTMLElement =
+                    fixture.nativeElement;
+
+                expect(
+                    element.querySelector(
+                        '[data-testid="create-role-action"]',
+                    ),
+                ).toBeNull();
+
+                expect(
+                    permissions.canSignal,
+                ).toHaveBeenCalledWith(
+                    PermissionCode.RolesManage,
+                    PermissionScope.Company,
+                );
+            },
+        );
+
+
+        it(
+            'should show create role action with roles manage permission',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+                const element:
+                    HTMLElement =
+                    fixture.nativeElement;
+
+                expect(
+                    element.querySelector(
+                        '[data-testid="create-role-action"]',
+                    ),
+                ).not.toBeNull();
+            },
+        );
+
+
+        it(
+            'should create custom role and reload roles',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                component.createName.set(
+                    'Dispatcher',
+                );
+
+                component.createDescription.set(
+                    'Dispatches tasks',
+                );
+
+
+                roleApi.create.mockReturnValue(
+                    of(customRole),
+                );
+
+                const close =
+                    vi.fn();
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.createRole(
+                    dialog,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    roleApi.create,
+                ).toHaveBeenCalledWith({
+                    name:
+                        'Dispatcher',
+
+                    description:
+                        'Dispatches tasks',
+                });
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(1);
+
+                expect(
+                    component.createName(),
+                ).toBe('');
+
+                expect(
+                    component.createDescription(),
+                ).toBe('');
+
+                /*
+                 * Initial list + reload
+                 * после создания.
+                 */
+                expect(
+                    roleApi.list,
+                ).toHaveBeenCalledTimes(2);
+            },
+        );
+
+
+        it(
+            'should not create role with empty name',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                component.createName.set(
+                    '   ',
+                );
+
+                const dialog = {
+                    close:
+                        vi.fn(),
+                } as unknown as BrnDialog;
+
+
+                component.createRole(
+                    dialog,
+                );
+
+
+                expect(
+                    roleApi.create,
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    component.createError(),
+                ).toBe(
+                    'Укажите название роли',
+                );
+            },
+        );
+
+
+        it(
+            'should show conflict error when role name already exists',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                component.createName.set(
+                    'Dispatcher',
+                );
+
+                roleApi.create.mockReturnValue(
+                    throwError(
+                        () =>
+                            new HttpErrorResponse({
+                                status: 409,
+                            }),
+                    ),
+                );
+
+                const close =
+                    vi.fn();
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.createRole(
+                    dialog,
+                );
+
+
+                expect(
+                    close,
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    component.createError(),
+                ).toBe(
+                    'Роль с таким названием уже существует',
+                );
+
+                expect(
+                    component.creating(),
+                ).toBe(false);
             },
         );
 
