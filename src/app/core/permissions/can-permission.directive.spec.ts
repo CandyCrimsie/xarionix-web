@@ -39,7 +39,7 @@ import {
     <button
       *appCan="
         permission;
-        scope: minimumScope
+        scope: minimumScope()
       "
       data-testid="protected-action"
     >
@@ -51,9 +51,12 @@ class TestHost {
     permission =
         PermissionCode.MembersManage;
 
-    minimumScope:
-        PermissionScope | undefined =
-        undefined;
+    minimumScope =
+        signal<
+            PermissionScope | undefined
+        >(
+            undefined,
+        );
 }
 
 
@@ -152,8 +155,9 @@ describe(
         it(
             'should pass minimum scope to permission service',
             () => {
-                component.minimumScope =
-                    PermissionScope.OwnUnitTree;
+                component.minimumScope.set(
+                    PermissionScope.OwnUnitTree,
+                );
 
                 fixture.detectChanges();
 
