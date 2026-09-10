@@ -71,9 +71,7 @@ import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
 
-import {
-    RolePermissionEditor,
-} from './role-permission-editor/role-permission-editor';
+import { RolePermissionEditor } from './role-permission-editor/role-permission-editor';
 
 
 type RolesState =
