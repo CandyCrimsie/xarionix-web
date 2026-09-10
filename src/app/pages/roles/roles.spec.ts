@@ -898,6 +898,50 @@ describe(
             },
         );
 
+        it(
+            'should show delegation action only with roles manage permission',
+            () => {
+                expect(
+                    getRoleDelegationsAction(
+                        customRole.id,
+                    ),
+                ).toBeNull();
+
+
+                canManageRoles.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    getRoleDelegationsAction(
+                        customRole.id,
+                    ),
+                ).not.toBeNull();
+
+                expect(
+                    getRoleDelegationsAction(
+                        systemRole.id,
+                    ),
+                ).not.toBeNull();
+            },
+        );
+
+
+        function getRoleDelegationsAction(
+            roleId: number,
+        ): Element | null {
+            const element:
+                HTMLElement =
+                fixture.nativeElement;
+
+            return element.querySelector(
+                `[data-testid="role-delegations-action-${roleId}"]`,
+            );
+        }
+
 
         function getRoleRow(
             roleId: number,

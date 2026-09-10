@@ -198,6 +198,38 @@
                                         Права
                                     </button>
 
+                                    @if (canManageRoles()) {
+                                    <hlm-dialog>
+                                        <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                            [attr.data-testid]="
+                'role-delegations-action-'
+                + role.id
+            ">
+                                            Делегирование
+                                        </button>
+
+
+                                        <hlm-dialog-content *hlmDialogPortal="let ctx"
+                                            class="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+                                            <hlm-dialog-header>
+                                                <h3 hlmDialogTitle>
+                                                    Делегирование ролей
+                                                </h3>
+
+                                                <p hlmDialogDescription>
+                                                    Какие роли может назначать
+                                                    {{ role.name }}
+                                                </p>
+                                            </hlm-dialog-header>
+
+
+                                            <app-role-delegation-editor [role]="role" [roles]="roles()" [canManage]="
+                    canManageRoles()
+                " />
+                                        </hlm-dialog-content>
+                                    </hlm-dialog>
+                                    }
+
 
                                     <hlm-dialog-content *hlmDialogPortal="let ctx"
                                         class="max-h-[85vh] overflow-y-auto sm:max-w-4xl">

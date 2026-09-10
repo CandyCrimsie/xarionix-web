@@ -1,0 +1,148 @@
+@if (state() === 'loading') {
+<div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500"
+    data-testid="delegation-editor-loading">
+    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+    Загружаем настройки делегирования...
+</div>
+} @else if (state() === 'error') {
+<div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="delegation-editor-error">
+    <span class="text-sm text-zinc-500">
+        Не удалось загрузить настройки делегирования
+    </span>
+
+    <button hlmBtn variant="outline" type="button" data-testid="delegation-editor-retry" (click)="retry()">
+        <ng-icon name="lucideRefreshCw" />
+
+        Повторить
+    </button>
+</div>
+} @else {
+<div class="flex flex-col gap-4">
+    @if (isReadOnly()) {
+    <div class="rounded-md border bg-zinc-50 px-4 py-3 text-sm text-zinc-600" data-testid="delegation-editor-readonly">
+        @if (role().is_system) {
+        Делегирование системной роли
+        управляется системой и доступно
+        только для просмотра.
+        } @else if (!role().is_active) {
+        Отключённая роль не может
+        управлять назначением других ролей.
+        } @else {
+        У вас нет права изменять
+        делегирование этой роли.
+        }
+    </div>
+    }
+
+
+    <div class="overflow-hidden rounded-md border">
+        @for (
+        candidate of candidateRoles();
+        track candidate.id
+        ) {
+        <label class="flex items-center justify-between gap-4 border-b px-4 py-3 last:border-b-0"
+            [class.opacity-60]="!candidate.is_active">
+            <div class="flex min-w-0 items-center gap-3">
+                <input type="checkbox" [checked]="
+                                isDelegated(
+                                    candidate.id
+                                )
+                            " [disabled]="
+                                !canToggleRole(
+                                    candidate
+                                )
+                            " [attr.data-testid]="
+                                'delegation-toggle-'
+                                + candidate.id
+                            " (change)="
+                                toggleRole(
+                                    candidate,
+                                    $any(
+                                        $event.target
+                                    ).checked
+                                )
+                            " />
+
+
+                <div class="flex min-w-0 flex-col">
+                    <span class="font-medium">
+                        {{ candidate.name }}
+                    </span>
+
+                    @if (
+                    candidate.id
+                    === role().id
+                    ) {
+                    <span class="text-xs text-zinc-500">
+                        Эта же роль
+                    </span>
+                    }
+
+                    @if (
+                    !candidate.is_active
+                    && isDelegated(
+                    candidate.id
+                    )
+                    ) {
+                    <span class="text-xs text-zinc-500">
+                        Роль отключена —
+                        существующее делегирование
+                        можно только удалить
+                    </span>
+                    }
+                </div>
+            </div>
+
+
+            <div class="flex shrink-0 items-center gap-2">
+                @if (candidate.is_system) {
+                <span hlmBadge variant="secondary">
+                    Системная
+                </span>
+                }
+
+                @if (!candidate.is_active) {
+                <span hlmBadge variant="outline">
+                    Отключена
+                </span>
+                }
+            </div>
+        </label>
+        } @empty {
+        <div class="px-4 py-8 text-center text-sm text-zinc-500">
+            Нет доступных ролей
+        </div>
+        }
+    </div>
+
+
+    @if (saveError(); as error) {
+    <p class="text-sm text-destructive" data-testid="delegation-editor-save-error">
+        {{ error }}
+    </p>
+    }
+
+    @if (saved()) {
+    <p class="text-sm text-zinc-500" data-testid="delegation-editor-saved">
+        Настройки делегирования сохранены
+    </p>
+    }
+
+
+    @if (!isReadOnly()) {
+    <div class="flex justify-end">
+        <button hlmBtn type="button" data-testid="delegation-editor-save" [disabled]="saving()"
+            (click)="saveDelegations()">
+            @if (saving()) {
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+            Сохраняем...
+            } @else {
+            Сохранить
+            }
+        </button>
+    </div>
+    }
+</div>
+}

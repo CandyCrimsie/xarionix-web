@@ -73,6 +73,9 @@ import type {
 
 import { RolePermissionEditor } from './role-permission-editor/role-permission-editor';
 
+import {
+    RoleDelegationEditor,
+} from './role-delegation-editor/role-delegation-editor';
 
 type RolesState =
     | 'idle'
@@ -94,6 +97,7 @@ type RolesState =
         HlmButtonImports,
         HlmTableImports,
         RolePermissionEditor,
+        RoleDelegationEditor,
     ],
 
     providers: [
