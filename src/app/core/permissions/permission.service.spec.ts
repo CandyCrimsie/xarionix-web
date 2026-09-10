@@ -1,4 +1,8 @@
 import {
+  signal,
+} from '@angular/core';
+
+import {
   TestBed,
 } from '@angular/core/testing';
 
@@ -43,18 +47,19 @@ describe(
       get: vi.fn(),
     };
 
+    const activeCompanyId =
+      signal<number | null>(1);
+
     const companyContext = {
       activeCompanyId:
-        vi.fn<() => number | null>(),
+        activeCompanyId.asReadonly(),
     };
 
 
     beforeEach(() => {
       vi.clearAllMocks();
 
-      companyContext
-        .activeCompanyId
-        .mockReturnValue(1);
+      activeCompanyId.set(1);
 
       TestBed.configureTestingModule({
         providers: [
@@ -161,9 +166,7 @@ describe(
     it(
       'should reset when there is no active company',
       () => {
-        companyContext
-          .activeCompanyId
-          .mockReturnValue(null);
+        activeCompanyId.set(null);
 
         service.load().subscribe();
 
@@ -225,9 +228,7 @@ describe(
           response$,
         );
 
-        companyContext
-          .activeCompanyId
-          .mockReturnValue(1);
+        activeCompanyId.set(1);
 
         service.load().subscribe();
 
@@ -235,9 +236,7 @@ describe(
          * Пока request выполняется,
          * переключились на company 2.
          */
-        companyContext
-          .activeCompanyId
-          .mockReturnValue(2);
+        activeCompanyId.set(2);
 
         response$.next({
           permissions: [
@@ -563,9 +562,7 @@ describe(
           }),
         );
 
-        companyContext
-          .activeCompanyId
-          .mockReturnValue(1);
+        activeCompanyId.set(1);
 
         service.load().subscribe();
 
@@ -580,9 +577,7 @@ describe(
          * но permissions новой компании
          * ещё не загружены.
          */
-        companyContext
-          .activeCompanyId
-          .mockReturnValue(2);
+        activeCompanyId.set(2);
 
         expect(
           service.isCurrentContextReady(),
