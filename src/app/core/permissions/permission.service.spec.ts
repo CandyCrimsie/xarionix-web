@@ -31,6 +31,7 @@ import {
 import {
   PermissionCode,
   PermissionScope,
+  type EffectivePermissionsResponse,
 } from './permission.models';
 
 import {
@@ -50,11 +51,16 @@ describe(
     const activeCompanyId =
       signal<number | null>(1);
 
+    const companyChanged =
+      new Subject<number | null>();
+
     const companyContext = {
       activeCompanyId:
         activeCompanyId.asReadonly(),
-    };
 
+      companyChanged$:
+        companyChanged.asObservable(),
+    };
 
     beforeEach(() => {
       vi.clearAllMocks();
@@ -643,6 +649,224 @@ describe(
         expect(
           canManageRoles(),
         ).toBe(false);
+      },
+    );
+
+    it(
+      'should reload permissions automatically when company changes',
+      () => {
+        http.get
+          .mockReturnValueOnce(
+            of({
+              permissions: [
+                PermissionCode.RolesManage,
+              ],
+
+              scopes: {
+                [
+                  PermissionCode
+                    .RolesManage
+                ]:
+                  PermissionScope.Company,
+              },
+            }),
+          )
+          .mockReturnValueOnce(
+            of({
+              permissions: [
+                PermissionCode.TasksRead,
+              ],
+
+              scopes: {
+                [
+                  PermissionCode
+                    .TasksRead
+                ]:
+                  PermissionScope.Self,
+              },
+            }),
+          );
+
+        /*
+         * Company 1.
+         */
+        service.load().subscribe();
+
+        expect(
+          service.can(
+            PermissionCode.RolesManage,
+          ),
+        ).toBe(true);
+
+        /*
+         * Переключаемся на Company 2.
+         */
+        activeCompanyId.set(2);
+
+        companyChanged.next(2);
+
+        expect(
+          http.get,
+        ).toHaveBeenCalledTimes(2);
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBe(2);
+
+        expect(
+          service.can(
+            PermissionCode.RolesManage,
+          ),
+        ).toBe(false);
+
+        expect(
+          service.can(
+            PermissionCode.TasksRead,
+          ),
+        ).toBe(true);
+      },
+    );
+
+    it(
+      'should clear old permissions while new company permissions are loading',
+      () => {
+        const companyTwoResponse =
+          new Subject<
+            EffectivePermissionsResponse
+          >();
+
+        http.get
+          .mockReturnValueOnce(
+            of({
+              permissions: [
+                PermissionCode.RolesManage,
+              ],
+
+              scopes: {
+                [
+                  PermissionCode
+                    .RolesManage
+                ]:
+                  PermissionScope.Company,
+              },
+            }),
+          )
+          .mockReturnValueOnce(
+            companyTwoResponse,
+          );
+
+        service.load().subscribe();
+
+        expect(
+          service.can(
+            PermissionCode.RolesManage,
+          ),
+        ).toBe(true);
+
+        activeCompanyId.set(2);
+
+        companyChanged.next(2);
+
+        /*
+         * Ответ Company 2 ещё НЕ пришёл.
+         */
+        expect(
+          service.state(),
+        ).toBe('loading');
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBeNull();
+
+        expect(
+          service.permissions().size,
+        ).toBe(0);
+
+        expect(
+          service.can(
+            PermissionCode.RolesManage,
+          ),
+        ).toBe(false);
+
+        /*
+         * Теперь приходит Company 2.
+         */
+        companyTwoResponse.next({
+          permissions: [
+            PermissionCode.TasksRead,
+          ],
+
+          scopes: {
+            [
+              PermissionCode
+                .TasksRead
+            ]:
+              PermissionScope.Self,
+          },
+        });
+
+        companyTwoResponse.complete();
+
+        expect(
+          service.state(),
+        ).toBe('ready');
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBe(2);
+
+        expect(
+          service.can(
+            PermissionCode.TasksRead,
+          ),
+        ).toBe(true);
+      },
+    );
+
+    it(
+      'should reset permissions when company context is cleared',
+      () => {
+        http.get.mockReturnValue(
+          of({
+            permissions: [
+              PermissionCode.TasksRead,
+            ],
+
+            scopes: {
+              [
+                PermissionCode
+                  .TasksRead
+              ]:
+                PermissionScope.Self,
+            },
+          }),
+        );
+
+        service.load().subscribe();
+
+        expect(
+          service.state(),
+        ).toBe('ready');
+
+        expect(
+          service.permissions().size,
+        ).toBe(1);
+
+        activeCompanyId.set(null);
+
+        companyChanged.next(null);
+
+        expect(
+          service.state(),
+        ).toBe('idle');
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBeNull();
+
+        expect(
+          service.permissions().size,
+        ).toBe(0);
       },
     );
   },

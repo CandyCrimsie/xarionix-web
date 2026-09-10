@@ -1,6 +1,13 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, map, Observable, of, tap } from 'rxjs';
+import {
+  catchError,
+  map,
+  Observable,
+  of,
+  tap,
+  Subject
+} from 'rxjs';
 
 import { API_BASE_URL } from '../api/api.config';
 
@@ -19,6 +26,10 @@ export class CompanyContextService {
   private readonly _availableCompanies = signal<Company[]>([]);
 
   private readonly _activeCompany = signal<Company | null>(null);
+
+  private readonly _companyChanged = new Subject<number | null>();
+
+  readonly companyChanged$ = this._companyChanged.asObservable();
 
 
   readonly availableCompanies = this._availableCompanies.asReadonly();
@@ -90,14 +101,19 @@ export class CompanyContextService {
     this.storeActiveCompanyId(
       company.id,
     );
+
+    this._companyChanged.next(
+      company.id,
+    );
   }
 
 
   reset(): void {
     this._availableCompanies.set([]);
     this._activeCompany.set(null);
-  }
 
+    this._companyChanged.next(null);
+  }
 
   private restoreActiveCompany(
     companies: Company[],

@@ -4,7 +4,12 @@ import {
   Injectable,
   Signal,
   signal,
+  DestroyRef
 } from '@angular/core';
+
+import {
+  takeUntilDestroyed,
+} from '@angular/core/rxjs-interop';
 
 import { HttpClient } from '@angular/common/http';
 
@@ -15,6 +20,7 @@ import {
   of,
   tap,
   throwError,
+  switchMap
 } from 'rxjs';
 
 import { API_BASE_URL } from '../api/api.config';
@@ -42,6 +48,8 @@ export class PermissionService {
   private readonly http = inject(HttpClient);
 
   private readonly companyContext = inject(CompanyContextService);
+
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly _permissions =
     signal<ReadonlySet<PermissionCode>>(
@@ -209,6 +217,54 @@ export class PermissionService {
           );
         }),
       );
+  }
+
+
+  constructor() {
+    this.companyContext.companyChanged$
+      .pipe(
+        /*
+         * Как только active company
+         * изменилась — старые permissions
+         * больше нельзя использовать.
+         */
+        tap(() => {
+          this.reset();
+        }),
+
+        /*
+         * switchMap важен при быстрых
+         * переключениях:
+         *
+         * A -> B -> C
+         *
+         * запрос B будет отменён,
+         * актуальным останется C.
+         */
+        switchMap(companyId => {
+          if (companyId === null) {
+            return of(undefined);
+          }
+
+          return this.load().pipe(
+            /*
+             * Ошибка permissions не должна
+             * ломать event subscription.
+             *
+             * load() уже выставит
+             * state = error.
+             */
+            catchError(() =>
+              of(undefined),
+            ),
+          );
+        }),
+
+        takeUntilDestroyed(
+          this.destroyRef,
+        ),
+      )
+      .subscribe();
   }
 
 
