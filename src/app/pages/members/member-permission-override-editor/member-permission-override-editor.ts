@@ -26,6 +26,10 @@ import {
 } from '@ng-icons/lucide';
 
 import {
+    HlmBadgeImports,
+} from '@spartan-ng/helm/badge';
+
+import {
     HlmButtonImports,
 } from '@spartan-ng/helm/button';
 
@@ -51,6 +55,10 @@ import type {
 
 import {
     PermissionScope,
+} from '../../../core/permissions/permission.models';
+
+import type {
+    EffectivePermissionsResponse,
 } from '../../../core/permissions/permission.models';
 
 
@@ -98,6 +106,7 @@ const SCOPE_ORDER:
 
     imports: [
         NgIcon,
+        HlmBadgeImports,
         HlmButtonImports,
     ],
 
@@ -150,6 +159,16 @@ export class MemberPermissionOverrideEditor {
             ReadonlyMap<
                 number,
                 OverrideDraft
+            >
+        >(
+            new Map(),
+        );
+
+    private readonly _effectiveScopes =
+        signal<
+            ReadonlyMap<
+                string,
+                PermissionScope
             >
         >(
             new Map(),
@@ -285,15 +304,22 @@ export class MemberPermissionOverrideEditor {
                             this.api.list(
                                 membershipId,
                             ),
+
+                        effective:
+                            this.api.effective(
+                                membershipId,
+                            ),
                     })
                         .subscribe({
                             next: ({
                                 catalog,
                                 overrides,
+                                effective,
                             }) => {
                                 this.applyLoadedState(
                                     catalog,
                                     overrides,
+                                    effective,
                                 );
                             },
 
@@ -356,6 +382,20 @@ export class MemberPermissionOverrideEditor {
     }
 
 
+    effectiveScopeFor(
+        permission:
+            PermissionCatalogItem,
+    ): PermissionScope | null {
+        return (
+            this._effectiveScopes()
+                .get(
+                    permission.code,
+                )
+            ?? null
+        );
+    }
+
+
     changeMode(
         permission:
             PermissionCatalogItem,
@@ -388,19 +428,10 @@ export class MemberPermissionOverrideEditor {
                 mode,
 
                 scope:
-                    mode === 'allow'
-                        ? (
-                            current?.scope
-                            ?? this.defaultScope(
-                                permission,
-                            )
-                        )
-                        : (
-                            current?.scope
-                            ?? this.defaultScope(
-                                permission,
-                            )
-                        ),
+                    current?.scope
+                    ?? this.defaultScope(
+                        permission,
+                    ),
             },
         );
 
@@ -610,7 +641,7 @@ export class MemberPermissionOverrideEditor {
                             overrides,
                         );
 
-                        this.finishSaving(
+                        this.refreshEffective(
                             permission.id,
                         );
                     },
@@ -734,12 +765,16 @@ export class MemberPermissionOverrideEditor {
 
         overrides:
             MembershipPermissionOverride[],
+
+        effective:
+            EffectivePermissionsResponse,
     ): void {
         const overridesByPermission =
             new Map<
                 number,
                 MembershipPermissionOverride
             >();
+
 
         for (
             const override
@@ -835,6 +870,10 @@ export class MemberPermissionOverrideEditor {
             drafts,
         );
 
+        this.setEffectivePermissions(
+            effective,
+        );
+
         this._state.set(
             'ready',
         );
@@ -859,8 +898,94 @@ export class MemberPermissionOverrideEditor {
             overrides,
         );
 
-        this.finishSaving(
+
+        this.refreshEffective(
             override.permission_id,
+        );
+    }
+
+
+    private refreshEffective(
+        permissionId: number,
+    ): void {
+        this.api
+            .effective(
+                this.member().id,
+            )
+            .subscribe({
+                next: effective => {
+                    this.setEffectivePermissions(
+                        effective,
+                    );
+
+                    this.finishSaving(
+                        permissionId,
+                    );
+                },
+
+                error: () => {
+                    this.finishSaving(
+                        permissionId,
+                    );
+
+                    const errors =
+                        new Map(
+                            this._rowErrors(),
+                        );
+
+                    errors.set(
+                        permissionId,
+                        (
+                            'Изменение сохранено, '
+                            + 'но не удалось обновить '
+                            + 'итоговые права. '
+                            + 'Переоткройте редактор.'
+                        ),
+                    );
+
+                    this._rowErrors.set(
+                        errors,
+                    );
+                },
+            });
+    }
+
+
+    private setEffectivePermissions(
+        effective:
+            EffectivePermissionsResponse,
+    ): void {
+        const scopes =
+            new Map<
+                string,
+                PermissionScope
+            >();
+
+
+        for (
+            const [
+                code,
+                scope,
+            ]
+            of Object.entries(
+                effective.scopes,
+            )
+        ) {
+            if (
+                scope === undefined
+            ) {
+                continue;
+            }
+
+            scopes.set(
+                code,
+                scope,
+            );
+        }
+
+
+        this._effectiveScopes.set(
+            scopes,
         );
     }
 
@@ -1114,6 +1239,10 @@ export class MemberPermissionOverrideEditor {
         );
 
         this._drafts.set(
+            new Map(),
+        );
+
+        this._effectiveScopes.set(
             new Map(),
         );
 

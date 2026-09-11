@@ -60,6 +60,9 @@ describe(
             list:
                 vi.fn(),
 
+            effective:
+                vi.fn(),
+
             set:
                 vi.fn(),
 
@@ -132,6 +135,21 @@ describe(
                     of([]),
                 );
 
+            api.effective
+                .mockReturnValue(
+                    of({
+                        permissions: [
+                            PermissionCode
+                                .TasksRead,
+                        ],
+
+                        scopes: {
+                            [PermissionCode.TasksRead]:
+                                PermissionScope.Self,
+                        },
+                    }),
+                );
+
 
             await TestBed
                 .configureTestingModule({
@@ -194,6 +212,11 @@ describe(
                 expect(
                     component.state(),
                 ).toBe('ready');
+                expect(
+                    api.effective,
+                ).toHaveBeenCalledWith(
+                    15,
+                );
             },
         );
 
@@ -253,6 +276,22 @@ describe(
                 );
 
 
+                api.effective
+                    .mockReturnValue(
+                        of({
+                            permissions: [
+                                PermissionCode
+                                    .TasksRead,
+                            ],
+
+                            scopes: {
+                                [PermissionCode.TasksRead]:
+                                    PermissionScope.Company,
+                            },
+                        }),
+                    );
+
+
                 component.savePermission(
                     permission,
                 );
@@ -279,6 +318,20 @@ describe(
                         8,
                     ),
                 ).toBe(false);
+
+                expect(
+                    api.effective,
+                ).toHaveBeenLastCalledWith(
+                    15,
+                );
+
+                expect(
+                    component.effectiveScopeFor(
+                        permission,
+                    ),
+                ).toBe(
+                    PermissionScope.Company,
+                );
             },
         );
 
@@ -312,9 +365,25 @@ describe(
                 );
 
 
+                api.effective
+                    .mockReturnValue(
+                        of({
+                            permissions: [],
+                            scopes: {},
+                        }),
+                    );
+
+
                 component.savePermission(
                     permission,
                 );
+
+
+                expect(
+                    component.effectiveScopeFor(
+                        permission,
+                    ),
+                ).toBeNull();
 
 
                 expect(
@@ -397,8 +466,33 @@ describe(
                 );
 
 
+                api.effective
+                    .mockReturnValue(
+                        of({
+                            permissions: [
+                                PermissionCode
+                                    .TasksRead,
+                            ],
+
+                            scopes: {
+                                [PermissionCode.TasksRead]:
+                                    PermissionScope.Self,
+                            },
+                        }),
+                    );
+
+
                 component.savePermission(
                     permission,
+                );
+
+
+                expect(
+                    component.effectiveScopeFor(
+                        permission,
+                    ),
+                ).toBe(
+                    PermissionScope.Self,
                 );
 
 
@@ -414,6 +508,33 @@ describe(
                         8,
                     ),
                 ).toBe(false);
+            },
+        );
+
+        it(
+            'should expose effective permission scope',
+            () => {
+                expect(
+                    component.effectiveScopeFor(
+                        permission,
+                    ),
+                ).toBe(
+                    PermissionScope.Self,
+                );
+
+
+                const element:
+                    HTMLElement =
+                    fixture.nativeElement;
+
+
+                expect(
+                    element.querySelector(
+                        '[data-testid="override-effective-8"]',
+                    )?.textContent,
+                ).toContain(
+                    'Только свои',
+                );
             },
         );
     },

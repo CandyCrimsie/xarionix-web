@@ -16,13 +16,17 @@ import {
 } from '../api/api.config';
 
 import type {
-    MembershipPermissionOverride,
-    MembershipPermissionOverrideUpdate,
-} from './membership-permission-override.models';
+    EffectivePermissionsResponse,
+} from '../permissions/permission.models';
 
 import type {
     PermissionCatalogItem,
 } from '../permissions/permission-catalog.models';
+
+import type {
+    MembershipPermissionOverride,
+    MembershipPermissionOverrideUpdate,
+} from './membership-permission-override.models';
 
 
 @Injectable({
@@ -55,6 +59,19 @@ export class MembershipPermissionOverrideApiService {
             PermissionCatalogItem[]
         >(
             `${API_BASE_URL}/members/${membershipId}/permission-overrides/catalog`,
+        );
+    }
+
+
+    effective(
+        membershipId: number,
+    ): Observable<
+        EffectivePermissionsResponse
+    > {
+        return this.http.get<
+            EffectivePermissionsResponse
+        >(
+            `${API_BASE_URL}/members/${membershipId}/permission-overrides/effective`,
         );
     }
 

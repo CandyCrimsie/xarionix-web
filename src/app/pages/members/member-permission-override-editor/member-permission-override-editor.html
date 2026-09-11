@@ -74,6 +74,46 @@
                             }}
                         </span>
                         }
+
+                        <div class="mt-2 flex flex-wrap items-center gap-2" [attr.data-testid]="
+        'override-effective-'
+        + permission.id
+    ">
+                            <span class="text-xs text-zinc-500">
+                                Итоговый доступ:
+                            </span>
+
+
+                            @if (
+                            effectiveScopeFor(
+                            permission
+                            );
+                            as effectiveScope
+                            ) {
+                            <span hlmBadge variant="outline">
+                                {{
+                                scopeLabel(
+                                effectiveScope
+                                )
+                                }}
+                            </span>
+                            } @else {
+                            <span hlmBadge variant="destructive">
+                                Нет доступа
+                            </span>
+                            }
+
+
+                            @if (
+                            isDirty(
+                            permission.id
+                            )
+                            ) {
+                            <span class="text-xs text-zinc-400">
+                                есть несохранённые изменения
+                            </span>
+                            }
+                        </div>
                     </div>
 
 

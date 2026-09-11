@@ -338,5 +338,47 @@ describe(
                 );
             },
         );
+
+        it(
+            'should get effective membership permissions',
+            async () => {
+                const effective = {
+                    permissions: [
+                        PermissionCode.TasksRead,
+                    ],
+
+                    scopes: {
+                        [PermissionCode.TasksRead]:
+                            PermissionScope.Company,
+                    },
+                };
+
+
+                http.get.mockReturnValue(
+                    of(effective),
+                );
+
+
+                const result =
+                    await firstValueFrom(
+                        service.effective(
+                            15,
+                        ),
+                    );
+
+
+                expect(
+                    http.get,
+                ).toHaveBeenCalledWith(
+                    `${API_BASE_URL}/members/15/permission-overrides/effective`,
+                );
+
+                expect(
+                    result,
+                ).toEqual(
+                    effective,
+                );
+            },
+        );
     },
 );
