@@ -5,6 +5,7 @@ import {
 
 import {
     of,
+    throwError,
 } from 'rxjs';
 
 import {
@@ -534,6 +535,208 @@ describe(
                     )?.textContent,
                 ).toContain(
                     'Только свои',
+                );
+            },
+        );
+
+        it(
+            'should fail closed when effective permissions cannot be loaded',
+            () => {
+                fixture.destroy();
+
+
+                api.effective
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Effective request failed',
+                                ),
+                        ),
+                    );
+
+
+                fixture =
+                    TestBed.createComponent(
+                        MemberPermissionOverrideEditor,
+                    );
+
+                component =
+                    fixture.componentInstance;
+
+
+                fixture.componentRef
+                    .setInput(
+                        'member',
+                        member,
+                    );
+
+                fixture.componentRef
+                    .setInput(
+                        'canManage',
+                        true,
+                    );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    component.state(),
+                ).toBe(
+                    'error',
+                );
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="override-editor-error"]',
+                        ),
+                ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should be read only for inactive membership',
+            () => {
+                fixture.destroy();
+
+
+                fixture =
+                    TestBed.createComponent(
+                        MemberPermissionOverrideEditor,
+                    );
+
+                component =
+                    fixture.componentInstance;
+
+
+                fixture.componentRef
+                    .setInput(
+                        'member',
+                        {
+                            ...member,
+                            is_active: false,
+                        },
+                    );
+
+                fixture.componentRef
+                    .setInput(
+                        'canManage',
+                        true,
+                    );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    component.isReadOnly(),
+                ).toBe(true);
+
+
+                component.changeMode(
+                    permission,
+                    'deny',
+                );
+
+
+                expect(
+                    component.modeFor(
+                        permission.id,
+                    ),
+                ).toBe(
+                    'inherit',
+                );
+
+                expect(
+                    component.isDirty(
+                        permission.id,
+                    ),
+                ).toBe(false);
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="override-editor-readonly"]',
+                        ),
+                ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should report effective refresh failure after saved override',
+            () => {
+                component.changeMode(
+                    permission,
+                    'deny',
+                );
+
+
+                api.set.mockReturnValue(
+                    of({
+                        id: 103,
+
+                        company_membership_id:
+                            15,
+
+                        permission_id:
+                            8,
+
+                        effect:
+                            PermissionOverrideEffect
+                                .Deny,
+
+                        scope:
+                            null,
+                    }),
+                );
+
+
+                api.effective
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Effective refresh failed',
+                                ),
+                        ),
+                    );
+
+
+                component.savePermission(
+                    permission,
+                );
+
+
+                expect(
+                    component.isSaving(
+                        permission.id,
+                    ),
+                ).toBe(false);
+
+
+                expect(
+                    component.isDirty(
+                        permission.id,
+                    ),
+                ).toBe(false);
+
+
+                expect(
+                    component.rowError(
+                        permission.id,
+                    ),
+                ).toContain(
+                    'Изменение сохранено',
+                );
+
+                expect(
+                    component.rowError(
+                        permission.id,
+                    ),
+                ).toContain(
+                    'не удалось обновить',
                 );
             },
         );

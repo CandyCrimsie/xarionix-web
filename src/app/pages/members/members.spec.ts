@@ -38,6 +38,7 @@ import {
 
 import {
     PermissionCode,
+    PermissionScope,
 } from '../../core/permissions/permission.models';
 
 import {
@@ -66,6 +67,10 @@ describe(
 
         const canReadMembers =
             signal(true);
+
+
+        const canManageOverrides =
+            signal(false);
 
 
         const member:
@@ -144,14 +149,34 @@ describe(
                     (
                         permission:
                             PermissionCode,
+
+                        minimumScope?:
+                            PermissionScope,
                     ) => {
                         if (
                             permission
                             === PermissionCode
                                 .MembersRead
                         ) {
-                            return canReadMembers();
+                            return (
+                                canReadMembers()
+                            );
                         }
+
+
+                        if (
+                            permission
+                            === PermissionCode
+                                .RolesManage
+                            && minimumScope
+                            === PermissionScope
+                                .Company
+                        ) {
+                            return (
+                                canManageOverrides()
+                            );
+                        }
+
 
                         return false;
                     },
@@ -166,6 +191,10 @@ describe(
 
             canReadMembers.set(
                 true,
+            );
+
+            canManageOverrides.set(
+                false,
             );
 
             memberApi.list
@@ -399,6 +428,140 @@ describe(
                         '[data-testid="member-roles-action-15"]',
                     ),
                 ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should hide permission overrides action without roles manage company',
+            () => {
+                const element:
+                    HTMLElement =
+                    fixture.nativeElement;
+
+
+                expect(
+                    element.querySelector(
+                        '[data-testid="member-overrides-action-15"]',
+                    ),
+                ).toBeNull();
+
+
+                expect(
+                    permissions.can,
+                ).toHaveBeenCalledWith(
+                    PermissionCode.RolesManage,
+                    PermissionScope.Company,
+                );
+            },
+        );
+
+        it(
+            'should show permission overrides action with roles manage company',
+            () => {
+                canManageOverrides.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                const element:
+                    HTMLElement =
+                    fixture.nativeElement;
+
+
+                expect(
+                    element.querySelector(
+                        '[data-testid="member-overrides-action-15"]',
+                    ),
+                ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should hide permission overrides action when permission is lost',
+            () => {
+                canManageOverrides.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="member-overrides-action-15"]',
+                        ),
+                ).not.toBeNull();
+
+
+                canManageOverrides.set(
+                    false,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="member-overrides-action-15"]',
+                        ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should re-evaluate permission overrides action after company switch',
+            () => {
+                canManageOverrides.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="member-overrides-action-15"]',
+                        ),
+                ).not.toBeNull();
+
+
+                memberApi.list
+                    .mockReturnValue(
+                        of([
+                            secondCompanyMember,
+                        ]),
+                    );
+
+
+                canManageOverrides.set(
+                    false,
+                );
+
+                activeCompanyId.set(
+                    2,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    component.members(),
+                ).toEqual([
+                    secondCompanyMember,
+                ]);
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="member-overrides-action-25"]',
+                        ),
+                ).toBeNull();
             },
         );
     },
