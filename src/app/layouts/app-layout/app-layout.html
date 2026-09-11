@@ -143,6 +143,9 @@
                             </span>
                         </a>
                     </li>
+                    }
+
+
                     @if (canReadUnits()) {
                     <li hlmSidebarMenuItem>
                         <a hlmSidebarMenuButton routerLink="/organizational-units"
@@ -154,7 +157,6 @@
                             </span>
                         </a>
                     </li>
-                    }
                     } @if (canManageMembers()) {
                     <li hlmSidebarMenuItem>
                         <a hlmSidebarMenuButton routerLink="/invite" data-testid="invite-nav-item">
