@@ -50,6 +50,10 @@
                         <th hlmTh>
                             Аккаунт
                         </th>
+
+                        <th hlmTh class="text-right">
+                            Действия
+                        </th>
                     </tr>
                 </thead>
 
@@ -135,10 +139,43 @@
                             </span>
                             }
                         </td>
+
+                        <td hlmTd class="text-right">
+                            <div class="flex justify-end">
+                                <hlm-dialog>
+                                    <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                        [attr.data-testid]="
+                    'member-roles-action-'
+                    + member.id
+                ">
+                                        Роли
+                                    </button>
+
+
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx"
+                                        class="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+                                        <hlm-dialog-header>
+                                            <h3 hlmDialogTitle>
+                                                Роли сотрудника
+                                            </h3>
+
+                                            <p hlmDialogDescription>
+                                                {{ member.username }}
+                                            </p>
+                                        </hlm-dialog-header>
+
+
+                                        <app-member-role-editor [member]="member" [canAssign]="
+                        canAssignRoles()
+                    " />
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+                            </div>
+                        </td>
                     </tr>
                     } @empty {
                     <tr hlmTr>
-                        <td hlmTd colspan="4" class="h-24 text-center text-zinc-500" data-testid="members-empty">
+                        <td hlmTd colspan="5" class="h-24 text-center text-zinc-500" data-testid="members-empty">
                             Сотрудники не найдены
                         </td>
                     </tr>

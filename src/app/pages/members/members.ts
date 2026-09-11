@@ -1,6 +1,7 @@
 import {
     Component,
     effect,
+    computed,
     inject,
     signal,
 } from '@angular/core';
@@ -26,6 +27,14 @@ import {
 import {
     HlmTableImports,
 } from '@spartan-ng/helm/table';
+
+import {
+    HlmDialogImports,
+} from '@spartan-ng/helm/dialog';
+
+import {
+    MemberRoleEditor,
+} from './member-role-editor/member-role-editor';
 
 import {
     CompanyContextService,
@@ -112,6 +121,15 @@ export class Members {
 
     readonly state =
         this._state.asReadonly();
+
+
+    readonly canAssignRoles =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode.RolesAssign,
+                ),
+        );
 
 
     constructor() {

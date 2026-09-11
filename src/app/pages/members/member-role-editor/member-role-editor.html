@@ -1,0 +1,151 @@
+@if (state() === 'loading') {
+<div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500"
+    data-testid="member-role-editor-loading">
+    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+    Загружаем роли сотрудника...
+</div>
+} @else if (state() === 'error') {
+<div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="member-role-editor-error">
+    <span class="text-sm text-zinc-500">
+        Не удалось загрузить роли сотрудника
+    </span>
+
+    <button hlmBtn variant="outline" type="button" data-testid="member-role-editor-retry" (click)="retry()">
+        <ng-icon name="lucideRefreshCw" />
+
+        Повторить
+    </button>
+</div>
+} @else {
+<div class="flex flex-col gap-4">
+    @if (assignmentMessage(); as message) {
+    <div class="rounded-md border bg-zinc-50 px-4 py-3 text-sm text-zinc-600" data-testid="member-role-editor-info">
+        {{ message }}
+    </div>
+    }
+
+
+    <div class="overflow-hidden rounded-md border">
+        @for (
+        role of roles();
+        track role.id
+        ) {
+        <label class="flex items-center justify-between gap-4 border-b px-4 py-3 last:border-b-0"
+            [class.opacity-60]="!role.is_active">
+            <div class="flex min-w-0 items-center gap-3">
+                <input type="checkbox" [checked]="isSelected(role.id)" [disabled]="!canToggle(role)" [attr.data-testid]="
+                                'member-role-toggle-'
+                                + role.id
+                            " (change)="
+                                toggleRole(
+                                    role,
+                                    $any(
+                                        $event.target
+                                    ).checked
+                                )
+                            " />
+
+
+                <div class="flex min-w-0 flex-col">
+                    <span class="font-medium">
+                        {{ role.name }}
+                    </span>
+
+                    @if (role.description) {
+                    <span class="text-xs text-zinc-500">
+                        {{ role.description }}
+                    </span>
+                    }
+
+
+                    @if (
+                    isSelected(role.id)
+                    && !isAssignable(role.id)
+                    ) {
+                    <span class="text-xs text-zinc-500">
+                        У вас нет права изменить
+                        эту роль
+                    </span>
+                    }
+
+
+                    @if (
+                    !role.is_active
+                    && isSelected(role.id)
+                    && isAssignable(role.id)
+                    ) {
+                    <span class="text-xs text-zinc-500">
+                        Роль отключена —
+                        её можно снять,
+                        но нельзя назначить заново
+                    </span>
+                    }
+                </div>
+            </div>
+
+
+            <div class="flex shrink-0 items-center gap-2">
+                @if (role.is_system) {
+                <span hlmBadge variant="secondary">
+                    Системная
+                </span>
+                }
+
+                @if (!role.is_active) {
+                <span hlmBadge variant="outline">
+                    Отключена
+                </span>
+                }
+
+                @if (
+                isSelected(role.id)
+                && !isAssignable(role.id)
+                ) {
+                <span hlmBadge variant="outline">
+                    Защищена
+                </span>
+                }
+            </div>
+        </label>
+        } @empty {
+        <div class="px-4 py-8 text-center text-sm text-zinc-500" data-testid="member-role-editor-empty">
+            У сотрудника нет назначенных
+            или доступных для назначения ролей
+        </div>
+        }
+    </div>
+
+
+    @if (saveError(); as error) {
+    <p class="text-sm text-destructive" data-testid="member-role-editor-save-error">
+        {{ error }}
+    </p>
+    }
+
+
+    @if (saved()) {
+    <p class="text-sm text-zinc-500" data-testid="member-role-editor-saved">
+        Роли сотрудника сохранены
+    </p>
+    }
+
+
+    @if (canEditTarget()) {
+    <div class="flex justify-end">
+        <button hlmBtn type="button" data-testid="member-role-editor-save" [disabled]="
+                        saving()
+                        || !hasChanges()
+                    " (click)="save()">
+            @if (saving()) {
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+            Сохраняем...
+            } @else {
+            Сохранить
+            }
+        </button>
+    </div>
+    }
+</div>
+}

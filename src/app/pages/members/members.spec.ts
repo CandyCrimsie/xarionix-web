@@ -385,5 +385,21 @@ describe(
                 );
             },
         );
+
+        it(
+            'should render roles action for readable member',
+            () => {
+                const element:
+                    HTMLElement =
+                    fixture.nativeElement;
+
+
+                expect(
+                    element.querySelector(
+                        '[data-testid="member-roles-action-15"]',
+                    ),
+                ).not.toBeNull();
+            },
+        );
     },
 );
