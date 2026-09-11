@@ -76,6 +76,8 @@ type MembersState =
         HlmBadgeImports,
         HlmButtonImports,
         HlmTableImports,
+        HlmDialogImports,
+        MemberRoleEditor,
     ],
 
     providers: [
