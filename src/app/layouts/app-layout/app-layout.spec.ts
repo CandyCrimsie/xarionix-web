@@ -62,6 +62,9 @@ describe(
     const canReadMembers =
       signal(false);
 
+    const canReadUnits =
+      signal(false);
+
     const canReadRoles =
       signal(false);
 
@@ -138,6 +141,15 @@ describe(
                 .asReadonly();
             }
 
+            if (
+              permission
+              === PermissionCode
+                .OrganizationalUnitsRead
+            ) {
+              return canReadUnits
+                .asReadonly();
+            }
+
             return signal(
               false,
             ).asReadonly();
@@ -165,6 +177,10 @@ describe(
 
     beforeEach(async () => {
       vi.clearAllMocks();
+
+      canReadUnits.set(
+        false,
+      );
 
       canReadMembers.set(
         false,
@@ -694,6 +710,78 @@ describe(
           fixture.nativeElement
             .querySelector(
               '[data-testid="members-nav-item"]',
+            ),
+        ).toBeNull();
+      },
+    );
+
+    it(
+      'should show organizational units navigation with read permission',
+      () => {
+        canReadUnits.set(
+          true,
+        );
+
+        fixture.detectChanges();
+
+
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+
+        expect(
+          element.querySelector(
+            '[data-testid="employees-group"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          element.querySelector(
+            '[data-testid="organizational-units-nav-item"]',
+          ),
+        ).not.toBeNull();
+
+
+        expect(
+          permissions.canSignal,
+        ).toHaveBeenCalledWith(
+          PermissionCode
+            .OrganizationalUnitsRead,
+        );
+      },
+    );
+
+
+    it(
+      'should hide organizational units navigation when permission is lost',
+      () => {
+        canReadUnits.set(
+          true,
+        );
+
+        fixture.detectChanges();
+
+
+        expect(
+          fixture.nativeElement
+            .querySelector(
+              '[data-testid="organizational-units-nav-item"]',
+            ),
+        ).not.toBeNull();
+
+
+        canReadUnits.set(
+          false,
+        );
+
+        fixture.detectChanges();
+
+
+        expect(
+          fixture.nativeElement
+            .querySelector(
+              '[data-testid="organizational-units-nav-item"]',
             ),
         ).toBeNull();
       },

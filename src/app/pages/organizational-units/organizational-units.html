@@ -1,0 +1,133 @@
+<div class="flex flex-col gap-4 px-4 pb-4">
+    <div>
+        <h1 class="text-2xl font-semibold">
+            Организационная структура
+        </h1>
+
+        <p class="mt-1 text-sm text-zinc-500">
+            Подразделения текущей компании,
+            доступные вам по правам
+        </p>
+    </div>
+
+
+    @if (state() === 'loading') {
+    <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500"
+        data-testid="organizational-units-loading">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+        Загружаем организационную структуру...
+    </div>
+    } @else if (state() === 'error') {
+    <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="organizational-units-error">
+        <span class="text-sm text-zinc-500">
+            Не удалось загрузить организационную структуру
+        </span>
+
+        <button hlmBtn variant="outline" type="button" data-testid="organizational-units-retry" (click)="retry()">
+            <ng-icon name="lucideRefreshCw" />
+
+            Повторить
+        </button>
+    </div>
+    } @else if (state() === 'ready') {
+    <div class="overflow-hidden rounded-md border" data-testid="organizational-units-table">
+        <div hlmTableContainer>
+            <table hlmTable>
+                <thead hlmTHead>
+                    <tr hlmTr>
+                        <th hlmTh>
+                            Подразделение
+                        </th>
+
+                        <th hlmTh>
+                            Тип
+                        </th>
+
+                        <th hlmTh>
+                            Статус
+                        </th>
+
+                        <th hlmTh>
+                            ID
+                        </th>
+                    </tr>
+                </thead>
+
+
+                <tbody hlmTBody>
+                    @for (
+                    row of rows();
+                    track row.unit.id
+                    ) {
+                    <tr hlmTr [attr.data-testid]="
+                                    'organizational-unit-row-'
+                                    + row.unit.id
+                                " [attr.data-depth]="
+                                    row.depth
+                                ">
+                        <td hlmTd>
+                            <div class="flex items-center" [style.padding-left.px]="
+                                            row.depth * 24
+                                        ">
+                                @if (
+                                row.depth > 0
+                                ) {
+                                <span class="mr-2 text-zinc-400">
+                                    ↳
+                                </span>
+                                }
+
+                                <span class="font-medium">
+                                    {{ row.unit.name }}
+                                </span>
+                            </div>
+                        </td>
+
+
+                        <td hlmTd>
+                            <span hlmBadge variant="outline">
+                                {{
+                                unitTypeLabel(
+                                row.unit.type
+                                )
+                                }}
+                            </span>
+                        </td>
+
+
+                        <td hlmTd>
+                            @if (
+                            row.unit.is_active
+                            ) {
+                            <span hlmBadge>
+                                Активно
+                            </span>
+                            } @else {
+                            <span hlmBadge variant="secondary">
+                                Отключено
+                            </span>
+                            }
+                        </td>
+
+
+                        <td hlmTd>
+                            <span class="text-zinc-500">
+                                {{ row.unit.id }}
+                            </span>
+                        </td>
+                    </tr>
+                    } @empty {
+                    <tr hlmTr>
+                        <td hlmTd colspan="4" class="h-24 text-center text-zinc-500"
+                            data-testid="organizational-units-empty">
+                            Доступные подразделения не найдены
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    }
+</div>

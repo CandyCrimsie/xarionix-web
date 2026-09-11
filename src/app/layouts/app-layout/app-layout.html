@@ -124,6 +124,7 @@
             @if (
             canReadMembers()
             || canManageMembers()
+            || canReadUnits()
             || canReadRoles()
             ) {
             <div hlmSidebarGroup data-testid="employees-group">
@@ -142,6 +143,18 @@
                             </span>
                         </a>
                     </li>
+                    @if (canReadUnits()) {
+                    <li hlmSidebarMenuItem>
+                        <a hlmSidebarMenuButton routerLink="/organizational-units"
+                            data-testid="organizational-units-nav-item">
+                            <ng-icon name="lucideBriefcaseBusiness" />
+
+                            <span>
+                                Оргструктура
+                            </span>
+                        </a>
+                    </li>
+                    }
                     } @if (canManageMembers()) {
                     <li hlmSidebarMenuItem>
                         <a hlmSidebarMenuButton routerLink="/invite" data-testid="invite-nav-item">

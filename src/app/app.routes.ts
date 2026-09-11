@@ -9,6 +9,7 @@ import { Invite } from './pages/invite/invite';
 import { Forbidden } from './pages/forbidden/forbidden';
 import { Roles } from './pages/roles/roles';
 import { Members } from './pages/members/members';
+import { OrganizationalUnits } from './pages/organizational-units/organizational-units';
 
 import { authGuard } from './core/auth/auth-guard';
 import { guestGuard } from './core/auth/guest-guard';
@@ -70,6 +71,22 @@ export const routes: Routes = [
                     'always',
 
                 component: Members,
+            },
+            {
+                path: 'organizational-units',
+
+                canActivate: [
+                    permissionGuard(
+                        PermissionCode
+                            .OrganizationalUnitsRead,
+                    ),
+                ],
+
+                runGuardsAndResolvers:
+                    'always',
+
+                component:
+                    OrganizationalUnits,
             },
             {
                 path: 'roles',

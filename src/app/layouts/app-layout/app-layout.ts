@@ -82,6 +82,12 @@ export class AppLayout {
       PermissionCode.MembersRead,
     );
 
+  readonly canReadUnits =
+    this.permissions.canSignal(
+      PermissionCode
+        .OrganizationalUnitsRead,
+    );
+
   readonly canReadRoles =
     this.permissions.canSignal(
       PermissionCode.RolesRead,
