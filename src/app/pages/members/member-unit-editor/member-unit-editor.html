@@ -1,0 +1,246 @@
+@if (state() === 'loading') {
+<div class="flex min-h-32 items-center justify-center gap-2 text-sm text-zinc-500"
+    data-testid="member-unit-editor-loading">
+    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+    Загружаем подразделения...
+</div>
+} @else if (state() === 'error') {
+<div class="flex min-h-32 flex-col items-center justify-center gap-3" data-testid="member-unit-editor-error">
+    <span class="text-sm text-zinc-500">
+        Не удалось загрузить назначения сотрудника
+    </span>
+
+    <button hlmBtn variant="outline" type="button" (click)="retry()">
+        <ng-icon name="lucideRefreshCw" />
+
+        Повторить
+    </button>
+</div>
+} @else {
+<div class="flex flex-col gap-5">
+    @if (catalogMessage()) {
+    <div class="rounded-md border bg-zinc-50 p-3 text-sm text-zinc-500" data-testid="member-unit-catalog-message">
+        {{ catalogMessage() }}
+    </div>
+    }
+
+
+    <section class="flex flex-col gap-2">
+        <div>
+            <h4 class="text-sm font-medium">
+                Текущие назначения
+            </h4>
+
+            <p class="text-xs text-zinc-500">
+                Подразделения, в которых состоит сотрудник
+            </p>
+        </div>
+
+
+        <div class="flex flex-col gap-2">
+            @for (
+            assignment of assignments();
+            track assignment.id
+            ) {
+            <div class="flex items-center justify-between gap-4 rounded-md border p-3" [attr.data-testid]="
+                            'member-unit-assignment-'
+                            + assignment.id
+                        ">
+                <div class="min-w-0">
+                    @if (
+                    unitFor(
+                    assignment.unit_id
+                    );
+                    as unit
+                    ) {
+                    <div class="font-medium">
+                        {{ unit.name }}
+                    </div>
+
+                    <div class="text-xs text-zinc-500">
+                        {{ unitTypeLabel(unit.type) }}
+                    </div>
+                    } @else {
+                    <div class="font-medium">
+                        Подразделение #{{ assignment.unit_id }}
+                    </div>
+
+                    <div class="text-xs text-zinc-500">
+                        Информация о подразделении недоступна
+                    </div>
+                    }
+
+
+                    <div class="mt-2 flex flex-wrap gap-1">
+                        @if (assignment.is_primary) {
+                        <span hlmBadge>
+                            Основное
+                        </span>
+                        }
+
+                        @if (assignment.is_active) {
+                        <span hlmBadge variant="outline">
+                            Активно
+                        </span>
+                        } @else {
+                        <span hlmBadge variant="secondary">
+                            Отключено
+                        </span>
+                        }
+                    </div>
+                </div>
+
+
+                @if (canEdit()) {
+                <div class="flex shrink-0 gap-1">
+                    @if (
+                    !assignment.is_primary
+                    ) {
+                    <button hlmBtn variant="outline" size="sm" type="button" [disabled]="
+                                            mutating()
+                                            || !canSetPrimary(
+                                                assignment
+                                            )
+                                        " (click)="
+                                            setPrimary(
+                                                assignment
+                                            )
+                                        ">
+                        Сделать основным
+                    </button>
+                    }
+
+
+                    <button hlmBtn variant="ghost" size="sm" type="button" [disabled]="
+                                        mutating()
+                                        || !canToggleActive(
+                                            assignment
+                                        )
+                                    " (click)="
+                                        toggleActive(
+                                            assignment
+                                        )
+                                    ">
+                        @if (assignment.is_active) {
+                        Отключить
+                        } @else {
+                        Активировать
+                        }
+                    </button>
+                </div>
+                }
+            </div>
+            } @empty {
+            <div class="rounded-md border border-dashed p-5 text-center text-sm text-zinc-500"
+                data-testid="member-unit-empty">
+                Сотрудник пока не назначен
+                ни в одно подразделение
+            </div>
+            }
+        </div>
+    </section>
+
+
+    @if (canEdit()) {
+    <section class="flex flex-col gap-2 border-t pt-4">
+        <div>
+            <h4 class="text-sm font-medium">
+                Добавить подразделение
+            </h4>
+
+            <p class="text-xs text-zinc-500">
+                Показаны только доступные вам подразделения
+            </p>
+        </div>
+
+
+        @if (availableUnits().length > 0) {
+        <div class="flex flex-wrap items-center gap-2">
+            <select class="h-9 min-w-64 rounded-md border bg-transparent px-3 text-sm outline-none" [value]="
+                                selectedUnitId()
+                                ?? ''
+                            " [disabled]="mutating()" data-testid="member-unit-select" (change)="
+                                onUnitSelectionChange(
+                                    $event
+                                )
+                            ">
+                <option value="">
+                    Выберите подразделение
+                </option>
+
+                @for (
+                unit of availableUnits();
+                track unit.id
+                ) {
+                <option [value]="unit.id">
+                    {{ unit.name }}
+                    —
+                    {{
+                    unitTypeLabel(
+                    unit.type
+                    )
+                    }}
+                </option>
+                }
+            </select>
+
+
+            <button hlmBtn variant="outline" type="button" [disabled]="
+                                mutating()
+                                || selectedUnitId()
+                                    === null
+                            " data-testid="member-unit-add" (click)="
+                                addSelected(
+                                    false
+                                )
+                            ">
+                Добавить
+            </button>
+
+
+            <button hlmBtn type="button" [disabled]="
+                                mutating()
+                                || selectedUnitId()
+                                    === null
+                            " data-testid="member-unit-add-primary" (click)="
+                                addSelected(
+                                    true
+                                )
+                            ">
+                Добавить как основное
+            </button>
+        </div>
+        } @else {
+        <p class="text-sm text-zinc-500">
+            Нет доступных подразделений
+            для добавления
+        </p>
+        }
+    </section>
+    }
+
+
+    @if (mutating()) {
+    <div class="flex items-center gap-2 text-sm text-zinc-500">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+        Сохраняем изменения...
+    </div>
+    }
+
+
+    @if (mutationError()) {
+    <p class="text-sm text-destructive" data-testid="member-unit-mutation-error">
+        {{ mutationError() }}
+    </p>
+    }
+
+
+    @if (mutationSuccess()) {
+    <p class="text-sm text-zinc-500" data-testid="member-unit-mutation-success">
+        {{ mutationSuccess() }}
+    </p>
+    }
+</div>
+}
