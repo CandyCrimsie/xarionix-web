@@ -25,6 +25,7 @@ import {
 
 import {
     PermissionScope,
+    PermissionCode,
 } from '../permissions/permission.models';
 
 import {
@@ -277,6 +278,63 @@ describe(
                     http.delete,
                 ).toHaveBeenCalledWith(
                     `${API_BASE_URL}/members/15/permission-overrides/8`,
+                );
+            },
+        );
+
+        it(
+            'should list permission override catalog',
+            async () => {
+                const catalog = [
+                    {
+                        id: 8,
+
+                        code:
+                            PermissionCode.TasksRead,
+
+                        name:
+                            'Read tasks',
+
+                        module:
+                            'tasks',
+
+                        description:
+                            null,
+
+                        is_active:
+                            true,
+
+                        allowed_scopes: [
+                            PermissionScope.Self,
+                            PermissionScope.Company,
+                        ],
+                    },
+                ];
+
+
+                http.get.mockReturnValue(
+                    of(catalog),
+                );
+
+
+                const result =
+                    await firstValueFrom(
+                        service.catalog(
+                            15,
+                        ),
+                    );
+
+
+                expect(
+                    http.get,
+                ).toHaveBeenCalledWith(
+                    `${API_BASE_URL}/members/15/permission-overrides/catalog`,
+                );
+
+                expect(
+                    result,
+                ).toEqual(
+                    catalog,
                 );
             },
         );

@@ -20,6 +20,10 @@ import type {
     MembershipPermissionOverrideUpdate,
 } from './membership-permission-override.models';
 
+import type {
+    PermissionCatalogItem,
+} from '../permissions/permission-catalog.models';
+
 
 @Injectable({
     providedIn: 'root',
@@ -38,6 +42,19 @@ export class MembershipPermissionOverrideApiService {
             MembershipPermissionOverride[]
         >(
             `${API_BASE_URL}/members/${membershipId}/permission-overrides`,
+        );
+    }
+
+
+    catalog(
+        membershipId: number,
+    ): Observable<
+        PermissionCatalogItem[]
+    > {
+        return this.http.get<
+            PermissionCatalogItem[]
+        >(
+            `${API_BASE_URL}/members/${membershipId}/permission-overrides/catalog`,
         );
     }
 

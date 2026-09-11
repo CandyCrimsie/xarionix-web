@@ -54,11 +54,16 @@ import {
 
 import {
     PermissionCode,
+    PermissionScope,
 } from '../../core/permissions/permission.models';
 
 import {
     PermissionService,
 } from '../../core/permissions/permission.service';
+
+import {
+    MemberPermissionOverrideEditor,
+} from './member-permission-override-editor/member-permission-override-editor';
 
 
 type MembersState =
@@ -78,6 +83,7 @@ type MembersState =
         HlmTableImports,
         HlmDialogImports,
         MemberRoleEditor,
+        MemberPermissionOverrideEditor,
     ],
 
     providers: [
@@ -130,6 +136,16 @@ export class Members {
             () =>
                 this.permissions.can(
                     PermissionCode.RolesAssign,
+                ),
+        );
+
+
+    readonly canManageOverrides =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode.RolesManage,
+                    PermissionScope.Company,
                 ),
         );
 

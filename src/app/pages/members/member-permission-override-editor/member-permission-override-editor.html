@@ -1,0 +1,229 @@
+@if (state() === 'loading') {
+<div class="flex min-h-48 items-center justify-center gap-2 text-sm text-zinc-500"
+    data-testid="override-editor-loading">
+    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+    Загружаем индивидуальные права...
+</div>
+} @else if (state() === 'error') {
+<div class="flex min-h-48 flex-col items-center justify-center gap-3" data-testid="override-editor-error">
+    <span class="text-sm text-zinc-500">
+        Не удалось загрузить индивидуальные права
+    </span>
+
+    <button hlmBtn variant="outline" type="button" (click)="retry()">
+        <ng-icon name="lucideRefreshCw" />
+
+        Повторить
+    </button>
+</div>
+} @else {
+<div class="flex flex-col gap-4">
+    @if (isReadOnly()) {
+    <div class="rounded-md border bg-zinc-50 px-4 py-3 text-sm text-zinc-600" data-testid="override-editor-readonly">
+        @if (!member().is_active) {
+        Доступ сотрудника в компанию отключён.
+        Индивидуальные права доступны только
+        для просмотра.
+        } @else {
+        У вас нет права изменять
+        индивидуальные права сотрудника.
+        }
+    </div>
+    }
+
+
+    <div class="flex flex-col gap-4">
+        @for (
+        group of groups();
+        track group.module
+        ) {
+        <section class="overflow-hidden rounded-md border" [attr.data-testid]="
+                        'override-group-'
+                        + group.module
+                    ">
+            <div class="border-b bg-zinc-50 px-4 py-3">
+                <h4 class="font-medium">
+                    {{ group.label }}
+                </h4>
+            </div>
+
+
+            <div class="divide-y">
+                @for (
+                permission
+                of group.permissions;
+                track permission.id
+                ) {
+                <div class="grid gap-3 px-4 py-3 xl:grid-cols-[minmax(0,1fr)_190px_220px_110px] xl:items-center">
+                    <div class="flex min-w-0 flex-col">
+                        <span class="font-medium">
+                            {{ permission.name }}
+                        </span>
+
+                        <span class="text-xs text-zinc-500">
+                            {{ permission.code }}
+                        </span>
+
+                        @if (
+                        permission.description
+                        ) {
+                        <span class="mt-1 text-sm text-zinc-500">
+                            {{
+                            permission.description
+                            }}
+                        </span>
+                        }
+                    </div>
+
+
+                    <select
+                        class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        [value]="
+                                        modeFor(
+                                            permission.id
+                                        )
+                                    " [disabled]="
+                                        isReadOnly()
+                                        || !permission.is_active
+                                        || isSaving(
+                                            permission.id
+                                        )
+                                    " [attr.data-testid]="
+                                        'override-mode-'
+                                        + permission.id
+                                    " (change)="
+                                        changeMode(
+                                            permission,
+                                            $any(
+                                                $event.target
+                                            ).value
+                                        )
+                                    ">
+                        <option value="inherit">
+                            Наследовать из ролей
+                        </option>
+
+                        <option value="allow">
+                            Разрешить
+                        </option>
+
+                        <option value="deny">
+                            Запретить
+                        </option>
+                    </select>
+
+
+                    @if (
+                    modeFor(
+                    permission.id
+                    ) === 'allow'
+                    ) {
+                    <select
+                        class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        [value]="
+                                            scopeFor(
+                                                permission.id
+                                            )
+                                        " [disabled]="
+                                            isReadOnly()
+                                            || isSaving(
+                                                permission.id
+                                            )
+                                        " [attr.data-testid]="
+                                            'override-scope-'
+                                            + permission.id
+                                        " (change)="
+                                            changeScope(
+                                                permission,
+                                                $any(
+                                                    $event.target
+                                                ).value
+                                            )
+                                        ">
+                        @for (
+                        scope
+                        of permission.allowed_scopes;
+                        track scope
+                        ) {
+                        <option [value]="scope">
+                            {{
+                            scopeLabel(
+                            scope
+                            )
+                            }}
+                        </option>
+                        }
+                    </select>
+                    } @else if (
+                    modeFor(
+                    permission.id
+                    ) === 'deny'
+                    ) {
+                    <span class="text-sm text-zinc-500">
+                        Полный запрет
+                    </span>
+                    } @else {
+                    <span class="text-sm text-zinc-500">
+                        Определяется ролями
+                    </span>
+                    }
+
+
+                    @if (!isReadOnly()) {
+                    <button hlmBtn size="sm" type="button" [disabled]="
+                                            !isDirty(
+                                                permission.id
+                                            )
+                                            || isSaving(
+                                                permission.id
+                                            )
+                                        " [attr.data-testid]="
+                                            'override-save-'
+                                            + permission.id
+                                        " (click)="
+                                            savePermission(
+                                                permission
+                                            )
+                                        ">
+                        @if (
+                        isSaving(
+                        permission.id
+                        )
+                        ) {
+                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                        } @else {
+                        Сохранить
+                        }
+                    </button>
+                    }
+
+
+                    @if (
+                    rowError(
+                    permission.id
+                    );
+                    as error
+                    ) {
+                    <p class="text-sm text-destructive xl:col-start-2 xl:col-span-3">
+                        {{ error }}
+                    </p>
+                    }
+
+                    @if (
+                    isSaved(
+                    permission.id
+                    )
+                    ) {
+                    <p class="text-xs text-zinc-500 xl:col-start-2 xl:col-span-3">
+                        Сохранено
+                    </p>
+                    }
+                </div>
+                }
+            </div>
+        </section>
+        }
+    </div>
+</div>
+}

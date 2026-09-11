@@ -141,7 +141,7 @@
                         </td>
 
                         <td hlmTd class="text-right">
-                            <div class="flex justify-end">
+                            <div class="flex justify-end gap-1">
                                 <hlm-dialog>
                                     <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
                                         [attr.data-testid]="
@@ -170,6 +170,37 @@
                     " />
                                     </hlm-dialog-content>
                                 </hlm-dialog>
+
+                                @if (canManageOverrides()) {
+                                <hlm-dialog>
+                                    <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                        [attr.data-testid]="
+                'member-overrides-action-'
+                + member.id
+            ">
+                                        Права
+                                    </button>
+
+
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx"
+                                        class="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+                                        <hlm-dialog-header>
+                                            <h3 hlmDialogTitle>
+                                                Индивидуальные права
+                                            </h3>
+
+                                            <p hlmDialogDescription>
+                                                {{ member.username }}
+                                            </p>
+                                        </hlm-dialog-header>
+
+
+                                        <app-member-permission-override-editor [member]="member" [canManage]="
+                    canManageOverrides()
+                " />
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+                                }
                             </div>
                         </td>
                     </tr>
