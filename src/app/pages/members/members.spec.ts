@@ -73,6 +73,16 @@ describe(
             signal(false);
 
 
+        const canManageMembers =
+            signal(false);
+
+        const canReadUnits =
+            signal(false);
+
+        const canManageMembersCompany =
+            signal(false);
+
+
         const member:
             CompanyMemberSummary = {
             id: 15,
@@ -163,6 +173,35 @@ describe(
                             );
                         }
 
+                        if (
+                            permission
+                            === PermissionCode
+                                .MembersManage
+                        ) {
+                            if (
+                                minimumScope
+                                === PermissionScope.Company
+                            ) {
+                                return (
+                                    canManageMembersCompany()
+                                );
+                            }
+
+                            return (
+                                canManageMembers()
+                            );
+                        }
+
+
+                        if (
+                            permission
+                            === PermissionCode
+                                .OrganizationalUnitsRead
+                        ) {
+                            return (
+                                canReadUnits()
+                            );
+                        }
 
                         if (
                             permission
@@ -194,6 +233,18 @@ describe(
             );
 
             canManageOverrides.set(
+                false,
+            );
+
+            canManageMembers.set(
+                false,
+            );
+
+            canReadUnits.set(
+                false,
+            );
+
+            canManageMembersCompany.set(
                 false,
             );
 
@@ -562,6 +613,130 @@ describe(
                             '[data-testid="member-overrides-action-25"]',
                         ),
                 ).toBeNull();
+            },
+        );
+
+        it(
+            'should render unit assignments action for readable member',
+            () => {
+                const element:
+                    HTMLElement =
+                    fixture.nativeElement;
+
+
+                expect(
+                    element.querySelector(
+                        '[data-testid="member-units-action-15"]',
+                    ),
+                ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should reload member summary after unit assignment change',
+            () => {
+                const updatedMember:
+                    CompanyMemberSummary = {
+                    ...member,
+
+                    primary_unit_id:
+                        5,
+
+                    primary_unit_name:
+                        'Support L1',
+
+                    primary_unit_type:
+                        OrganizationalUnitType
+                            .Team,
+                };
+
+
+                memberApi.list
+                    .mockReturnValue(
+                        of([
+                            updatedMember,
+                        ]),
+                    );
+
+
+                component
+                    .onMemberUnitsChanged();
+
+                fixture.detectChanges();
+
+
+                expect(
+                    memberApi.list,
+                ).toHaveBeenLastCalledWith(
+                    1,
+                );
+
+                expect(
+                    component.members()[0]
+                        .primary_unit_id,
+                ).toBe(
+                    5,
+                );
+
+                expect(
+                    fixture.nativeElement
+                        .textContent,
+                ).toContain(
+                    'Support L1',
+                );
+            },
+        );
+
+        it(
+            'should expose scoped member unit permissions',
+            () => {
+                canManageMembers.set(
+                    true,
+                );
+
+                canReadUnits.set(
+                    true,
+                );
+
+                canManageMembersCompany.set(
+                    false,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    component.canManageMembers(),
+                ).toBe(true);
+
+                expect(
+                    component.canReadUnits(),
+                ).toBe(true);
+
+                expect(
+                    component.canManageMembersCompany(),
+                ).toBe(false);
+
+
+                expect(
+                    permissions.can,
+                ).toHaveBeenCalledWith(
+                    PermissionCode.MembersManage,
+                );
+
+                expect(
+                    permissions.can,
+                ).toHaveBeenCalledWith(
+                    PermissionCode
+                        .OrganizationalUnitsRead,
+                );
+
+                expect(
+                    permissions.can,
+                ).toHaveBeenCalledWith(
+                    PermissionCode.MembersManage,
+                    PermissionScope.Company,
+                );
             },
         );
     },

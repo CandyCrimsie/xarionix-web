@@ -143,6 +143,41 @@
                         <td hlmTd class="text-right">
                             <div class="flex justify-end gap-1">
                                 <hlm-dialog>
+                                    <hlm-dialog>
+                                        <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                            [attr.data-testid]="
+            'member-units-action-'
+            + member.id
+        ">
+                                            Подразделения
+                                        </button>
+
+
+                                        <hlm-dialog-content *hlmDialogPortal="let ctx"
+                                            class="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+                                            <hlm-dialog-header>
+                                                <h3 hlmDialogTitle>
+                                                    Подразделения сотрудника
+                                                </h3>
+
+                                                <p hlmDialogDescription>
+                                                    {{ member.username }}
+                                                </p>
+                                            </hlm-dialog-header>
+
+
+                                            <app-member-unit-editor [member]="member" [canManage]="
+                canManageMembers()
+            " [canReadUnits]="
+                canReadUnits()
+            " [canRemovePrimary]="
+                canManageMembersCompany()
+            " (changed)="
+                onMemberUnitsChanged()
+            " />
+                                        </hlm-dialog-content>
+                                    </hlm-dialog>
+
                                     <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
                                         [attr.data-testid]="
                     'member-roles-action-'

@@ -65,6 +65,10 @@ import {
     MemberPermissionOverrideEditor,
 } from './member-permission-override-editor/member-permission-override-editor';
 
+import {
+    MemberUnitEditor,
+} from './member-unit-editor/member-unit-editor';
+
 
 type MembersState =
     | 'idle'
@@ -84,6 +88,7 @@ type MembersState =
         HlmDialogImports,
         MemberRoleEditor,
         MemberPermissionOverrideEditor,
+        MemberUnitEditor,
     ],
 
     providers: [
@@ -148,6 +153,40 @@ export class Members {
                     PermissionScope.Company,
                 ),
         );
+
+
+    readonly canManageMembers =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode.MembersManage,
+                ),
+        );
+
+
+    readonly canReadUnits =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode
+                        .OrganizationalUnitsRead,
+                ),
+        );
+
+
+    readonly canManageMembersCompany =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode.MembersManage,
+                    PermissionScope.Company,
+                ),
+        );
+
+
+    onMemberUnitsChanged(): void {
+        this.retry();
+    }
 
 
     constructor() {
