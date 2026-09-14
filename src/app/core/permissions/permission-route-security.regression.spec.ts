@@ -46,22 +46,40 @@ import {
 
 
 @Component({
-    standalone: true,
-    template: '',
+    selector:
+        'app-test-home',
+
+    standalone:
+        true,
+
+    template:
+        '',
 })
 class TestHome { }
 
 
 @Component({
-    standalone: true,
-    template: '',
+    selector:
+        'app-test-invite',
+
+    standalone:
+        true,
+
+    template:
+        '',
 })
 class TestInvite { }
 
 
 @Component({
-    standalone: true,
-    template: '',
+    selector:
+        'app-test-forbidden',
+
+    standalone:
+        true,
+
+    template:
+        '',
 })
 class TestForbidden { }
 
