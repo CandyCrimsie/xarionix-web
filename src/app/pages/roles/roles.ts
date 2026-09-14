@@ -470,15 +470,53 @@ export class Roles {
             )
             .subscribe({
                 next: () => {
-                    this.updating.set(
-                        false,
-                    );
+                    /*
+                     * Backend уже сохранил изменения
+                     * роли и инвалидировал permission
+                     * cache всех её участников.
+                     *
+                     * Мы не знаем, назначена ли эта
+                     * custom role текущему пользователю,
+                     * поэтому после любой успешной
+                     * mutation перечитываем
+                     * /me/permissions.
+                     */
+                    this.permissions
+                        .reloadCurrentCompany()
+                        .subscribe({
+                            next: () => {
+                                this.updating.set(
+                                    false,
+                                );
 
-                    this.resetEditForm();
+                                this.resetEditForm();
 
-                    dialog.close({});
+                                dialog.close({});
 
-                    this.retry();
+                                this.retry();
+                            },
+
+                            error: () => {
+                                /*
+                                 * Роль уже сохранена.
+                                 * Ошибка относится только
+                                 * к синхронизации текущего
+                                 * frontend RBAC state.
+                                 */
+                                this.updating.set(
+                                    false,
+                                );
+
+                                this.editError.set(
+                                    (
+                                        'Роль сохранена, '
+                                        + 'но не удалось обновить '
+                                        + 'ваши текущие права. '
+                                        + 'Обновите страницу.'
+                                    ),
+                                );
+                            },
+                        });
                 },
 
                 error: error => {

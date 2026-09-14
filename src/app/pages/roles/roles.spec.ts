@@ -127,6 +127,9 @@ describe(
                             .asReadonly();
                     },
                 ),
+
+            reloadCurrentCompany:
+                vi.fn(),
         };
 
 
@@ -174,6 +177,14 @@ describe(
 
         beforeEach(async () => {
             vi.clearAllMocks();
+
+            permissions
+                .reloadCurrentCompany
+                .mockReturnValue(
+                    of(
+                        undefined,
+                    ),
+                );
 
             canReadRoles.set(
                 true,
@@ -785,6 +796,12 @@ describe(
 
                 fixture.detectChanges();
 
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
 
                 expect(
                     roleApi.update,
@@ -866,6 +883,11 @@ describe(
 
 
                 expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).not.toHaveBeenCalled();
+
+                expect(
                     close,
                 ).not.toHaveBeenCalled();
 
@@ -926,6 +948,122 @@ describe(
                         systemRole.id,
                     ),
                 ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should report permission synchronization error after role was saved',
+            () => {
+                canManageRoles.set(
+                    true,
+                );
+
+                component.openEditRole(
+                    customRole,
+                );
+
+                component.editActive.set(
+                    false,
+                );
+
+
+                const updatedRole: Role = {
+                    ...customRole,
+
+                    is_active:
+                        false,
+                };
+
+
+                roleApi.update
+                    .mockReturnValue(
+                        of(
+                            updatedRole,
+                        ),
+                    );
+
+
+                permissions
+                    .reloadCurrentCompany
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Permission refresh failed',
+                                ),
+                        ),
+                    );
+
+
+                const close =
+                    vi.fn();
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.updateRole(
+                    dialog,
+                );
+
+
+                /*
+                 * Backend mutation прошла.
+                 */
+                expect(
+                    roleApi.update,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                /*
+                 * Dialog пока оставляем открытым,
+                 * чтобы пользователь увидел
+                 * проблему синхронизации.
+                 */
+                expect(
+                    close,
+                ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.updating(),
+                ).toBe(false);
+
+
+                expect(
+                    component.editError(),
+                ).toContain(
+                    'Роль сохранена',
+                );
+
+                expect(
+                    component.editError(),
+                ).toContain(
+                    'не удалось обновить',
+                );
+
+
+                /*
+                 * Role-list reload не запускаем,
+                 * пока current RBAC context
+                 * не удалось синхронизировать.
+                 */
+                expect(
+                    roleApi.list,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
             },
         );
 
