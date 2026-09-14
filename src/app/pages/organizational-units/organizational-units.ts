@@ -14,6 +14,7 @@ import {
 import {
     lucideLoaderCircle,
     lucideRefreshCw,
+    lucidePlus,
 } from '@ng-icons/lucide';
 
 import {
@@ -46,11 +47,43 @@ import type {
 
 import {
     PermissionCode,
+    PermissionScope,
 } from '../../core/permissions/permission.models';
 
 import {
     PermissionService,
 } from '../../core/permissions/permission.service';
+
+import {
+    HttpErrorResponse,
+} from '@angular/common/http';
+
+import {
+    FormsModule,
+} from '@angular/forms';
+
+import {
+    catchError,
+    forkJoin,
+    map,
+    of,
+} from 'rxjs';
+
+import {
+    HlmDialogImports,
+} from '@spartan-ng/helm/dialog';
+
+import {
+    HlmFieldImports,
+} from '@spartan-ng/helm/field';
+
+import {
+    HlmInputImports,
+} from '@spartan-ng/helm/input';
+
+import type {
+    BrnDialog,
+} from '@spartan-ng/brain/dialog';
 
 
 type OrganizationalUnitsState =
@@ -78,12 +111,17 @@ interface OrganizationalUnitRow {
         HlmBadgeImports,
         HlmButtonImports,
         HlmTableImports,
+        FormsModule,
+        HlmDialogImports,
+        HlmFieldImports,
+        HlmInputImports,
     ],
 
     providers: [
         provideIcons({
             lucideLoaderCircle,
             lucideRefreshCw,
+            lucidePlus,
         }),
     ],
 
@@ -115,6 +153,14 @@ export class OrganizationalUnits {
             OrganizationalUnit[]
         >([]);
 
+    private readonly _manageableUnits =
+        signal<
+            OrganizationalUnit[]
+        >([]);
+
+    private readonly _manageCatalogAvailable =
+        signal(false);
+
     private readonly _state =
         signal<
             OrganizationalUnitsState
@@ -129,6 +175,15 @@ export class OrganizationalUnits {
     readonly units =
         this._units.asReadonly();
 
+    readonly manageableUnits =
+        this._manageableUnits
+            .asReadonly();
+
+    readonly manageCatalogMessage =
+        signal<string | null>(
+            null,
+        );
+
     readonly state =
         this._state.asReadonly();
 
@@ -138,6 +193,57 @@ export class OrganizationalUnits {
             () =>
                 this.flattenUnits(
                     this._units(),
+                ),
+        );
+
+
+    readonly canManageUnits =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode
+                        .OrganizationalUnitsManage,
+                ),
+        );
+
+
+    readonly canManageTree =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode
+                        .OrganizationalUnitsManage,
+
+                    PermissionScope
+                        .OwnUnitTree,
+                ),
+        );
+
+
+    readonly canManageCompany =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode
+                        .OrganizationalUnitsManage,
+
+                    PermissionScope.Company,
+                ),
+        );
+
+
+    readonly canCreateUnits =
+        computed(
+            () =>
+                this._manageCatalogAvailable()
+                && (
+                    this.canManageCompany()
+                    || (
+                        this.canManageTree()
+                        && this
+                            ._manageableUnits()
+                            .length > 0
+                    )
                 ),
         );
 
@@ -219,6 +325,232 @@ export class OrganizationalUnits {
         this._reloadVersion.update(
             version =>
                 version + 1,
+        );
+    }
+
+
+    createUnit(
+        dialog: BrnDialog,
+    ): void {
+        const companyId =
+            this.companyContext
+                .activeCompanyId();
+
+        if (
+            companyId === null
+            || this.creating()
+            || !this.canCreateUnits()
+        ) {
+            return;
+        }
+
+
+        const name =
+            this.createName()
+                .trim();
+
+        const parentId =
+            this.createParentId();
+
+
+        if (!name) {
+            this.createError.set(
+                'Укажите название подразделения',
+            );
+
+            return;
+        }
+
+
+        if (
+            name.length > 255
+        ) {
+            this.createError.set(
+                'Название не должно превышать 255 символов',
+            );
+
+            return;
+        }
+
+
+        /*
+         * OWN_UNIT_TREE не имеет права
+         * создавать company root.
+         */
+        if (
+            !this.canManageCompany()
+            && parentId === null
+        ) {
+            this.createError.set(
+                'Выберите родительское подразделение',
+            );
+
+            return;
+        }
+
+
+        /*
+         * Не позволяем вручную отправить
+         * unit вне manage scope.
+         */
+        if (
+            parentId !== null
+            && !this
+                ._manageableUnits()
+                .some(
+                    unit =>
+                        unit.id
+                        === parentId,
+                )
+        ) {
+            this.createError.set(
+                'Родительское подразделение недоступно',
+            );
+
+            return;
+        }
+
+
+        this.creating.set(
+            true,
+        );
+
+        this.createError.set(
+            null,
+        );
+
+
+        this.unitApi
+            .create(
+                companyId,
+                {
+                    name,
+
+                    type:
+                        this.createType(),
+
+                    parent_id:
+                        parentId,
+                },
+            )
+            .subscribe({
+                next: () => {
+                    this.creating.set(
+                        false,
+                    );
+
+                    this.resetCreateForm();
+
+                    dialog.close({});
+
+                    this.retry();
+                },
+
+                error: error => {
+                    this.creating.set(
+                        false,
+                    );
+
+                    this.createError.set(
+                        this.getCreateError(
+                            error,
+                        ),
+                    );
+                },
+            });
+    }
+
+
+    resetCreateForm(): void {
+        this.createName.set('');
+
+        this.createType.set(
+            OrganizationalUnitType
+                .Department,
+        );
+
+        this.createParentId.set(
+            null,
+        );
+
+        this.createError.set(
+            null,
+        );
+    }
+
+
+    private getManageCatalogError(
+        error: unknown,
+    ): string {
+        if (
+            error instanceof
+            HttpErrorResponse
+            && error.status === 403
+        ) {
+            return (
+                'Право управления оргструктурой '
+                + 'изменилось. Страница доступна '
+                + 'только для просмотра.'
+            );
+        }
+
+        return (
+            'Не удалось загрузить область '
+            + 'управления подразделениями. '
+            + 'Редактирование временно отключено.'
+        );
+    }
+
+
+    private getCreateError(
+        error: unknown,
+    ): string {
+        if (
+            error instanceof
+            HttpErrorResponse
+        ) {
+            if (
+                error.status === 403
+            ) {
+                return (
+                    'У вас больше нет права '
+                    + 'создавать подразделение'
+                );
+            }
+
+            if (
+                error.status === 404
+            ) {
+                return (
+                    'Родительское подразделение '
+                    + 'больше не входит '
+                    + 'в доступную область'
+                );
+            }
+
+            if (
+                error.status === 400
+            ) {
+                return (
+                    'Родительское подразделение '
+                    + 'не найдено'
+                );
+            }
+
+            if (
+                error.status === 409
+            ) {
+                return (
+                    'Невозможно использовать '
+                    + 'выбранное родительское '
+                    + 'подразделение'
+                );
+            }
+        }
+
+
+        return (
+            'Не удалось создать подразделение'
         );
     }
 
@@ -433,11 +765,94 @@ export class OrganizationalUnits {
     }
 
 
+    readonly createName =
+        signal('');
+
+    readonly createType =
+        signal<
+            OrganizationalUnitType
+        >(
+            OrganizationalUnitType
+                .Department,
+        );
+
+    readonly createParentId =
+        signal<number | null>(
+            null,
+        );
+
+    readonly creating =
+        signal(false);
+
+    readonly createError =
+        signal<string | null>(
+            null,
+        );
+
+
+    readonly unitTypeOptions = [
+        {
+            value:
+                OrganizationalUnitType
+                    .Division,
+
+            label:
+                'Дивизион',
+        },
+        {
+            value:
+                OrganizationalUnitType
+                    .Department,
+
+            label:
+                'Отдел',
+        },
+        {
+            value:
+                OrganizationalUnitType
+                    .Team,
+
+            label:
+                'Команда',
+        },
+        {
+            value:
+                OrganizationalUnitType
+                    .Group,
+
+            label:
+                'Группа',
+        },
+        {
+            value:
+                OrganizationalUnitType
+                    .Branch,
+
+            label:
+                'Филиал',
+        },
+    ] as const;
+
+
     private reset(): void {
         this._units.set([]);
 
         this._state.set(
             'idle',
         );
+
+        this._manageableUnits.set(
+            [],
+        );
+
+        this._manageCatalogAvailable.set(
+            false,
+        );
+
+        this.manageCatalogMessage.set(
+            null,
+        );
+
+        this.resetCreateForm();
     }
 }
