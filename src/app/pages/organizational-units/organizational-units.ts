@@ -43,6 +43,7 @@ import {
 
 import type {
     OrganizationalUnit,
+    OrganizationalUnitUpdate,
 } from '../../core/organizational-units/organizational-unit.models';
 
 import {
@@ -436,6 +437,332 @@ export class OrganizationalUnits {
     }
 
 
+    canEditUnit(
+        unit:
+            OrganizationalUnit,
+    ): boolean {
+        return (
+            this.canManageUnits()
+            && this._manageCatalogAvailable()
+            && this
+                ._manageableUnits()
+                .some(
+                    manageable =>
+                        manageable.id
+                        === unit.id,
+                )
+        );
+    }
+
+
+    startEdit(
+        unit:
+            OrganizationalUnit,
+    ): void {
+        if (
+            !this.canEditUnit(
+                unit,
+            )
+        ) {
+            return;
+        }
+
+
+        this.editingUnit.set(
+            unit,
+        );
+
+        this.editName.set(
+            unit.name,
+        );
+
+        this.editType.set(
+            unit.type,
+        );
+
+        /*
+         * Не подставляем parent_id
+         * автоматически.
+         *
+         * Он может находиться вне
+         * manage scope пользователя.
+         */
+        this.editParentSelection.set(
+            'unchanged',
+        );
+
+        this.editIsActive.set(
+            unit.is_active,
+        );
+
+        this.updating.set(
+            false,
+        );
+
+        this.editError.set(
+            null,
+        );
+    }
+
+
+    resetEditForm(): void {
+        this.editingUnit.set(
+            null,
+        );
+
+        this.editName.set('');
+
+        this.editType.set(
+            OrganizationalUnitType
+                .Department,
+        );
+
+        this.editParentSelection.set(
+            'unchanged',
+        );
+
+        this.editIsActive.set(
+            true,
+        );
+
+        this.updating.set(
+            false,
+        );
+
+        this.editError.set(
+            null,
+        );
+    }
+
+
+    currentParentLabel(
+        unit:
+            OrganizationalUnit,
+    ): string {
+        if (
+            unit.parent_id === null
+        ) {
+            return 'Корень компании';
+        }
+
+
+        const parent =
+            this._units()
+                .find(
+                    candidate =>
+                        candidate.id
+                        === unit.parent_id,
+                )
+            ?? this._manageableUnits()
+                .find(
+                    candidate =>
+                        candidate.id
+                        === unit.parent_id,
+                );
+
+
+        if (parent) {
+            return parent.name;
+        }
+
+
+        return (
+            `Подразделение #${unit.parent_id}`
+            + ' (вне доступной области)'
+        );
+    }
+
+
+    saveEdit(
+        dialog:
+            BrnDialog,
+    ): void {
+        const companyId =
+            this.companyContext
+                .activeCompanyId();
+
+        const unit =
+            this.editingUnit();
+
+
+        if (
+            companyId === null
+            || unit === null
+            || this.updating()
+            || !this.canEditUnit(
+                unit,
+            )
+        ) {
+            return;
+        }
+
+
+        const name =
+            this.editName()
+                .trim();
+
+
+        if (!name) {
+            this.editError.set(
+                'Укажите название подразделения',
+            );
+
+            return;
+        }
+
+
+        if (
+            name.length > 255
+        ) {
+            this.editError.set(
+                'Название не должно превышать 255 символов',
+            );
+
+            return;
+        }
+
+
+        const data:
+            OrganizationalUnitUpdate = {};
+
+
+        if (
+            name !== unit.name
+        ) {
+            data.name =
+                name;
+        }
+
+
+        if (
+            this.editType()
+            !== unit.type
+        ) {
+            data.type =
+                this.editType();
+        }
+
+
+        if (
+            this.editIsActive()
+            !== unit.is_active
+        ) {
+            data.is_active =
+                this.editIsActive();
+        }
+
+
+        const parentSelection =
+            this.editParentSelection();
+
+
+        if (
+            parentSelection
+            !== 'unchanged'
+        ) {
+            /*
+             * Только COMPANY может
+             * переносить unit в root.
+             */
+            if (
+                parentSelection === null
+                && !this.canManageCompany()
+            ) {
+                this.editError.set(
+                    'Перемещение в корень компании недоступно',
+                );
+
+                return;
+            }
+
+
+            if (
+                parentSelection !== null
+                && !this
+                    .editParentOptions()
+                    .some(
+                        candidate =>
+                            candidate.id
+                            === parentSelection,
+                    )
+            ) {
+                this.editError.set(
+                    'Выбранное родительское подразделение недоступно',
+                );
+
+                return;
+            }
+
+
+            data.parent_id =
+                parentSelection;
+        }
+
+
+        /*
+         * Ничего не изменилось.
+         * PATCH делать незачем.
+         */
+        if (
+            Object.keys(
+                data,
+            ).length === 0
+        ) {
+            this.resetEditForm();
+
+            dialog.close({});
+
+            return;
+        }
+
+
+        this.updating.set(
+            true,
+        );
+
+        this.editError.set(
+            null,
+        );
+
+
+        this.unitApi
+            .update(
+                companyId,
+                unit.id,
+                data,
+            )
+            .subscribe({
+                next: () => {
+                    this.updating.set(
+                        false,
+                    );
+
+                    this.resetEditForm();
+
+                    dialog.close({});
+
+                    /*
+                     * Перечитываем одновременно
+                     * visible и manageable state.
+                     */
+                    this.retry();
+                },
+
+                error: error => {
+                    this.updating.set(
+                        false,
+                    );
+
+                    this.editError.set(
+                        this.getUpdateError(
+                            error,
+                        ),
+                    );
+                },
+            });
+    }
+
+
     createUnit(
         dialog: BrnDialog,
     ): void {
@@ -586,6 +913,102 @@ export class OrganizationalUnits {
     }
 
 
+    private getDescendantIds(
+        unitId: number,
+        units:
+            readonly OrganizationalUnit[],
+    ): Set<number> {
+        const childrenByParent =
+            new Map<
+                number,
+                number[]
+            >();
+
+
+        for (
+            const unit
+            of units
+        ) {
+            if (
+                unit.parent_id === null
+            ) {
+                continue;
+            }
+
+
+            const children =
+                childrenByParent.get(
+                    unit.parent_id,
+                )
+                ?? [];
+
+            children.push(
+                unit.id,
+            );
+
+            childrenByParent.set(
+                unit.parent_id,
+                children,
+            );
+        }
+
+
+        const descendants =
+            new Set<number>();
+
+        const queue =
+            [
+                unitId,
+            ];
+
+
+        while (
+            queue.length > 0
+        ) {
+            const parentId =
+                queue.shift();
+
+            if (
+                parentId === undefined
+            ) {
+                break;
+            }
+
+
+            const children =
+                childrenByParent.get(
+                    parentId,
+                )
+                ?? [];
+
+
+            for (
+                const childId
+                of children
+            ) {
+                if (
+                    descendants.has(
+                        childId,
+                    )
+                ) {
+                    continue;
+                }
+
+                descendants.add(
+                    childId,
+                );
+
+                queue.push(
+                    childId,
+                );
+            }
+        }
+
+
+        return descendants;
+    }
+
+
     private getManageCatalogError(
         error: unknown,
     ): string {
@@ -658,6 +1081,61 @@ export class OrganizationalUnits {
 
         return (
             'Не удалось создать подразделение'
+        );
+    }
+
+
+    private getUpdateError(
+        error: unknown,
+    ): string {
+        if (
+            error instanceof
+            HttpErrorResponse
+        ) {
+            if (
+                error.status === 403
+            ) {
+                return (
+                    'У вас больше нет права '
+                    + 'изменять это подразделение'
+                );
+            }
+
+
+            if (
+                error.status === 404
+            ) {
+                return (
+                    'Подразделение или новый родитель '
+                    + 'больше не входит '
+                    + 'в доступную область'
+                );
+            }
+
+
+            if (
+                error.status === 400
+            ) {
+                return (
+                    'Выбранное родительское '
+                    + 'подразделение не найдено'
+                );
+            }
+
+
+            if (
+                error.status === 409
+            ) {
+                return (
+                    'Невозможно переместить подразделение: '
+                    + 'проверьте организационную иерархию'
+                );
+            }
+        }
+
+
+        return (
+            'Не удалось изменить подразделение'
         );
     }
 
@@ -872,6 +1350,76 @@ export class OrganizationalUnits {
     }
 
 
+    readonly editingUnit =
+        signal<
+            OrganizationalUnit | null
+        >(
+            null,
+        );
+
+
+    readonly editName =
+        signal('');
+
+    readonly editType =
+        signal<
+            OrganizationalUnitType
+        >(
+            OrganizationalUnitType
+                .Department,
+        );
+
+    readonly editParentSelection =
+        signal<
+            EditParentSelection
+        >(
+            'unchanged',
+        );
+
+    readonly editIsActive =
+        signal(true);
+
+    readonly updating =
+        signal(false);
+
+    readonly editError =
+        signal<string | null>(
+            null,
+        );
+
+
+    readonly editParentOptions =
+        computed(
+            () => {
+                const unit =
+                    this.editingUnit();
+
+                if (!unit) {
+                    return [];
+                }
+
+
+                const descendants =
+                    this.getDescendantIds(
+                        unit.id,
+                        this._manageableUnits(),
+                    );
+
+
+                return this
+                    ._manageableUnits()
+                    .filter(
+                        candidate =>
+                            candidate.id
+                            !== unit.id
+                            && !descendants.has(
+                                candidate.id,
+                            ),
+                    );
+            },
+        );
+
+
     readonly createName =
         signal('');
 
@@ -961,5 +1509,7 @@ export class OrganizationalUnits {
         );
 
         this.resetCreateForm();
+
+        this.resetEditForm();
     }
 }

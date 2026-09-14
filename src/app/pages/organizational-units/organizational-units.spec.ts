@@ -123,6 +123,20 @@ describe(
         };
 
 
+        const noc:
+            OrganizationalUnit = {
+            ...support,
+
+            id: 6,
+
+            parent_id:
+                null,
+
+            name:
+                'NOC',
+        };
+
+
         const unitApi = {
             list:
                 vi.fn(),
@@ -131,6 +145,9 @@ describe(
                 vi.fn(),
 
             create:
+                vi.fn(),
+
+            update:
                 vi.fn(),
         };
 
@@ -721,6 +738,334 @@ describe(
                 expect(
                     close,
                 ).toHaveBeenCalled();
+            },
+        );
+
+        it(
+            'should expose edit action only for manageable units',
+            () => {
+                manageScope.set(
+                    PermissionScope.OwnUnit,
+                );
+
+                unitApi.listManageable
+                    .mockReturnValue(
+                        of([
+                            support,
+                        ]),
+                    );
+
+
+                component.retry();
+
+                fixture.detectChanges();
+
+
+                expect(
+                    component.canEditUnit(
+                        support,
+                    ),
+                ).toBe(true);
+
+                expect(
+                    component.canEditUnit(
+                        supportL1,
+                    ),
+                ).toBe(false);
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="edit-organizational-unit-action-4"]',
+                        ),
+                ).not.toBeNull();
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="edit-organizational-unit-action-5"]',
+                        ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should exclude self and descendants from edit parent options',
+            () => {
+                manageScope.set(
+                    PermissionScope.Company,
+                );
+
+                unitApi.listManageable
+                    .mockReturnValue(
+                        of([
+                            support,
+                            supportL1,
+                            noc,
+                        ]),
+                    );
+
+
+                component.retry();
+
+                fixture.detectChanges();
+
+
+                component.startEdit(
+                    support,
+                );
+
+
+                expect(
+                    component
+                        .editParentOptions()
+                        .map(
+                            unit =>
+                                unit.id,
+                        ),
+                ).toEqual([
+                    noc.id,
+                ]);
+            },
+        );
+
+        it(
+            'should update unit without sending unchanged parent',
+            () => {
+                manageScope.set(
+                    PermissionScope.OwnUnit,
+                );
+
+                unitApi.listManageable
+                    .mockReturnValue(
+                        of([
+                            support,
+                        ]),
+                    );
+
+
+                component.retry();
+
+                fixture.detectChanges();
+
+
+                component.startEdit(
+                    support,
+                );
+
+                component.editName.set(
+                    'Support Updated',
+                );
+
+                component.editType.set(
+                    OrganizationalUnitType
+                        .Division,
+                );
+
+                component.editIsActive.set(
+                    false,
+                );
+
+
+                unitApi.update
+                    .mockReturnValue(
+                        of({
+                            ...support,
+
+                            name:
+                                'Support Updated',
+
+                            type:
+                                OrganizationalUnitType
+                                    .Division,
+
+                            is_active:
+                                false,
+                        }),
+                    );
+
+
+                const close =
+                    vi.fn();
+
+
+                component.saveEdit(
+                    {
+                        close,
+                    } as never,
+                );
+
+
+                expect(
+                    unitApi.update,
+                ).toHaveBeenCalledWith(
+                    1,
+                    support.id,
+                    {
+                        name:
+                            'Support Updated',
+
+                        type:
+                            OrganizationalUnitType
+                                .Division,
+
+                        is_active:
+                            false,
+                    },
+                );
+
+
+                expect(
+                    close,
+                ).toHaveBeenCalled();
+            },
+        );
+
+        it(
+            'should allow company manager to move unit to company root',
+            () => {
+                manageScope.set(
+                    PermissionScope.Company,
+                );
+
+                unitApi.listManageable
+                    .mockReturnValue(
+                        of([
+                            support,
+                            supportL1,
+                            noc,
+                        ]),
+                    );
+
+
+                component.retry();
+
+                fixture.detectChanges();
+
+
+                component.startEdit(
+                    supportL1,
+                );
+
+                component
+                    .editParentSelection
+                    .set(
+                        null,
+                    );
+
+
+                unitApi.update
+                    .mockReturnValue(
+                        of({
+                            ...supportL1,
+
+                            parent_id:
+                                null,
+                        }),
+                    );
+
+
+                const close =
+                    vi.fn();
+
+
+                component.saveEdit(
+                    {
+                        close,
+                    } as never,
+                );
+
+
+                expect(
+                    unitApi.update,
+                ).toHaveBeenCalledWith(
+                    1,
+                    supportL1.id,
+                    {
+                        parent_id:
+                            null,
+                    },
+                );
+
+                expect(
+                    close,
+                ).toHaveBeenCalled();
+            },
+        );
+
+        it(
+            'should allow reactivating inactive manageable unit',
+            () => {
+                const inactiveChild:
+                    OrganizationalUnit = {
+                    ...supportL1,
+
+                    is_active:
+                        false,
+                };
+
+
+                manageScope.set(
+                    PermissionScope
+                        .OwnUnitTree,
+                );
+
+                unitApi.listManageable
+                    .mockReturnValue(
+                        of([
+                            support,
+                            inactiveChild,
+                        ]),
+                    );
+
+
+                component.retry();
+
+                fixture.detectChanges();
+
+
+                component.startEdit(
+                    inactiveChild,
+                );
+
+                component.editIsActive.set(
+                    true,
+                );
+
+
+                unitApi.update
+                    .mockReturnValue(
+                        of({
+                            ...inactiveChild,
+
+                            is_active:
+                                true,
+                        }),
+                    );
+
+
+                const close =
+                    vi.fn();
+
+
+                component.saveEdit(
+                    {
+                        close,
+                    } as never,
+                );
+
+
+                expect(
+                    unitApi.update,
+                ).toHaveBeenCalledWith(
+                    1,
+                    inactiveChild.id,
+                    {
+                        is_active:
+                            true,
+                    },
+                );
             },
         );
     },

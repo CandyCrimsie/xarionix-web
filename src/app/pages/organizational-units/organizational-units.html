@@ -207,6 +207,12 @@
                         <th hlmTh>
                             ID
                         </th>
+
+                        @if (canManageUnits()) {
+                        <th hlmTh class="text-right">
+                            Действия
+                        </th>
+                        }
                     </tr>
                 </thead>
 
@@ -272,10 +278,242 @@
                                 {{ row.unit.id }}
                             </span>
                         </td>
+
+
+                        @if (canManageUnits()) {
+                        <td hlmTd class="text-right">
+                            @if (canEditUnit(row.unit)) {
+                            <hlm-dialog #editDialog>
+                                <button hlmDialogTrigger hlmBtn variant="ghost" size="sm" type="button"
+                                    [attr.data-testid]="
+                        'edit-organizational-unit-action-'
+                        + row.unit.id
+                    " (click)="
+                        startEdit(
+                            row.unit
+                        )
+                    ">
+                                    Изменить
+                                </button>
+
+
+                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                    <hlm-dialog-header>
+                                        <h3 hlmDialogTitle>
+                                            Изменение подразделения
+                                        </h3>
+
+                                        <p hlmDialogDescription>
+                                            {{ row.unit.name }}
+                                        </p>
+                                    </hlm-dialog-header>
+
+
+                                    <hlm-field-group>
+                                        <hlm-field>
+                                            <label hlmFieldLabel [for]="
+                                    'edit-unit-name-'
+                                    + row.unit.id
+                                ">
+                                                Название
+                                            </label>
+
+                                            <input hlmInput [id]="
+                                    'edit-unit-name-'
+                                    + row.unit.id
+                                " maxlength="255" autocomplete="off" data-testid="edit-unit-name"
+                                                [ngModel]="editName()" (ngModelChange)="
+                                    editName.set($event)
+                                " />
+                                        </hlm-field>
+
+
+                                        <hlm-field>
+                                            <label hlmFieldLabel [for]="
+                                    'edit-unit-type-'
+                                    + row.unit.id
+                                ">
+                                                Тип
+                                            </label>
+
+                                            <select [id]="
+                                    'edit-unit-type-'
+                                    + row.unit.id
+                                " class="h-9 w-full rounded-md border bg-transparent px-3 text-sm outline-none"
+                                                data-testid="edit-unit-type" [ngModel]="editType()" (ngModelChange)="
+                                    editType.set($event)
+                                ">
+                                                @for (
+                                                option
+                                                of unitTypeOptions;
+                                                track option.value
+                                                ) {
+                                                <option [ngValue]="option.value">
+                                                    {{ option.label }}
+                                                </option>
+                                                }
+                                            </select>
+                                        </hlm-field>
+
+
+                                        <hlm-field>
+                                            <span hlmFieldLabel>
+                                                Текущий родитель
+                                            </span>
+
+                                            <p class="text-sm text-zinc-500">
+                                                {{
+                                                currentParentLabel(
+                                                row.unit
+                                                )
+                                                }}
+                                            </p>
+                                        </hlm-field>
+
+
+                                        @if (
+                                        canManageCompany()
+                                        || editParentOptions()
+                                        .length > 0
+                                        ) {
+                                        <hlm-field>
+                                            <label hlmFieldLabel [for]="
+                                        'edit-unit-parent-'
+                                        + row.unit.id
+                                    ">
+                                                Перемещение
+                                            </label>
+
+                                            <select [id]="
+                                        'edit-unit-parent-'
+                                        + row.unit.id
+                                    " class="h-9 w-full rounded-md border bg-transparent px-3 text-sm outline-none"
+                                                data-testid="edit-unit-parent" [ngModel]="
+                                        editParentSelection()
+                                    " (ngModelChange)="
+                                        editParentSelection
+                                            .set($event)
+                                    ">
+                                                <option [ngValue]="'unchanged'">
+                                                    Не менять родителя
+                                                </option>
+
+
+                                                @if (
+                                                canManageCompany()
+                                                ) {
+                                                <option [ngValue]="null">
+                                                    Переместить в корень компании
+                                                </option>
+                                                }
+
+
+                                                @for (
+                                                parent
+                                                of editParentOptions();
+                                                track parent.id
+                                                ) {
+                                                <option [ngValue]="parent.id">
+                                                    {{ parent.name }}
+
+                                                    @if (
+                                                    !parent.is_active
+                                                    ) {
+                                                    (отключено)
+                                                    }
+                                                </option>
+                                                }
+                                            </select>
+
+                                            @if (
+                                            !canManageCompany()
+                                            ) {
+                                            <p class="text-xs text-zinc-500">
+                                                Перемещение возможно
+                                                только внутри доступной
+                                                вам части дерева.
+                                            </p>
+                                            }
+                                        </hlm-field>
+                                        } @else {
+                                        <div class="rounded-md border bg-zinc-50 p-3 text-xs text-zinc-500">
+                                            С текущим scope
+                                            перемещение этого
+                                            подразделения недоступно.
+                                        </div>
+                                        }
+
+
+                                        <hlm-field>
+                                            <label
+                                                class="flex items-center justify-between gap-4 rounded-md border p-3">
+                                                <div>
+                                                    <div class="text-sm font-medium">
+                                                        Активно
+                                                    </div>
+
+                                                    <div class="text-xs text-zinc-500">
+                                                        Отключённое подразделение
+                                                        остаётся в структуре,
+                                                        но помечается неактивным.
+                                                    </div>
+                                                </div>
+
+                                                <input type="checkbox" data-testid="edit-unit-active"
+                                                    [ngModel]="editIsActive()" (ngModelChange)="
+                                        editIsActive.set($event)
+                                    " />
+                                            </label>
+                                        </hlm-field>
+                                    </hlm-field-group>
+
+
+                                    @if (
+                                    editError();
+                                    as error
+                                    ) {
+                                    <p class="text-sm text-destructive" data-testid="edit-unit-error">
+                                        {{ error }}
+                                    </p>
+                                    }
+
+
+                                    <hlm-dialog-footer>
+                                        <button hlmBtn variant="outline" type="button" hlmDialogClose
+                                            [disabled]="updating()" (click)="
+                                resetEditForm()
+                            ">
+                                            Отмена
+                                        </button>
+
+                                        <button hlmBtn type="button" data-testid="edit-unit-submit"
+                                            [disabled]="updating()" (click)="
+                                saveEdit(
+                                    editDialog
+                                )
+                            ">
+                                            @if (updating()) {
+                                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                                            Сохраняем...
+                                            } @else {
+                                            Сохранить
+                                            }
+                                        </button>
+                                    </hlm-dialog-footer>
+                                </hlm-dialog-content>
+                            </hlm-dialog>
+                            } @else {
+                            <span class="text-zinc-400">
+                                —
+                            </span>
+                            }
+                        </td>
+                        }
                     </tr>
                     } @empty {
                     <tr hlmTr>
-                        <td hlmTd colspan="4" class="h-24 text-center text-zinc-500"
+                        <td hlmTd [attr.colspan]="canManageUnits() ? 5 : 4" class="h-24 text-center text-zinc-500"
                             data-testid="organizational-units-empty">
                             Доступные подразделения не найдены
                         </td>
