@@ -103,6 +103,12 @@ interface OrganizationalUnitRow {
 }
 
 
+type EditParentSelection =
+    | number
+    | null
+    | 'unchanged';
+
+
 @Component({
     selector:
         'app-organizational-units',
