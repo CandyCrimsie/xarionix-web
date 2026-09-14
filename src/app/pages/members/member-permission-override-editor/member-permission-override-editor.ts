@@ -12,8 +12,19 @@ import {
 } from '@angular/common/http';
 
 import {
+    catchError,
     forkJoin,
+    map,
+    of,
 } from 'rxjs';
+
+import {
+    AuthService,
+} from '../../../core/auth/auth.service';
+
+import {
+    PermissionService,
+} from '../../../core/permissions/permission.service';
 
 import {
     NgIcon,
@@ -136,6 +147,18 @@ export class MemberPermissionOverrideEditor {
     private readonly api =
         inject(
             MembershipPermissionOverrideApiService,
+        );
+
+
+    private readonly auth =
+        inject(
+            AuthService,
+        );
+
+
+    private readonly permissions =
+        inject(
+            PermissionService,
         );
 
 
@@ -908,25 +931,122 @@ export class MemberPermissionOverrideEditor {
     private refreshEffective(
         permissionId: number,
     ): void {
-        this.api
-            .effective(
-                this.member().id,
-            )
+        /*
+         * Обновление effective permissions
+         * target membership.
+         *
+         * Оно может вернуть 403, если
+         * пользователь только что отозвал
+         * у самого себя административное
+         * право, необходимое для просмотра
+         * этого endpoint.
+         *
+         * Поэтому ошибка здесь не должна
+         * мешать обновить /me/permissions.
+         */
+        const effectiveRefresh =
+            this.api
+                .effective(
+                    this.member().id,
+                )
+                .pipe(
+                    map(
+                        effective => {
+                            this.setEffectivePermissions(
+                                effective,
+                            );
+
+                            return null;
+                        },
+                    ),
+
+                    catchError(
+                        () =>
+                            of(
+                                (
+                                    'Не удалось обновить '
+                                    + 'итоговые права '
+                                    + 'сотрудника.'
+                                ),
+                            ),
+                    ),
+                );
+
+
+        /*
+         * Если редактируем самого себя,
+         * backend уже инвалидировал Redis
+         * permissions cache.
+         *
+         * Нужно сразу перечитать
+         * /me/permissions, иначе sidebar,
+         * appCan и route guards останутся
+         * со старым frontend state.
+         */
+        const currentUserRefresh =
+            this.isEditingCurrentUser()
+                ? this.permissions
+                    .reloadCurrentCompany()
+                    .pipe(
+                        map(
+                            () =>
+                                null,
+                        ),
+
+                        catchError(
+                            () =>
+                                of(
+                                    (
+                                        'Не удалось обновить '
+                                        + 'ваши текущие права. '
+                                        + 'Обновите страницу.'
+                                    ),
+                                ),
+                        ),
+                    )
+                : of(
+                    null,
+                );
+
+
+        forkJoin({
+            effectiveError:
+                effectiveRefresh,
+
+            currentUserError:
+                currentUserRefresh,
+        })
             .subscribe({
-                next: effective => {
-                    this.setEffectivePermissions(
-                        effective,
-                    );
-
+                next: ({
+                    effectiveError,
+                    currentUserError,
+                }) => {
                     this.finishSaving(
                         permissionId,
                     );
-                },
 
-                error: () => {
-                    this.finishSaving(
-                        permissionId,
-                    );
+
+                    const messages =
+                        [
+                            effectiveError,
+                            currentUserError,
+                        ]
+                            .filter(
+                                (
+                                    message,
+                                ): message is string =>
+                                    message
+                                    !== null,
+                            );
+
+
+                    if (
+                        messages.length
+                        === 0
+                    ) {
+                        return;
+                    }
+
 
                     const errors =
                         new Map(
@@ -936,10 +1056,10 @@ export class MemberPermissionOverrideEditor {
                     errors.set(
                         permissionId,
                         (
-                            'Изменение сохранено, '
-                            + 'но не удалось обновить '
-                            + 'итоговые права. '
-                            + 'Переоткройте редактор.'
+                            'Изменение сохранено. '
+                            + messages.join(
+                                ' ',
+                            )
                         ),
                     );
 
@@ -948,6 +1068,21 @@ export class MemberPermissionOverrideEditor {
                     );
                 },
             });
+    }
+
+
+    private isEditingCurrentUser():
+        boolean {
+        const user =
+            this.auth.user();
+
+
+        return (
+            user !== null
+            && user.id
+            === this.member()
+                .user_id
+        );
     }
 
 

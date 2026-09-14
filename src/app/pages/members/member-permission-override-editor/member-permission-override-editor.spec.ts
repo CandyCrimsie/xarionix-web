@@ -17,6 +17,14 @@ import {
 } from 'vitest';
 
 import {
+    AuthService,
+} from '../../../core/auth/auth.service';
+
+import {
+    PermissionService,
+} from '../../../core/permissions/permission.service';
+
+import {
     MembershipPermissionOverrideApiService,
 } from '../../../core/members/membership-permission-override-api.service';
 
@@ -68,6 +76,18 @@ describe(
                 vi.fn(),
 
             remove:
+                vi.fn(),
+        };
+
+
+        const auth = {
+            user:
+                vi.fn(),
+        };
+
+
+        const permissions = {
+            reloadCurrentCompany:
                 vi.fn(),
         };
 
@@ -124,6 +144,32 @@ describe(
         beforeEach(async () => {
             vi.clearAllMocks();
 
+            auth.user
+                .mockReturnValue({
+                    id: 999,
+
+                    username:
+                        'other-admin',
+
+                    is_active:
+                        true,
+
+                    created_at:
+                        '2026-01-01T00:00:00Z',
+
+                    updated_at:
+                        '2026-01-01T00:00:00Z',
+                });
+
+
+            permissions
+                .reloadCurrentCompany
+                .mockReturnValue(
+                    of(
+                        undefined,
+                    ),
+                );
+
             api.catalog
                 .mockReturnValue(
                     of([
@@ -165,6 +211,20 @@ describe(
 
                             useValue:
                                 api,
+                        },
+                        {
+                            provide:
+                                AuthService,
+
+                            useValue:
+                                auth,
+                        },
+                        {
+                            provide:
+                                PermissionService,
+
+                            useValue:
+                                permissions,
                         },
                     ],
                 })
@@ -737,6 +797,231 @@ describe(
                     ),
                 ).toContain(
                     'не удалось обновить',
+                );
+            },
+        );
+
+        it(
+            'should not reload current permissions when editing another member',
+            () => {
+                component.changeMode(
+                    permission,
+                    'deny',
+                );
+
+
+                api.set.mockReturnValue(
+                    of({
+                        id: 200,
+
+                        company_membership_id:
+                            member.id,
+
+                        permission_id:
+                            permission.id,
+
+                        effect:
+                            PermissionOverrideEffect
+                                .Deny,
+
+                        scope:
+                            null,
+                    }),
+                );
+
+
+                api.effective
+                    .mockReturnValue(
+                        of({
+                            permissions:
+                                [],
+
+                            scopes:
+                                {},
+                        }),
+                    );
+
+
+                component.savePermission(
+                    permission,
+                );
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).not.toHaveBeenCalled();
+            },
+        );
+
+        it(
+            'should reload current permissions after editing own override',
+            () => {
+                auth.user
+                    .mockReturnValue({
+                        id:
+                            member.user_id,
+
+                        username:
+                            member.username,
+
+                        is_active:
+                            true,
+
+                        created_at:
+                            member.created_at,
+
+                        updated_at:
+                            member.updated_at,
+                    });
+
+
+                component.changeMode(
+                    permission,
+                    'deny',
+                );
+
+
+                api.set.mockReturnValue(
+                    of({
+                        id: 201,
+
+                        company_membership_id:
+                            member.id,
+
+                        permission_id:
+                            permission.id,
+
+                        effect:
+                            PermissionOverrideEffect
+                                .Deny,
+
+                        scope:
+                            null,
+                    }),
+                );
+
+
+                api.effective
+                    .mockReturnValue(
+                        of({
+                            permissions:
+                                [],
+
+                            scopes:
+                                {},
+                        }),
+                    );
+
+
+                component.savePermission(
+                    permission,
+                );
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+            },
+        );
+
+        it(
+            'should reload current permissions even when own effective refresh fails',
+            () => {
+                auth.user
+                    .mockReturnValue({
+                        id:
+                            member.user_id,
+
+                        username:
+                            member.username,
+
+                        is_active:
+                            true,
+
+                        created_at:
+                            member.created_at,
+
+                        updated_at:
+                            member.updated_at,
+                    });
+
+
+                component.changeMode(
+                    permission,
+                    'deny',
+                );
+
+
+                api.set.mockReturnValue(
+                    of({
+                        id: 202,
+
+                        company_membership_id:
+                            member.id,
+
+                        permission_id:
+                            permission.id,
+
+                        effect:
+                            PermissionOverrideEffect
+                                .Deny,
+
+                        scope:
+                            null,
+                    }),
+                );
+
+
+                api.effective
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Forbidden after self revoke',
+                                ),
+                        ),
+                    );
+
+
+                component.savePermission(
+                    permission,
+                );
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    component.isSaving(
+                        permission.id,
+                    ),
+                ).toBe(false);
+
+
+                expect(
+                    component.rowError(
+                        permission.id,
+                    ),
+                ).toContain(
+                    'Изменение сохранено',
+                );
+
+
+                expect(
+                    component.rowError(
+                        permission.id,
+                    ),
+                ).toContain(
+                    'итоговые права',
                 );
             },
         );

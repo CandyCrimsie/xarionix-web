@@ -957,5 +957,119 @@ describe(
         ).toBeNull();
       },
     );
+
+    it(
+      'should manually reload current company permissions and emit settled company',
+      () => {
+        const settledCompanies:
+          number[] = [];
+
+
+        service
+          .companyPermissionsSettled$
+          .subscribe(
+            companyId => {
+              settledCompanies.push(
+                companyId,
+              );
+            },
+          );
+
+
+        http.get.mockReturnValue(
+          of({
+            permissions: [
+              PermissionCode.TasksRead,
+            ],
+
+            scopes: {
+              [
+                PermissionCode
+                  .TasksRead
+              ]:
+                PermissionScope.Self,
+            },
+          }),
+        );
+
+
+        service
+          .reloadCurrentCompany()
+          .subscribe();
+
+
+        expect(
+          service.can(
+            PermissionCode.TasksRead,
+          ),
+        ).toBe(true);
+
+        expect(
+          service.loadedCompanyId(),
+        ).toBe(1);
+
+        expect(
+          settledCompanies,
+        ).toEqual([
+          1,
+        ]);
+      },
+    );
+
+    it(
+      'should emit settled company when manual permission reload fails',
+      () => {
+        const settledCompanies:
+          number[] = [];
+
+
+        service
+          .companyPermissionsSettled$
+          .subscribe(
+            companyId => {
+              settledCompanies.push(
+                companyId,
+              );
+            },
+          );
+
+
+        http.get.mockReturnValue(
+          throwError(
+            () =>
+              new Error(
+                'Permissions unavailable',
+              ),
+          ),
+        );
+
+
+        service
+          .reloadCurrentCompany()
+          .subscribe({
+            error:
+              () =>
+                undefined,
+          });
+
+
+        expect(
+          service.state(),
+        ).toBe(
+          'error',
+        );
+
+        expect(
+          service.permissions()
+            .size,
+        ).toBe(0);
+
+        expect(
+          settledCompanies,
+        ).toEqual([
+          1,
+        ]);
+      },
+    );
   },
 );

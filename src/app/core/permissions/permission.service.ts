@@ -228,6 +228,64 @@ export class PermissionService {
   }
 
 
+  reloadCurrentCompany():
+    Observable<void> {
+    const companyId =
+      this.companyContext
+        .activeCompanyId();
+
+
+    if (
+      companyId === null
+    ) {
+      this.reset();
+
+      return of(
+        undefined,
+      );
+    }
+
+
+    return this.load()
+      .pipe(
+        tap(() => {
+          this
+            ._companyPermissionsSettled
+            .next(
+              companyId,
+            );
+        }),
+
+        catchError(
+          error => {
+            /*
+             * Даже ошибка является
+             * settled-состоянием:
+             *
+             * load() уже очистил
+             * permissions и перевёл
+             * сервис в error.
+             *
+             * Router должен повторно
+             * проверить текущий route
+             * fail-closed.
+             */
+            this
+              ._companyPermissionsSettled
+              .next(
+                companyId,
+              );
+
+            return throwError(
+              () =>
+                error,
+            );
+          },
+        ),
+      );
+  }
+
+
   constructor() {
     this.companyContext.companyChanged$
       .pipe(
@@ -254,21 +312,16 @@ export class PermissionService {
             return of(undefined);
           }
 
-          return this.load().pipe(
-            tap(() => {
-              this._companyPermissionsSettled.next(
-                companyId,
-              );
-            }),
-
-            catchError(() => {
-              this._companyPermissionsSettled.next(
-                companyId,
-              );
-
-              return of(undefined);
-            }),
-          );
+          return this
+            .reloadCurrentCompany()
+            .pipe(
+              catchError(
+                () =>
+                  of(
+                    undefined,
+                  ),
+              ),
+            );
         }),
 
         takeUntilDestroyed(
