@@ -282,5 +282,37 @@ describe(
                 );
             },
         );
+
+        it(
+            'should list manageable organizational units',
+            async () => {
+                http.get.mockReturnValue(
+                    of([
+                        unit,
+                    ]),
+                );
+
+
+                const result =
+                    await firstValueFrom(
+                        service.listManageable(
+                            1,
+                        ),
+                    );
+
+
+                expect(
+                    http.get,
+                ).toHaveBeenCalledWith(
+                    `${API_BASE_URL}/companies/1/units/manageable`,
+                );
+
+                expect(
+                    result,
+                ).toEqual([
+                    unit,
+                ]);
+            },
+        );
     },
 );

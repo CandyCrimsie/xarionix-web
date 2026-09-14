@@ -43,6 +43,19 @@ export class OrganizationalUnitApiService {
     }
 
 
+    listManageable(
+        companyId: number,
+    ): Observable<
+        OrganizationalUnit[]
+    > {
+        return this.http.get<
+            OrganizationalUnit[]
+        >(
+            `${API_BASE_URL}/companies/${companyId}/units/manageable`,
+        );
+    }
+
+
     get(
         companyId: number,
         unitId: number,
