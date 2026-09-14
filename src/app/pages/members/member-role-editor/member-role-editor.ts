@@ -48,6 +48,14 @@ import type {
     Role,
 } from '../../../core/roles/role.models';
 
+import {
+    AuthService,
+} from '../../../core/auth/auth.service';
+
+import {
+    PermissionService,
+} from '../../../core/permissions/permission.service';
+
 
 type EditorState =
     | 'loading'
@@ -97,6 +105,18 @@ export class MemberRoleEditor {
     private readonly roleApi =
         inject(
             MembershipRoleApiService,
+        );
+
+
+    private readonly auth =
+        inject(
+            AuthService,
+        );
+
+
+    private readonly permissions =
+        inject(
+            PermissionService,
         );
 
 
@@ -437,31 +457,74 @@ export class MemberRoleEditor {
             )
             .subscribe({
                 next: roles => {
-                    const roleIds =
-                        new Set(
-                            roles.map(
-                                role =>
-                                    role.id,
-                            ),
-                        );
-
-
-                    this._initialRoleIds.set(
-                        roleIds,
-                    );
-
-                    this._selectedRoleIds.set(
-                        new Set(roleIds),
-                    );
-
-
-                    this.mergeRoles(
+                    this.applySavedRoles(
                         roles,
                     );
 
 
-                    this.saving.set(false);
-                    this.saved.set(true);
+                    /*
+                     * Изменение ролей другого
+                     * сотрудника никак не влияет
+                     * на permissions текущего
+                     * пользователя.
+                     */
+                    if (
+                        !this.isEditingCurrentUser()
+                    ) {
+                        this.finishSaving();
+
+                        return;
+                    }
+
+
+                    /*
+                     * Backend уже инвалидировал
+                     * permission cache target
+                     * membership.
+                     *
+                     * Если target — текущий user,
+                     * немедленно перечитываем
+                     * /me/permissions.
+                     *
+                     * reloadCurrentCompany()
+                     * также инициирует повторную
+                     * проверку текущего route.
+                     */
+                    this.permissions
+                        .reloadCurrentCompany()
+                        .subscribe({
+                            next: () => {
+                                this.finishSaving();
+                            },
+
+                            error: () => {
+                                /*
+                                 * Сами роли уже успешно
+                                 * сохранены.
+                                 *
+                                 * Поэтому не откатываем
+                                 * локальное состояние,
+                                 * а сообщаем только
+                                 * об ошибке синхронизации.
+                                 */
+                                this.saving.set(
+                                    false,
+                                );
+
+                                this.saved.set(
+                                    true,
+                                );
+
+                                this.saveError.set(
+                                    (
+                                        'Роли сохранены, '
+                                        + 'но не удалось обновить '
+                                        + 'ваши текущие права. '
+                                        + 'Обновите страницу.'
+                                    ),
+                                );
+                            },
+                        });
                 },
 
                 error: error => {
@@ -474,6 +537,61 @@ export class MemberRoleEditor {
                     );
                 },
             });
+    }
+
+
+    private isEditingCurrentUser():
+        boolean {
+        const user =
+            this.auth.user();
+
+
+        return (
+            user !== null
+            && user.id
+            === this.member()
+                .user_id
+        );
+    }
+
+
+    private applySavedRoles(
+        roles: Role[],
+    ): void {
+        const roleIds =
+            new Set(
+                roles.map(
+                    role =>
+                        role.id,
+                ),
+            );
+
+
+        this._initialRoleIds.set(
+            roleIds,
+        );
+
+        this._selectedRoleIds.set(
+            new Set(
+                roleIds,
+            ),
+        );
+
+
+        this.mergeRoles(
+            roles,
+        );
+    }
+
+
+    private finishSaving(): void {
+        this.saving.set(
+            false,
+        );
+
+        this.saved.set(
+            true,
+        );
     }
 
 

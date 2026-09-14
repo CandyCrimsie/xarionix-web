@@ -37,6 +37,14 @@ import {
     MemberRoleEditor,
 } from './member-role-editor';
 
+import {
+    AuthService,
+} from '../../../core/auth/auth.service';
+
+import {
+    PermissionService,
+} from '../../../core/permissions/permission.service';
+
 
 describe(
     'MemberRoleEditor',
@@ -58,6 +66,18 @@ describe(
                 vi.fn(),
 
             replace:
+                vi.fn(),
+        };
+
+
+        const auth = {
+            user:
+                vi.fn(),
+        };
+
+
+        const permissions = {
+            reloadCurrentCompany:
                 vi.fn(),
         };
 
@@ -164,6 +184,34 @@ describe(
             vi.clearAllMocks();
 
 
+            auth.user
+                .mockReturnValue({
+                    id:
+                        999,
+
+                    username:
+                        'other-admin',
+
+                    is_active:
+                        true,
+
+                    created_at:
+                        '2026-01-01T00:00:00Z',
+
+                    updated_at:
+                        '2026-01-01T00:00:00Z',
+                });
+
+
+            permissions
+                .reloadCurrentCompany
+                .mockReturnValue(
+                    of(
+                        undefined,
+                    ),
+                );
+
+
             await TestBed
                 .configureTestingModule({
                     imports: [
@@ -177,6 +225,20 @@ describe(
 
                             useValue:
                                 roleApi,
+                        },
+                        {
+                            provide:
+                                AuthService,
+
+                            useValue:
+                                auth,
+                        },
+                        {
+                            provide:
+                                PermissionService,
+
+                            useValue:
+                                permissions,
                         },
                     ],
                 })
@@ -479,6 +541,208 @@ describe(
                         lockedRole.id,
                     ),
                 ).toBe(true);
+            },
+        );
+
+        it(
+            'should not reload current permissions when editing another member roles',
+            () => {
+                createEditor();
+
+
+                component.toggleRole(
+                    candidateRole,
+                    true,
+                );
+
+
+                roleApi.replace
+                    .mockReturnValue(
+                        of([
+                            lockedRole,
+                            editableRole,
+                            candidateRole,
+                        ]),
+                    );
+
+
+                component.save();
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.saved(),
+                ).toBe(true);
+
+                expect(
+                    component.saving(),
+                ).toBe(false);
+            },
+        );
+
+        it(
+            'should reload current permissions after editing own roles',
+            () => {
+                auth.user
+                    .mockReturnValue({
+                        id:
+                            member.user_id,
+
+                        username:
+                            member.username,
+
+                        is_active:
+                            true,
+
+                        created_at:
+                            member.created_at,
+
+                        updated_at:
+                            member.updated_at,
+                    });
+
+
+                createEditor();
+
+
+                component.toggleRole(
+                    candidateRole,
+                    true,
+                );
+
+
+                roleApi.replace
+                    .mockReturnValue(
+                        of([
+                            lockedRole,
+                            editableRole,
+                            candidateRole,
+                        ]),
+                    );
+
+
+                component.save();
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    component.saved(),
+                ).toBe(true);
+
+                expect(
+                    component.saving(),
+                ).toBe(false);
+            },
+        );
+
+        it(
+            'should keep saved roles when own permission reload fails',
+            () => {
+                auth.user
+                    .mockReturnValue({
+                        id:
+                            member.user_id,
+
+                        username:
+                            member.username,
+
+                        is_active:
+                            true,
+
+                        created_at:
+                            member.created_at,
+
+                        updated_at:
+                            member.updated_at,
+                    });
+
+
+                createEditor();
+
+
+                component.toggleRole(
+                    candidateRole,
+                    true,
+                );
+
+
+                roleApi.replace
+                    .mockReturnValue(
+                        of([
+                            lockedRole,
+                            editableRole,
+                            candidateRole,
+                        ]),
+                    );
+
+
+                permissions
+                    .reloadCurrentCompany
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Permission refresh failed',
+                                ),
+                        ),
+                    );
+
+
+                component.save();
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    component.saved(),
+                ).toBe(true);
+
+                expect(
+                    component.saving(),
+                ).toBe(false);
+
+
+                expect(
+                    component.isSelected(
+                        candidateRole.id,
+                    ),
+                ).toBe(true);
+
+
+                expect(
+                    component.hasChanges(),
+                ).toBe(false);
+
+
+                expect(
+                    component.saveError(),
+                ).toContain(
+                    'Роли сохранены',
+                );
+
+                expect(
+                    component.saveError(),
+                ).toContain(
+                    'не удалось обновить',
+                );
             },
         );
     },
