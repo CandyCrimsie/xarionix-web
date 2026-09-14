@@ -49,6 +49,10 @@ import {
     RolePermissionEditor,
 } from './role-permission-editor';
 
+import {
+    PermissionService,
+} from '../../../core/permissions/permission.service';
+
 
 describe(
     'RolePermissionEditor',
@@ -72,6 +76,12 @@ describe(
                 vi.fn(),
 
             replace:
+                vi.fn(),
+        };
+
+
+        const permissions = {
+            reloadCurrentCompany:
                 vi.fn(),
         };
 
@@ -197,6 +207,15 @@ describe(
             vi.clearAllMocks();
 
 
+            permissions
+                .reloadCurrentCompany
+                .mockReturnValue(
+                    of(
+                        undefined,
+                    ),
+                );
+
+
             permissionApi
                 .list
                 .mockReturnValue(
@@ -229,13 +248,19 @@ describe(
                             useValue:
                                 permissionApi,
                         },
-
                         {
                             provide:
                                 RolePermissionApiService,
 
                             useValue:
                                 rolePermissionApi,
+                        },
+                        {
+                            provide:
+                                PermissionService,
+
+                            useValue:
+                                permissions,
                         },
                     ],
                 })
@@ -407,6 +432,14 @@ describe(
 
 
                 expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
                     rolePermissionApi
                         .replace,
                 ).toHaveBeenCalledWith(
@@ -535,6 +568,94 @@ describe(
                 expect(
                     component.saving(),
                 ).toBe(false);
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).not.toHaveBeenCalled();
+            },
+        );
+
+        it(
+            'should keep saved role permissions when current permission reload fails',
+            () => {
+                component.changeScope(
+                    membersRead,
+                    PermissionScope.Company,
+                );
+
+
+                rolePermissionApi
+                    .replace
+                    .mockReturnValue(
+                        of([
+                            {
+                                ...assignedMembersRead,
+
+                                scope:
+                                    PermissionScope
+                                        .Company,
+                            },
+                        ]),
+                    );
+
+
+                permissions
+                    .reloadCurrentCompany
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Permission refresh failed',
+                                ),
+                        ),
+                    );
+
+
+                component
+                    .savePermissions();
+
+
+                expect(
+                    permissions
+                        .reloadCurrentCompany,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                /*
+                 * Backend mutation уже успешна.
+                 */
+                expect(
+                    component.scopeFor(
+                        membersRead.id,
+                    ),
+                ).toBe(
+                    PermissionScope.Company,
+                );
+
+
+                expect(
+                    component.saved(),
+                ).toBe(true);
+
+                expect(
+                    component.saving(),
+                ).toBe(false);
+
+
+                expect(
+                    component.saveError(),
+                ).toContain(
+                    'Права роли сохранены',
+                );
+
+                expect(
+                    component.saveError(),
+                ).toContain(
+                    'не удалось обновить',
+                );
             },
         );
     },

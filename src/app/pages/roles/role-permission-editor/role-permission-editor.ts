@@ -53,6 +53,10 @@ import type {
     Role,
 } from '../../../core/roles/role.models';
 
+import {
+    PermissionService,
+} from '../../../core/permissions/permission.service';
+
 
 type EditorState =
     | 'loading'
@@ -113,6 +117,12 @@ export class RolePermissionEditor {
 
     private readonly rolePermissionApi =
         inject(RolePermissionApiService);
+
+
+    private readonly permissions =
+        inject(
+            PermissionService,
+        );
 
 
     private readonly _catalog =
@@ -504,17 +514,67 @@ export class RolePermissionEditor {
             )
             .subscribe({
                 next: result => {
-                    this.saving.set(
-                        false,
-                    );
-
+                    /*
+                     * Backend уже сохранил новый
+                     * permission set роли.
+                     */
                     this.setAssignments(
                         result,
                     );
 
-                    this.saved.set(
-                        true,
-                    );
+
+                    /*
+                     * Мы не знаем, назначена ли
+                     * редактируемая роль текущему
+                     * пользователю.
+                     *
+                     * Поэтому безопаснее после любой
+                     * успешной mutation перечитать
+                     * /me/permissions.
+                     *
+                     * Если роль текущему пользователю
+                     * не назначена — просто получим
+                     * тот же permission state.
+                     */
+                    this.permissions
+                        .reloadCurrentCompany()
+                        .subscribe({
+                            next: () => {
+                                this.saving.set(
+                                    false,
+                                );
+
+                                this.saved.set(
+                                    true,
+                                );
+                            },
+
+                            error: () => {
+                                /*
+                                 * Permissions роли уже
+                                 * сохранены на backend.
+                                 *
+                                 * Ошибка относится только
+                                 * к синхронизации frontend.
+                                 */
+                                this.saving.set(
+                                    false,
+                                );
+
+                                this.saved.set(
+                                    true,
+                                );
+
+                                this.saveError.set(
+                                    (
+                                        'Права роли сохранены, '
+                                        + 'но не удалось обновить '
+                                        + 'ваши текущие права. '
+                                        + 'Обновите страницу.'
+                                    ),
+                                );
+                            },
+                        });
                 },
 
                 error: error => {
