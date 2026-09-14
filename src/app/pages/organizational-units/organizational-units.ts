@@ -275,22 +275,121 @@ export class OrganizationalUnits {
                 }
 
 
+                const canManage =
+                    this.permissions.can(
+                        PermissionCode
+                            .OrganizationalUnitsManage,
+                    );
+
+
                 this._units.set([]);
+
+                this._manageableUnits.set(
+                    [],
+                );
+
+                this._manageCatalogAvailable.set(
+                    false,
+                );
+
+                this.manageCatalogMessage.set(
+                    null,
+                );
 
                 this._state.set(
                     'loading',
                 );
 
 
+                /*
+                 * Ошибка manage catalog
+                 * не должна ломать просмотр
+                 * организационной структуры.
+                 *
+                 * В таком случае страница
+                 * остаётся read-only.
+                 */
+                const manageable$ =
+                    canManage
+                        ? this.unitApi
+                            .listManageable(
+                                companyId,
+                            )
+                            .pipe(
+                                map(
+                                    units => ({
+                                        available:
+                                            true,
+
+                                        units,
+
+                                        message:
+                                            null,
+                                    }),
+                                ),
+
+                                catchError(
+                                    error =>
+                                        of({
+                                            available:
+                                                false,
+
+                                            units:
+                                                [],
+
+                                            message:
+                                                this
+                                                    .getManageCatalogError(
+                                                        error,
+                                                    ),
+                                        }),
+                                ),
+                            )
+                        : of({
+                            available:
+                                false,
+
+                            units:
+                                [],
+
+                            message:
+                                null,
+                        });
+
+
                 const subscription =
-                    this.unitApi
-                        .list(
-                            companyId,
-                        )
+                    forkJoin({
+                        visible:
+                            this.unitApi
+                                .list(
+                                    companyId,
+                                ),
+
+                        manageable:
+                            manageable$,
+                    })
                         .subscribe({
-                            next: units => {
+                            next: result => {
                                 this._units.set(
-                                    units,
+                                    result.visible,
+                                );
+
+                                this._manageableUnits.set(
+                                    result
+                                        .manageable
+                                        .units,
+                                );
+
+                                this._manageCatalogAvailable.set(
+                                    result
+                                        .manageable
+                                        .available,
+                                );
+
+                                this.manageCatalogMessage.set(
+                                    result
+                                        .manageable
+                                        .message,
                                 );
 
                                 this._state.set(
@@ -301,6 +400,14 @@ export class OrganizationalUnits {
                             error: () => {
                                 this._units.set(
                                     [],
+                                );
+
+                                this._manageableUnits.set(
+                                    [],
+                                );
+
+                                this._manageCatalogAvailable.set(
+                                    false,
                                 );
 
                                 this._state.set(
