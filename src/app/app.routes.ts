@@ -1,116 +1,215 @@
-import { Routes } from '@angular/router';
+import {
+    Routes,
+} from '@angular/router';
 
-import { AuthLayout } from './layouts/auth-layout/auth-layout';
-import { AppLayout } from './layouts/app-layout/app-layout';
+import {
+    AuthLayout,
+} from './layouts/auth-layout/auth-layout';
 
-import { Login } from './pages/login/login';
-import { Home } from './pages/home/home';
-import { Invite } from './pages/invite/invite';
-import { Forbidden } from './pages/forbidden/forbidden';
-import { Roles } from './pages/roles/roles';
-import { Members } from './pages/members/members';
-import { OrganizationalUnits } from './pages/organizational-units/organizational-units';
+import {
+    AppLayout,
+} from './layouts/app-layout/app-layout';
 
-import { authGuard } from './core/auth/auth-guard';
-import { guestGuard } from './core/auth/guest-guard';
-import { permissionGuard } from './core/permissions/permission-guard';
+import {
+    Home,
+} from './pages/home/home';
+
+import {
+    Forbidden,
+} from './pages/forbidden/forbidden';
+
+import {
+    authGuard,
+} from './core/auth/auth-guard';
+
+import {
+    guestGuard,
+} from './core/auth/guest-guard';
+
+import {
+    permissionGuard,
+} from './core/permissions/permission-guard';
 
 import {
     PermissionCode,
-    PermissionScope
+    PermissionScope,
 } from './core/permissions/permission.models';
 
 
+export const routes:
+    Routes = [
+        {
+            path:
+                'login',
 
-export const routes: Routes = [
-    {
-        path: 'login',
-        canActivate: [
-            guestGuard,
-        ],
-        component: AuthLayout,
-        children: [
-            {
-                path: '',
-                component: Login
-            }
-        ]
-    },
-    {
-        path: '',
-        canActivate: [
-            authGuard,
-        ],
-        component: AppLayout,
-        children: [
-            {
-                path: '',
-                component: Home
-            },
-            {
-                path: 'invite',
+            canActivate: [
+                guestGuard,
+            ],
 
-                canActivate: [
-                    permissionGuard(
-                        PermissionCode.MembersManage,
-                    ),
-                ],
-                runGuardsAndResolvers: 'always',
-                component: Invite,
-            },
-            {
-                path: 'members',
+            component:
+                AuthLayout,
 
-                canActivate: [
-                    permissionGuard(
-                        PermissionCode.MembersRead,
-                    ),
-                ],
+            children: [
+                {
+                    path:
+                        '',
 
-                runGuardsAndResolvers:
-                    'always',
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/login/login'
+                            )
+                                .then(
+                                    module =>
+                                        module.Login,
+                                ),
+                },
+            ],
+        },
 
-                component: Members,
-            },
-            {
-                path: 'organizational-units',
+        {
+            path:
+                '',
 
-                canActivate: [
-                    permissionGuard(
-                        PermissionCode
-                            .OrganizationalUnitsRead,
-                    ),
-                ],
+            canActivate: [
+                authGuard,
+            ],
 
-                runGuardsAndResolvers:
-                    'always',
+            component:
+                AppLayout,
 
-                component:
-                    OrganizationalUnits,
-            },
-            {
-                path: 'roles',
+            children: [
+                {
+                    path:
+                        '',
 
-                canActivate: [
-                    permissionGuard(
-                        PermissionCode.RolesRead,
-                        PermissionScope.Company,
-                    ),
-                ],
+                    /*
+                     * Главная страница маленькая
+                     * и является primary landing,
+                     * поэтому оставляем eager.
+                     */
+                    component:
+                        Home,
+                },
 
-                runGuardsAndResolvers:
-                    'always',
+                {
+                    path:
+                        'invite',
 
-                component: Roles,
-            },
-            {
-                path: 'forbidden',
-                component: Forbidden
-            }
-        ]
-    },
-    {
-        path: '**',
-        redirectTo: ''
-    }
-];
+                    canActivate: [
+                        permissionGuard(
+                            PermissionCode
+                                .MembersManage,
+                        ),
+                    ],
+
+                    runGuardsAndResolvers:
+                        'always',
+
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/invite/invite'
+                            )
+                                .then(
+                                    module =>
+                                        module.Invite,
+                                ),
+                },
+
+                {
+                    path:
+                        'members',
+
+                    canActivate: [
+                        permissionGuard(
+                            PermissionCode
+                                .MembersRead,
+                        ),
+                    ],
+
+                    runGuardsAndResolvers:
+                        'always',
+
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/members/members'
+                            )
+                                .then(
+                                    module =>
+                                        module.Members,
+                                ),
+                },
+
+                {
+                    path:
+                        'organizational-units',
+
+                    canActivate: [
+                        permissionGuard(
+                            PermissionCode
+                                .OrganizationalUnitsRead,
+                        ),
+                    ],
+
+                    runGuardsAndResolvers:
+                        'always',
+
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/organizational-units/organizational-units'
+                            )
+                                .then(
+                                    module =>
+                                        module.OrganizationalUnits,
+                                ),
+                },
+
+                {
+                    path:
+                        'roles',
+
+                    canActivate: [
+                        permissionGuard(
+                            PermissionCode
+                                .RolesRead,
+
+                            PermissionScope
+                                .Company,
+                        ),
+                    ],
+
+                    runGuardsAndResolvers:
+                        'always',
+
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/roles/roles'
+                            )
+                                .then(
+                                    module =>
+                                        module.Roles,
+                                ),
+                },
+
+                {
+                    path:
+                        'forbidden',
+
+                    component:
+                        Forbidden,
+                },
+            ],
+        },
+
+        {
+            path:
+                '**',
+
+            redirectTo:
+                '',
+        },
+    ];
