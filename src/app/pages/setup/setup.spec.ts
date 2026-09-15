@@ -54,6 +54,7 @@ import {
 
 import {
     InstallationState,
+    type SetupStatusResponse,
 } from '../../core/setup/setup.models';
 
 
@@ -89,6 +90,30 @@ describe(
 
         const installed =
             signal(false);
+
+
+        const status =
+            signal<
+                SetupStatusResponse | null
+            >({
+                state:
+                    InstallationState.Ready,
+
+                setup_allowed:
+                    true,
+
+                has_users:
+                    false,
+
+                has_companies:
+                    false,
+
+                has_memberships:
+                    false,
+
+                has_administrator:
+                    false,
+            });
 
 
         const setupApi = {
@@ -136,6 +161,9 @@ describe(
                 inconsistent
                     .asReadonly(),
 
+            status:
+                status.asReadonly(),
+
             hasError:
                 statusError
                     .asReadonly(),
@@ -148,6 +176,26 @@ describe(
         beforeEach(
             async () => {
                 vi.clearAllMocks();
+
+                status.set({
+                    state:
+                        InstallationState.Ready,
+
+                    setup_allowed:
+                        true,
+
+                    has_users:
+                        false,
+
+                    has_companies:
+                        false,
+
+                    has_memberships:
+                        false,
+
+                    has_administrator:
+                        false,
+                });
 
                 state.set(
                     'ready',
@@ -390,7 +438,7 @@ describe(
 
 
         it(
-            'should render inconsistent installation state',
+            'should render inconsistent installation diagnostics',
             () => {
                 setupRequired.set(
                     false,
@@ -399,6 +447,29 @@ describe(
                 inconsistent.set(
                     true,
                 );
+
+
+                status.set({
+                    state:
+                        InstallationState
+                            .Inconsistent,
+
+                    setup_allowed:
+                        false,
+
+                    has_users:
+                        true,
+
+                    has_companies:
+                        true,
+
+                    has_memberships:
+                        true,
+
+                    has_administrator:
+                        false,
+                });
+
 
                 fixture.detectChanges();
 
@@ -410,12 +481,63 @@ describe(
                         ),
                 ).not.toBeNull();
 
+
                 expect(
                     fixture.nativeElement
                         .querySelector(
                             '[data-testid="setup-form"]',
                         ),
                 ).toBeNull();
+
+
+                const users =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="setup-diagnostic-users"]',
+                        ) as HTMLElement | null;
+
+                const companies =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="setup-diagnostic-companies"]',
+                        ) as HTMLElement | null;
+
+                const memberships =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="setup-diagnostic-memberships"]',
+                        ) as HTMLElement | null;
+
+                const administrator =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="setup-diagnostic-administrator"]',
+                        ) as HTMLElement | null;
+
+
+                expect(
+                    users?.textContent,
+                ).toContain(
+                    'Обнаружены',
+                );
+
+                expect(
+                    companies?.textContent,
+                ).toContain(
+                    'Обнаружены',
+                );
+
+                expect(
+                    memberships?.textContent,
+                ).toContain(
+                    'Обнаружены',
+                );
+
+                expect(
+                    administrator?.textContent,
+                ).toContain(
+                    'Не найден',
+                );
             },
         );
 
@@ -786,6 +908,119 @@ describe(
 
                 expect(
                     component.isSubmitting(),
+                ).toBe(false);
+            },
+        );
+
+        it(
+            'should redirect to login when recovery check becomes installed',
+            () => {
+                setupRequired.set(
+                    false,
+                );
+
+                inconsistent.set(
+                    true,
+                );
+
+
+                status.set({
+                    state:
+                        InstallationState
+                            .Inconsistent,
+
+                    setup_allowed:
+                        false,
+
+                    has_users:
+                        true,
+
+                    has_companies:
+                        true,
+
+                    has_memberships:
+                        true,
+
+                    has_administrator:
+                        false,
+                });
+
+
+                setupState.refresh
+                    .mockImplementation(
+                        () => {
+                            inconsistent.set(
+                                false,
+                            );
+
+                            installed.set(
+                                true,
+                            );
+
+
+                            status.set({
+                                state:
+                                    InstallationState
+                                        .Installed,
+
+                                setup_allowed:
+                                    false,
+
+                                has_users:
+                                    true,
+
+                                has_companies:
+                                    true,
+
+                                has_memberships:
+                                    true,
+
+                                has_administrator:
+                                    true,
+                            });
+
+
+                            return of(
+                                undefined,
+                            );
+                        },
+                    );
+
+
+                fixture.detectChanges();
+
+
+                const retry =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="setup-recovery-retry"]',
+                        ) as HTMLButtonElement | null;
+
+
+                expect(
+                    retry,
+                ).not.toBeNull();
+
+
+                retry?.click();
+
+
+                expect(
+                    setupState.refresh,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    router.navigateByUrl,
+                ).toHaveBeenCalledWith(
+                    '/login',
+                );
+
+
+                expect(
+                    component.refreshing(),
                 ).toBe(false);
             },
         );

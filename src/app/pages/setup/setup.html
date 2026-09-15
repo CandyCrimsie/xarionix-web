@@ -46,34 +46,142 @@
         } @else if (
         setupState.isInconsistent()
         ) {
-        <div class="flex min-h-80 flex-col items-center justify-center gap-4 rounded-xl border bg-white p-8 text-center shadow-sm"
-            data-testid="setup-inconsistent">
-            <div class="flex size-12 items-center justify-center rounded-full bg-zinc-100">
-                <ng-icon name="lucideAlertTriangle" class="size-6" />
+        <div class="rounded-xl border bg-white p-6 shadow-sm sm:p-8" data-testid="setup-inconsistent">
+            <div class="flex items-start gap-4">
+                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
+                    <ng-icon name="lucideAlertTriangle" class="size-5" />
+                </div>
+
+                <div class="min-w-0">
+                    <h1 class="text-xl font-semibold tracking-tight">
+                        Требуется восстановление установки
+                    </h1>
+
+                    <p class="mt-1 text-sm text-zinc-500">
+                        В базе данных уже существуют
+                        данные Xarionix ERP, но система
+                        не обнаружила действующего
+                        администратора.
+                    </p>
+                </div>
             </div>
 
-            <div class="space-y-2">
-                <h1 class="text-xl font-semibold">
-                    Обнаружена незавершённая установка
-                </h1>
 
-                <p class="text-sm text-zinc-500">
-                    База данных содержит часть данных
-                    первоначальной настройки.
-                    Автоматическое продолжение отключено,
-                    чтобы не повредить существующие данные.
+            @if (
+            setupState.status();
+            as status
+            ) {
+            <div class="mt-6">
+                <h2 class="text-sm font-semibold">
+                    Диагностика
+                </h2>
+
+                <div class="mt-3 divide-y rounded-lg border">
+                    <div class="flex items-center justify-between gap-4 px-4 py-3" data-testid="setup-diagnostic-users">
+                        <span class="text-sm">
+                            Пользователи
+                        </span>
+
+                        <span class="text-sm font-medium">
+                            @if (status.has_users) {
+                            Обнаружены
+                            } @else {
+                            Не найдены
+                            }
+                        </span>
+                    </div>
+
+
+                    <div class="flex items-center justify-between gap-4 px-4 py-3"
+                        data-testid="setup-diagnostic-companies">
+                        <span class="text-sm">
+                            Компании
+                        </span>
+
+                        <span class="text-sm font-medium">
+                            @if (
+                            status.has_companies
+                            ) {
+                            Обнаружены
+                            } @else {
+                            Не найдены
+                            }
+                        </span>
+                    </div>
+
+
+                    <div class="flex items-center justify-between gap-4 px-4 py-3"
+                        data-testid="setup-diagnostic-memberships">
+                        <span class="text-sm">
+                            Связи сотрудников
+                            с компаниями
+                        </span>
+
+                        <span class="text-sm font-medium">
+                            @if (
+                            status.has_memberships
+                            ) {
+                            Обнаружены
+                            } @else {
+                            Не найдены
+                            }
+                        </span>
+                    </div>
+
+
+                    <div class="flex items-center justify-between gap-4 px-4 py-3"
+                        data-testid="setup-diagnostic-administrator">
+                        <span class="text-sm">
+                            Активный администратор
+                        </span>
+
+                        <span class="text-sm font-medium">
+                            @if (
+                            status.has_administrator
+                            ) {
+                            Обнаружен
+                            } @else {
+                            Не найден
+                            }
+                        </span>
+                    </div>
+                </div>
+            </div>
+            }
+
+
+            <div class="mt-6 rounded-lg bg-zinc-50 p-4">
+                <p class="text-sm font-medium">
+                    Автоматическая установка заблокирована
+                </p>
+
+                <p class="mt-1 text-sm text-zinc-500">
+                    Xarionix ERP не будет автоматически
+                    изменять или удалять существующие данные.
+                    Перед ручным восстановлением сделайте
+                    резервную копию базы данных и приведите
+                    installation state в согласованное состояние.
+                </p>
+
+                <p class="mt-2 text-sm text-zinc-500">
+                    После исправления состояния нажмите
+                    «Проверить снова».
                 </p>
             </div>
 
-            <button hlmBtn type="button" variant="outline" [disabled]="refreshing()" (click)="retryStatus()">
-                @if (refreshing()) {
-                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-                } @else {
-                <ng-icon name="lucideRefreshCw" />
 
-                Проверить снова
-                }
-            </button>
+            <div class="mt-6 flex justify-end">
+                <button hlmBtn type="button" variant="outline" [disabled]="refreshing()"
+                    data-testid="setup-recovery-retry" (click)="retryStatus()">
+                    @if (refreshing()) {
+                    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                    } @else {
+                    <ng-icon name="lucideRefreshCw" />
+
+                    Проверить снова
+                    }
+                </button>
+            </div>
         </div>
         } @else if (
         setupState.isSetupRequired()

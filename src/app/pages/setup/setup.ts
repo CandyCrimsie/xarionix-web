@@ -477,6 +477,27 @@ export class Setup {
                     this.refreshing.set(
                         false,
                     );
+
+
+                    /*
+                     * Состояние могло быть
+                     * исправлено вручную.
+                     *
+                     * Если ERP теперь установлена,
+                     * initial bootstrap уже не
+                     * выполнялся для этой вкладки,
+                     * поэтому ведём пользователя
+                     * на обычный login.
+                     */
+                    if (
+                        this.setupState
+                            .isInstalled()
+                    ) {
+                        void this.router
+                            .navigateByUrl(
+                                '/login',
+                            );
+                    }
                 },
             });
     }
