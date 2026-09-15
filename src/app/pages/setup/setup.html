@@ -1,5 +1,240 @@
-<div class="flex min-h-screen items-center justify-center" data-testid="setup-page">
-    <span class="text-sm text-zinc-500">
-        Подготовка первичной настройки...
-    </span>
-</div>
+<main class="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-10">
+    <div class="w-full max-w-xl">
+        @if (
+        setupState.state()
+        === 'loading'
+        ) {
+        <div class="flex min-h-80 flex-col items-center justify-center gap-3 rounded-xl border bg-white p-8 shadow-sm"
+            data-testid="setup-loading">
+            <ng-icon name="lucideLoaderCircle" class="size-6 animate-spin" />
+
+            <p class="text-sm text-zinc-500">
+                Проверяем состояние системы...
+            </p>
+        </div>
+        } @else if (
+        setupState.hasError()
+        ) {
+        <div class="flex min-h-80 flex-col items-center justify-center gap-4 rounded-xl border bg-white p-8 text-center shadow-sm"
+            data-testid="setup-status-error">
+            <div class="flex size-12 items-center justify-center rounded-full bg-zinc-100">
+                <ng-icon name="lucideAlertTriangle" class="size-6" />
+            </div>
+
+            <div class="space-y-1">
+                <h1 class="text-xl font-semibold">
+                    Не удалось проверить систему
+                </h1>
+
+                <p class="text-sm text-zinc-500">
+                    Сервер не ответил на запрос состояния
+                    первоначальной настройки.
+                </p>
+            </div>
+
+            <button hlmBtn type="button" variant="outline" [disabled]="refreshing()" data-testid="setup-status-retry"
+                (click)="retryStatus()">
+                @if (refreshing()) {
+                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                } @else {
+                <ng-icon name="lucideRefreshCw" />
+
+                Повторить
+                }
+            </button>
+        </div>
+        } @else if (
+        setupState.isInconsistent()
+        ) {
+        <div class="flex min-h-80 flex-col items-center justify-center gap-4 rounded-xl border bg-white p-8 text-center shadow-sm"
+            data-testid="setup-inconsistent">
+            <div class="flex size-12 items-center justify-center rounded-full bg-zinc-100">
+                <ng-icon name="lucideAlertTriangle" class="size-6" />
+            </div>
+
+            <div class="space-y-2">
+                <h1 class="text-xl font-semibold">
+                    Обнаружена незавершённая установка
+                </h1>
+
+                <p class="text-sm text-zinc-500">
+                    База данных содержит часть данных
+                    первоначальной настройки.
+                    Автоматическое продолжение отключено,
+                    чтобы не повредить существующие данные.
+                </p>
+            </div>
+
+            <button hlmBtn type="button" variant="outline" [disabled]="refreshing()" (click)="retryStatus()">
+                @if (refreshing()) {
+                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                } @else {
+                <ng-icon name="lucideRefreshCw" />
+
+                Проверить снова
+                }
+            </button>
+        </div>
+        } @else if (
+        setupState.isSetupRequired()
+        ) {
+        <section class="rounded-xl border bg-white p-6 shadow-sm sm:p-8" data-testid="setup-form">
+            <div class="mb-8 flex items-start gap-4">
+                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
+                    <ng-icon name="lucideSettings" class="size-5" />
+                </div>
+
+                <div>
+                    <h1 class="text-2xl font-semibold tracking-tight">
+                        Первоначальная настройка
+                    </h1>
+
+                    <p class="mt-1 text-sm text-zinc-500">
+                        Создайте первую компанию и
+                        учётную запись администратора.
+                    </p>
+                </div>
+            </div>
+
+
+            <form [formGroup]="form" (ngSubmit)="submit()">
+                <div hlmFieldGroup>
+                    <div>
+                        <h2 class="mb-4 text-sm font-semibold">
+                            Компания
+                        </h2>
+
+                        <div hlmFieldGroup>
+                            <div hlmField>
+                                <label hlmFieldLabel for="companyName">
+                                    Название компании
+                                </label>
+
+                                <input hlmInput id="companyName" type="text" formControlName="companyName"
+                                    autocomplete="organization" placeholder="Xarionix Telecom" />
+
+                                <hlm-field-error validator="required">
+                                    Укажите название компании.
+                                </hlm-field-error>
+
+                                <hlm-field-error validator="maxlength">
+                                    Максимум 255 символов.
+                                </hlm-field-error>
+                            </div>
+
+
+                            <div hlmField>
+                                <label hlmFieldLabel for="companyShortName">
+                                    Короткое название
+                                </label>
+
+                                <input hlmInput id="companyShortName" type="text" formControlName="companyShortName"
+                                    placeholder="Xarionix" />
+
+                                <p class="text-xs text-zinc-500">
+                                    Необязательно.
+                                </p>
+
+                                <hlm-field-error validator="maxlength">
+                                    Максимум 100 символов.
+                                </hlm-field-error>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="my-2 border-t"></div>
+
+
+                    <div>
+                        <h2 class="mb-4 text-sm font-semibold">
+                            Администратор
+                        </h2>
+
+                        <div hlmFieldGroup>
+                            <div hlmField>
+                                <label hlmFieldLabel for="username">
+                                    Имя пользователя
+                                </label>
+
+                                <input hlmInput id="username" type="text" formControlName="username"
+                                    autocomplete="username" placeholder="admin" />
+
+                                <hlm-field-error validator="required">
+                                    Укажите имя пользователя.
+                                </hlm-field-error>
+
+                                <hlm-field-error validator="minlength">
+                                    Минимум 3 символа.
+                                </hlm-field-error>
+
+                                <hlm-field-error validator="maxlength">
+                                    Максимум 64 символа.
+                                </hlm-field-error>
+                            </div>
+
+
+                            <div hlmField>
+                                <label hlmFieldLabel for="password">
+                                    Пароль
+                                </label>
+
+                                <input hlmInput id="password" type="password" formControlName="password"
+                                    autocomplete="new-password" placeholder="Минимум 8 символов" />
+
+                                <hlm-field-error validator="required">
+                                    Укажите пароль.
+                                </hlm-field-error>
+
+                                <hlm-field-error validator="minlength">
+                                    Минимум 8 символов.
+                                </hlm-field-error>
+
+                                <hlm-field-error validator="maxlength">
+                                    Максимум 128 символов.
+                                </hlm-field-error>
+                            </div>
+
+
+                            <div hlmField>
+                                <label hlmFieldLabel for="passwordConfirm">
+                                    Повторите пароль
+                                </label>
+
+                                <input hlmInput id="passwordConfirm" type="password" formControlName="passwordConfirm"
+                                    autocomplete="new-password" placeholder="Повторите пароль" />
+
+                                <hlm-field-error validator="required">
+                                    Повторите пароль.
+                                </hlm-field-error>
+
+                                @if (
+                                hasPasswordMismatch()
+                                ) {
+                                <p class="text-sm text-destructive" data-testid="setup-password-mismatch">
+                                    Пароли не совпадают.
+                                </p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div hlmField class="pt-2">
+                        <button hlmBtn type="submit" class="w-full" data-testid="setup-submit">
+                            Создать систему
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+        } @else {
+        <div class="flex min-h-80 items-center justify-center rounded-xl border bg-white p-8 text-center shadow-sm"
+            data-testid="setup-unavailable">
+            <p class="text-sm text-zinc-500">
+                Первоначальная настройка сейчас недоступна.
+            </p>
+        </div>
+        }
+    </div>
+</main>
