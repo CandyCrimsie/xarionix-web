@@ -485,6 +485,8 @@ describe(
                     dialog,
                 );
 
+                fixture.detectChanges();
+
 
                 expect(
                     companyApi.createChild,
