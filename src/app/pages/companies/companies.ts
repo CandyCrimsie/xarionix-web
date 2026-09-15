@@ -15,6 +15,7 @@ import {
     lucideBuilding2,
     lucideLoaderCircle,
     lucideRefreshCw,
+    lucidePlus,
 } from '@ng-icons/lucide';
 
 import {
@@ -50,6 +51,30 @@ import {
     PermissionService,
 } from '../../core/permissions/permission.service';
 
+import {
+    FormsModule,
+} from '@angular/forms';
+
+import {
+    HttpErrorResponse,
+} from '@angular/common/http';
+
+import {
+    HlmDialogImports,
+} from '@spartan-ng/helm/dialog';
+
+import {
+    HlmFieldImports,
+} from '@spartan-ng/helm/field';
+
+import {
+    HlmInputImports,
+} from '@spartan-ng/helm/input';
+
+import type {
+    BrnDialog,
+} from '@spartan-ng/brain/dialog';
+
 
 type CompaniesState =
     | 'idle'
@@ -76,6 +101,10 @@ interface CompanyTreeRow {
         HlmBadgeImports,
         HlmButtonImports,
         HlmTableImports,
+        FormsModule,
+        HlmDialogImports,
+        HlmFieldImports,
+        HlmInputImports,
     ],
 
     providers: [
@@ -83,6 +112,7 @@ interface CompanyTreeRow {
             lucideBuilding2,
             lucideLoaderCircle,
             lucideRefreshCw,
+            lucidePlus,
         }),
     ],
 
@@ -132,6 +162,34 @@ export class Companies {
         this._state.asReadonly();
 
 
+    readonly createName =
+        signal('');
+
+    readonly createShortName =
+        signal('');
+
+    readonly creating =
+        signal(false);
+
+    readonly createError =
+        signal<string | null>(
+            null,
+        );
+
+
+    readonly canManageCompanies =
+        computed(
+            () =>
+                this.permissions.can(
+                    PermissionCode
+                        .CompaniesManage,
+
+                    PermissionScope
+                        .Company,
+                ),
+        );
+
+
     readonly rows =
         computed(
             () => {
@@ -147,6 +205,168 @@ export class Companies {
                 );
             },
         );
+
+
+    resetCreateForm(): void {
+        this.createName.set(
+            '',
+        );
+
+        this.createShortName.set(
+            '',
+        );
+
+        this.creating.set(
+            false,
+        );
+
+        this.createError.set(
+            null,
+        );
+    }
+
+
+    createChild(
+        dialog: BrnDialog,
+    ): void {
+        const companyId =
+            this.companyContext
+                .activeCompanyId();
+
+
+        if (
+            companyId === null
+            || this.creating()
+            || !this.canManageCompanies()
+        ) {
+            return;
+        }
+
+
+        const name =
+            this.createName()
+                .trim();
+
+        const shortName =
+            this.createShortName()
+                .trim();
+
+
+        if (!name) {
+            this.createError.set(
+                'Укажите название компании',
+            );
+
+            return;
+        }
+
+
+        if (name.length > 255) {
+            this.createError.set(
+                'Название не должно превышать 255 символов',
+            );
+
+            return;
+        }
+
+
+        if (
+            shortName.length > 100
+        ) {
+            this.createError.set(
+                'Короткое название не должно превышать 100 символов',
+            );
+
+            return;
+        }
+
+
+        this.creating.set(
+            true,
+        );
+
+        this.createError.set(
+            null,
+        );
+
+
+        this.companyApi
+            .createChild(
+                companyId,
+                {
+                    name,
+
+                    short_name:
+                        shortName || null,
+                },
+            )
+            .subscribe({
+                next: () => {
+                    this.resetCreateForm();
+
+                    dialog.close({});
+
+                    /*
+                     * Новый узел уже находится
+                     * в subtree текущей компании.
+                     */
+                    this.retry();
+                },
+
+                error: error => {
+                    this.creating.set(
+                        false,
+                    );
+
+                    this.createError.set(
+                        this.getCreateError(
+                            error,
+                        ),
+                    );
+                },
+            });
+    }
+
+
+    private getCreateError(
+        error: unknown,
+    ): string {
+        if (
+            error
+            instanceof HttpErrorResponse
+        ) {
+            if (
+                error.status === 422
+            ) {
+                return (
+                    'Проверьте введённые данные'
+                );
+            }
+
+
+            if (
+                error.status === 404
+            ) {
+                return (
+                    'Текущая компания недоступна'
+                );
+            }
+
+
+            if (
+                error.status === 500
+            ) {
+                return (
+                    'Не удалось подготовить новую компанию'
+                );
+            }
+        }
+
+
+        return (
+            'Не удалось создать компанию'
+        );
+    }
 
 
     constructor() {

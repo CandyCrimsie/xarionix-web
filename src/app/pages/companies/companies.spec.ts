@@ -45,6 +45,14 @@ import {
     Companies,
 } from './companies';
 
+import type {
+    BrnDialog,
+} from '@spartan-ng/brain/dialog';
+
+
+const canManage =
+    signal(false);
+
 
 describe(
     'Companies',
@@ -121,6 +129,9 @@ describe(
         const companyApi = {
             getTree:
                 vi.fn(),
+
+            createChild:
+                vi.fn(),
         };
 
 
@@ -152,6 +163,16 @@ describe(
                             return canRead();
                         }
 
+                        if (
+                            permission
+                            === PermissionCode
+                                .CompaniesManage
+                            && scope
+                            === PermissionScope.Company
+                        ) {
+                            return canManage();
+                        }
+
                         return false;
                     },
                 ),
@@ -174,6 +195,16 @@ describe(
                     .getTree
                     .mockReturnValue(
                         of(tree),
+                    );
+
+                canManage.set(
+                    false,
+                );
+
+                companyApi
+                    .createChild
+                    .mockReturnValue(
+                        of(tree.children[0]),
                     );
 
 
@@ -388,6 +419,152 @@ describe(
                     component.tree(),
                 ).toEqual(
                     tree,
+                );
+            },
+        );
+
+        it(
+            'should hide create action without companies manage permission',
+            () => {
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="create-company-action"]',
+                        ),
+                ).toBeNull();
+            },
+        );
+
+
+        it(
+            'should show create action with companies manage permission',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="create-company-action"]',
+                        ),
+                ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should create child company and reload tree',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                const close =
+                    vi.fn();
+
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.createName.set(
+                    '  New Branch  ',
+                );
+
+                component.createShortName.set(
+                    '  NB  ',
+                );
+
+
+                component.createChild(
+                    dialog,
+                );
+
+
+                expect(
+                    companyApi.createChild,
+                ).toHaveBeenCalledWith(
+                    1,
+                    {
+                        name:
+                            'New Branch',
+
+                        short_name:
+                            'NB',
+                    },
+                );
+
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                /*
+                 * Первый getTree был вызван
+                 * при создании компонента,
+                 * второй — после успешного create.
+                 */
+                expect(
+                    companyApi.getTree,
+                ).toHaveBeenCalledTimes(
+                    2,
+                );
+
+
+                expect(
+                    component.createName(),
+                ).toBe('');
+
+                expect(
+                    component.createShortName(),
+                ).toBe('');
+
+                expect(
+                    component.createError(),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should reject empty company name',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                const dialog = {
+                    close:
+                        vi.fn(),
+                } as unknown as BrnDialog;
+
+
+                component.createName.set(
+                    '   ',
+                );
+
+
+                component.createChild(
+                    dialog,
+                );
+
+
+                expect(
+                    companyApi.createChild,
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    component.createError(),
+                ).toBe(
+                    'Укажите название компании',
                 );
             },
         );
