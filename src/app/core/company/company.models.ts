@@ -11,3 +11,33 @@ export interface Company {
     created_at: string;
     updated_at: string;
 }
+
+
+export interface CompanyTreeNode
+    extends Company {
+    children: CompanyTreeNode[];
+}
+
+
+export interface CompanyChildCreate {
+    name: string;
+
+    short_name: string | null;
+}
+
+
+export interface CompanyUpdate {
+    name?: string;
+
+    short_name?: string | null;
+}
+
+
+export interface CompanyMoveRequest {
+    parent_id: number;
+}
+
+
+export interface CompanyActivationRequest {
+    is_active: boolean;
+}
