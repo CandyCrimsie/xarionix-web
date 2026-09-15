@@ -95,6 +95,15 @@ export class AppLayout {
       PermissionScope.Company,
     );
 
+  readonly canReadCompanies =
+    this.permissions.canSignal(
+      PermissionCode
+        .CompaniesRead,
+
+      PermissionScope
+        .Company,
+    );
+
   private readonly router = inject(Router);
 
 

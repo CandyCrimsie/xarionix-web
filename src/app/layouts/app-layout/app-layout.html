@@ -120,6 +120,27 @@
                 </a>
             </div>
 
+            @if (canReadCompanies()) {
+            <div hlmSidebarGroup data-testid="companies-group">
+                <div hlmSidebarGroupLabel>
+                    Организация
+                </div>
+
+                <ul hlmSidebarMenu>
+                    <li hlmSidebarMenuItem>
+                        <a hlmSidebarMenuButton routerLink="/companies" routerLinkActive #rla="routerLinkActive"
+                            [isActive]="rla.isActive" data-testid="companies-nav-item">
+                            <ng-icon name="lucideBriefcaseBusiness" />
+
+                            <span>
+                                Компании
+                            </span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            }
+
             <!-- Группа 2 -->
             @if (
             canReadMembers()

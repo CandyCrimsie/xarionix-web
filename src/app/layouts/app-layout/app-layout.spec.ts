@@ -105,6 +105,9 @@ describe(
         vi.fn(),
     };
 
+    const canReadCompanies =
+      signal(false);
+
     const permissions = {
       canSignal:
         vi.fn(
@@ -147,6 +150,17 @@ describe(
                 .OrganizationalUnitsRead
             ) {
               return canReadUnits
+                .asReadonly();
+            }
+
+            if (
+              permission
+              === PermissionCode
+                .CompaniesRead
+              && minimumScope
+              === PermissionScope.Company
+            ) {
+              return canReadCompanies
                 .asReadonly();
             }
 
@@ -199,6 +213,10 @@ describe(
       );
 
       canReadRoles.set(
+        false,
+      );
+
+      canReadCompanies.set(
         false,
       );
 
@@ -784,6 +802,52 @@ describe(
               '[data-testid="organizational-units-nav-item"]',
             ),
         ).toBeNull();
+      },
+    );
+
+    it(
+      'should hide companies navigation without companies read company permission',
+      () => {
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+
+        expect(
+          element.querySelector(
+            '[data-testid="companies-nav-item"]',
+          ),
+        ).toBeNull();
+      },
+    );
+
+
+    it(
+      'should show companies navigation with companies read company permission',
+      () => {
+        canReadCompanies.set(
+          true,
+        );
+
+        fixture.detectChanges();
+
+
+        const element:
+          HTMLElement =
+          fixture.nativeElement;
+
+
+        expect(
+          element.querySelector(
+            '[data-testid="companies-group"]',
+          ),
+        ).not.toBeNull();
+
+        expect(
+          element.querySelector(
+            '[data-testid="companies-nav-item"]',
+          ),
+        ).not.toBeNull();
       },
     );
   },

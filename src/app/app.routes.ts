@@ -171,6 +171,34 @@ export const routes:
 
                 {
                     path:
+                        'companies',
+
+                    canActivate: [
+                        permissionGuard(
+                            PermissionCode
+                                .CompaniesRead,
+
+                            PermissionScope
+                                .Company,
+                        ),
+                    ],
+
+                    runGuardsAndResolvers:
+                        'always',
+
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/companies/companies'
+                            )
+                                .then(
+                                    module =>
+                                        module.Companies,
+                                ),
+                },
+
+                {
+                    path:
                         'organizational-units',
 
                     canActivate: [

@@ -1,0 +1,139 @@
+<div class="flex flex-col gap-4 px-4 pb-4">
+    <div>
+        <h1 class="text-2xl font-semibold">
+            Компании
+        </h1>
+
+        <p class="mt-1 text-sm text-zinc-500">
+            Структура текущей компании
+            и её дочерних организаций
+        </p>
+    </div>
+
+
+    @if (state() === 'loading') {
+    <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500" data-testid="companies-loading">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+        Загружаем структуру компаний...
+    </div>
+
+    } @else if (state() === 'error') {
+    <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="companies-error">
+        <span class="text-sm text-zinc-500">
+            Не удалось загрузить структуру компаний
+        </span>
+
+        <button hlmBtn variant="outline" type="button" data-testid="companies-retry" (click)="retry()">
+            <ng-icon name="lucideRefreshCw" />
+
+            Повторить
+        </button>
+    </div>
+
+    } @else if (state() === 'ready') {
+    <div class="overflow-hidden rounded-md border" data-testid="companies-table">
+        <div hlmTableContainer>
+            <table hlmTable>
+                <thead hlmTHead>
+                    <tr hlmTr>
+                        <th hlmTh>
+                            Компания
+                        </th>
+
+                        <th hlmTh>
+                            Тип
+                        </th>
+
+                        <th hlmTh>
+                            Статус
+                        </th>
+
+                        <th hlmTh>
+                            ID
+                        </th>
+                    </tr>
+                </thead>
+
+
+                <tbody hlmTBody>
+                    @for (
+                    row of rows();
+                    track row.company.id
+                    ) {
+                    <tr hlmTr [attr.data-testid]="
+                                    'company-row-'
+                                    + row.company.id
+                                ">
+                        <td hlmTd>
+                            <div class="flex items-center gap-2" [style.padding-left.px]="
+                                            row.depth * 24
+                                        ">
+                                <ng-icon name="lucideBuilding2" class="shrink-0" />
+
+                                <div class="min-w-0">
+                                    <div class="truncate font-medium">
+                                        {{
+                                        row.company.name
+                                        }}
+                                    </div>
+
+                                    @if (
+                                    row.company.short_name
+                                    ) {
+                                    <div class="text-xs text-zinc-500">
+                                        {{
+                                        row.company.short_name
+                                        }}
+                                    </div>
+                                    }
+                                </div>
+                            </div>
+                        </td>
+
+
+                        <td hlmTd>
+                            @if (
+                            row.depth === 0
+                            ) {
+                            Текущая компания
+                            } @else {
+                            Дочерняя компания
+                            }
+                        </td>
+
+
+                        <td hlmTd>
+                            @if (
+                            row.company.is_active
+                            ) {
+                            <span hlmBadge>
+                                Активна
+                            </span>
+                            } @else {
+                            <span hlmBadge variant="secondary">
+                                Отключена
+                            </span>
+                            }
+                        </td>
+
+
+                        <td hlmTd>
+                            {{
+                            row.company.id
+                            }}
+                        </td>
+                    </tr>
+                    } @empty {
+                    <tr hlmTr>
+                        <td hlmTd colspan="4" class="h-24 text-center text-zinc-500">
+                            Компании не найдены
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    }
+</div>
