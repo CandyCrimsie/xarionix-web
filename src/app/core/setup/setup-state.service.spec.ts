@@ -78,11 +78,22 @@ describe(
                     .mockReturnValue(
                         of({
                             state:
-                                InstallationState
-                                    .Ready,
+                                InstallationState.Ready,
 
                             setup_allowed:
                                 true,
+
+                            has_users:
+                                false,
+
+                            has_companies:
+                                false,
+
+                            has_memberships:
+                                false,
+
+                            has_administrator:
+                                false,
                         }),
                     );
 
@@ -120,11 +131,22 @@ describe(
                     .mockReturnValue(
                         of({
                             state:
-                                InstallationState
-                                    .Installed,
+                                InstallationState.Installed,
 
                             setup_allowed:
                                 false,
+
+                            has_users:
+                                true,
+
+                            has_companies:
+                                true,
+
+                            has_memberships:
+                                true,
+
+                            has_administrator:
+                                true,
                         }),
                     );
 
@@ -162,10 +184,21 @@ describe(
                     .mockReturnValue(
                         of({
                             state:
-                                InstallationState
-                                    .Inconsistent,
+                                InstallationState.Inconsistent,
 
                             setup_allowed:
+                                false,
+
+                            has_users:
+                                true,
+
+                            has_companies:
+                                true,
+
+                            has_memberships:
+                                true,
+
+                            has_administrator:
                                 false,
                         }),
                     );

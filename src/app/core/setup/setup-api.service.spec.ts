@@ -94,6 +94,18 @@ describe(
 
                     setup_allowed:
                         true,
+
+                    has_users:
+                        false,
+
+                    has_companies:
+                        false,
+
+                    has_memberships:
+                        false,
+
+                    has_administrator:
+                        false,
                 };
 
 

@@ -135,7 +135,8 @@
                 <ul hlmSidebarMenu>
                     @if (canReadMembers()) {
                     <li hlmSidebarMenuItem>
-                        <a hlmSidebarMenuButton routerLink="/members" data-testid="members-nav-item">
+                        <a hlmSidebarMenuButton routerLink="/members" routerLinkActive #rla="routerLinkActive"
+                            [isActive]="rla.isActive" data-testid="members-nav-item">
                             <ng-icon name="lucideUserRound" />
 
                             <span>
@@ -148,7 +149,8 @@
 
                     @if (canReadUnits()) {
                     <li hlmSidebarMenuItem>
-                        <a hlmSidebarMenuButton routerLink="/organizational-units"
+                        <a hlmSidebarMenuButton routerLink="/organizational-units" routerLinkActive
+                            #rla="routerLinkActive" [isActive]="rla.isActive"
                             data-testid="organizational-units-nav-item">
                             <ng-icon name="lucideBriefcaseBusiness" />
 
@@ -159,7 +161,8 @@
                     </li>
                     } @if (canManageMembers()) {
                     <li hlmSidebarMenuItem>
-                        <a hlmSidebarMenuButton routerLink="/invite" data-testid="invite-nav-item">
+                        <a hlmSidebarMenuButton routerLink="/invite" routerLinkActive #rla="routerLinkActive"
+                            [isActive]="rla.isActive" data-testid="invite-nav-item">
                             <ng-icon name="lucideUserRoundPlus" />
 
                             <span>
@@ -171,7 +174,8 @@
 
                     @if (canReadRoles()) {
                     <li hlmSidebarMenuItem>
-                        <a hlmSidebarMenuButton routerLink="/roles" data-testid="roles-nav-item">
+                        <a hlmSidebarMenuButton routerLink="/roles" routerLinkActive #rla="routerLinkActive"
+                            [isActive]="rla.isActive" data-testid="roles-nav-item">
                             <ng-icon name="lucideSettings2" />
 
                             <span>

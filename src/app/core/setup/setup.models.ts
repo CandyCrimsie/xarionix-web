@@ -22,6 +22,18 @@ export interface SetupStatusResponse {
 
     setup_allowed:
     boolean;
+
+    has_users:
+    boolean;
+
+    has_companies:
+    boolean;
+
+    has_memberships:
+    boolean;
+
+    has_administrator:
+    boolean;
 }
 
 

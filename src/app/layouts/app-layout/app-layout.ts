@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterOutlet, RouterLinkActive } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { CompanyContextService } from '../../core/company/company-context.service';
@@ -44,6 +44,7 @@ import { PermissionService } from '../../core/permissions/permission.service';
     HlmDropdownMenuImports,
     HlmButtonImports,
     HlmToasterImports,
+    RouterLinkActive
   ],
   providers: [
     provideIcons({
