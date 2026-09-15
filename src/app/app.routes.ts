@@ -27,6 +27,14 @@ import {
 } from './core/auth/guest-guard';
 
 import {
+    installationGuard,
+} from './core/setup/installation-guard';
+
+import {
+    setupGuard,
+} from './core/setup/setup-guard';
+
+import {
     permissionGuard,
 } from './core/permissions/permission-guard';
 
@@ -40,9 +48,28 @@ export const routes:
     Routes = [
         {
             path:
+                'setup',
+
+            canActivate: [
+                setupGuard,
+            ],
+
+            loadComponent:
+                () =>
+                    import(
+                        './pages/setup/setup'
+                    )
+                        .then(
+                            module =>
+                                module.Setup,
+                        ),
+        },
+        {
+            path:
                 'login',
 
             canActivate: [
+                installationGuard,
                 guestGuard,
             ],
 
@@ -66,12 +93,12 @@ export const routes:
                 },
             ],
         },
-
         {
             path:
                 '',
 
             canActivate: [
+                installationGuard,
                 authGuard,
             ],
 
@@ -204,7 +231,6 @@ export const routes:
                 },
             ],
         },
-
         {
             path:
                 '**',
