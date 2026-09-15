@@ -302,9 +302,9 @@ describe(
 
                 const retry =
                     fixture.nativeElement
-                        .querySelector<HTMLButtonElement>(
+                        .querySelector(
                             '[data-testid="setup-status-retry"]',
-                        );
+                        ) as HTMLButtonElement | null;
 
 
                 expect(
