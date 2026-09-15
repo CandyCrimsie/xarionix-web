@@ -9,6 +9,7 @@ import {
 
 import {
     of,
+    throwError,
 } from 'rxjs';
 
 import {
@@ -26,6 +27,34 @@ import {
 import {
     Setup,
 } from './setup';
+
+import {
+    HttpErrorResponse,
+} from '@angular/common/http';
+
+import {
+    Router,
+} from '@angular/router';
+
+import {
+    AuthService,
+} from '../../core/auth/auth.service';
+
+import {
+    CompanyContextService,
+} from '../../core/company/company-context.service';
+
+import {
+    PermissionService,
+} from '../../core/permissions/permission.service';
+
+import {
+    SetupApiService,
+} from '../../core/setup/setup-api.service';
+
+import {
+    InstallationState,
+} from '../../core/setup/setup.models';
 
 
 describe(
@@ -58,6 +87,40 @@ describe(
             signal(false);
 
 
+        const installed =
+            signal(false);
+
+
+        const setupApi = {
+            initialize:
+                vi.fn(),
+        };
+
+
+        const auth = {
+            login:
+                vi.fn(),
+        };
+
+
+        const companyContext = {
+            initialize:
+                vi.fn(),
+        };
+
+
+        const permissions = {
+            initialize:
+                vi.fn(),
+        };
+
+
+        const router = {
+            navigateByUrl:
+                vi.fn(),
+        };
+
+
         const setupState = {
             state:
                 state.asReadonly(),
@@ -65,6 +128,9 @@ describe(
             isSetupRequired:
                 setupRequired
                     .asReadonly(),
+
+            isInstalled:
+                installed.asReadonly(),
 
             isInconsistent:
                 inconsistent
@@ -95,6 +161,10 @@ describe(
                     false,
                 );
 
+                installed.set(
+                    false,
+                );
+
                 statusError.set(
                     false,
                 );
@@ -105,6 +175,31 @@ describe(
                         of(
                             undefined,
                         ),
+                    );
+
+
+                companyContext
+                    .initialize
+                    .mockReturnValue(
+                        of(
+                            undefined,
+                        ),
+                    );
+
+
+                permissions
+                    .initialize
+                    .mockReturnValue(
+                        of(
+                            undefined,
+                        ),
+                    );
+
+
+                router
+                    .navigateByUrl
+                    .mockResolvedValue(
+                        true,
                     );
 
 
@@ -121,6 +216,45 @@ describe(
 
                                 useValue:
                                     setupState,
+                            },
+                            {
+                                provide:
+                                    SetupApiService,
+
+                                useValue:
+                                    setupApi,
+                            },
+
+                            {
+                                provide:
+                                    AuthService,
+
+                                useValue:
+                                    auth,
+                            },
+
+                            {
+                                provide:
+                                    CompanyContextService,
+
+                                useValue:
+                                    companyContext,
+                            },
+
+                            {
+                                provide:
+                                    PermissionService,
+
+                                useValue:
+                                    permissions,
+                            },
+
+                            {
+                                provide:
+                                    Router,
+
+                                useValue:
+                                    router,
                             },
                         ],
                     })
@@ -174,6 +308,10 @@ describe(
                         .username
                         .touched,
                 ).toBe(true);
+
+                expect(
+                    setupApi.initialize,
+                ).not.toHaveBeenCalled();
             },
         );
 
@@ -320,6 +458,335 @@ describe(
                 ).toHaveBeenCalledTimes(
                     1,
                 );
+            },
+        );
+
+        it(
+            'should initialize system, login administrator and open application',
+            () => {
+                const initializeResponse = {
+                    state:
+                        InstallationState
+                            .Installed,
+
+                    company_id:
+                        1,
+
+                    company_name:
+                        'Xarionix Telecom',
+
+                    user_id:
+                        1,
+
+                    username:
+                        'admin',
+
+                    membership_id:
+                        1,
+
+                    administrator_role_id:
+                        1,
+                };
+
+
+                component.form
+                    .setValue({
+                        companyName:
+                            '  Xarionix Telecom  ',
+
+                        companyShortName:
+                            '  Xarionix  ',
+
+                        username:
+                            '  ADMIN  ',
+
+                        password:
+                            'strong-password',
+
+                        passwordConfirm:
+                            'strong-password',
+                    });
+
+
+                setupApi.initialize
+                    .mockReturnValue(
+                        of(
+                            initializeResponse,
+                        ),
+                    );
+
+
+                setupState.refresh
+                    .mockImplementation(
+                        () => {
+                            setupRequired.set(
+                                false,
+                            );
+
+                            installed.set(
+                                true,
+                            );
+
+                            return of(
+                                undefined,
+                            );
+                        },
+                    );
+
+
+                auth.login
+                    .mockReturnValue(
+                        of({
+                            id:
+                                1,
+
+                            username:
+                                'admin',
+
+                            is_active:
+                                true,
+
+                            created_at:
+                                '2026-01-01T00:00:00Z',
+
+                            updated_at:
+                                '2026-01-01T00:00:00Z',
+                        }),
+                    );
+
+
+                component.submit();
+
+
+                expect(
+                    setupApi.initialize,
+                ).toHaveBeenCalledWith({
+                    company: {
+                        name:
+                            'Xarionix Telecom',
+
+                        short_name:
+                            'Xarionix',
+                    },
+
+                    administrator: {
+                        username:
+                            'admin',
+
+                        password:
+                            'strong-password',
+                    },
+                });
+
+
+                expect(
+                    setupState.refresh,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    auth.login,
+                ).toHaveBeenCalledWith({
+                    username:
+                        'admin',
+
+                    password:
+                        'strong-password',
+                });
+
+
+                expect(
+                    companyContext.initialize,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+                expect(
+                    permissions.initialize,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    router.navigateByUrl,
+                ).toHaveBeenCalledWith(
+                    '/',
+                );
+
+
+                expect(
+                    component.isSubmitting(),
+                ).toBe(false);
+            },
+        );
+
+        it(
+            'should show initialization validation error without login',
+            () => {
+                component.form
+                    .setValue({
+                        companyName:
+                            'Xarionix',
+
+                        companyShortName:
+                            '',
+
+                        username:
+                            'admin',
+
+                        password:
+                            'strong-password',
+
+                        passwordConfirm:
+                            'strong-password',
+                    });
+
+
+                setupApi.initialize
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new HttpErrorResponse({
+                                    status:
+                                        422,
+                                }),
+                        ),
+                    );
+
+
+                component.submit();
+
+
+                expect(
+                    auth.login,
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    companyContext.initialize,
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    permissions.initialize,
+                ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.submitError(),
+                ).toContain(
+                    'Сервер отклонил',
+                );
+
+
+                expect(
+                    component.isSubmitting(),
+                ).toBe(false);
+            },
+        );
+
+        it(
+            'should redirect to login when automatic administrator login fails after installation',
+            () => {
+                component.form
+                    .setValue({
+                        companyName:
+                            'Xarionix',
+
+                        companyShortName:
+                            '',
+
+                        username:
+                            'admin',
+
+                        password:
+                            'strong-password',
+
+                        passwordConfirm:
+                            'strong-password',
+                    });
+
+
+                setupApi.initialize
+                    .mockReturnValue(
+                        of({
+                            state:
+                                InstallationState
+                                    .Installed,
+
+                            company_id:
+                                1,
+
+                            company_name:
+                                'Xarionix',
+
+                            user_id:
+                                1,
+
+                            username:
+                                'admin',
+
+                            membership_id:
+                                1,
+
+                            administrator_role_id:
+                                1,
+                        }),
+                    );
+
+
+                setupState.refresh
+                    .mockImplementation(
+                        () => {
+                            setupRequired.set(
+                                false,
+                            );
+
+                            installed.set(
+                                true,
+                            );
+
+                            return of(
+                                undefined,
+                            );
+                        },
+                    );
+
+
+                auth.login
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Login unavailable',
+                                ),
+                        ),
+                    );
+
+
+                component.submit();
+
+
+                expect(
+                    router.navigateByUrl,
+                ).toHaveBeenCalledWith(
+                    '/login',
+                );
+
+
+                expect(
+                    companyContext.initialize,
+                ).not.toHaveBeenCalled();
+
+                expect(
+                    permissions.initialize,
+                ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.isSubmitting(),
+                ).toBe(false);
             },
         );
     },

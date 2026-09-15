@@ -41,6 +41,37 @@ import {
     SetupStateService,
 } from '../../core/setup/setup-state.service';
 
+import {
+    HttpErrorResponse,
+} from '@angular/common/http';
+
+import {
+    Router,
+} from '@angular/router';
+
+import {
+    finalize,
+    map,
+    switchMap,
+    throwError,
+} from 'rxjs';
+
+import {
+    AuthService,
+} from '../../core/auth/auth.service';
+
+import {
+    CompanyContextService,
+} from '../../core/company/company-context.service';
+
+import {
+    PermissionService,
+} from '../../core/permissions/permission.service';
+
+import {
+    SetupApiService,
+} from '../../core/setup/setup-api.service';
+
 
 const passwordsMatchValidator:
     ValidatorFn = (
@@ -110,6 +141,36 @@ export class Setup {
         );
 
 
+    private readonly setupApi =
+        inject(
+            SetupApiService,
+        );
+
+
+    private readonly auth =
+        inject(
+            AuthService,
+        );
+
+
+    private readonly companyContext =
+        inject(
+            CompanyContextService,
+        );
+
+
+    private readonly permissions =
+        inject(
+            PermissionService,
+        );
+
+
+    private readonly router =
+        inject(
+            Router,
+        );
+
+
     readonly setupState =
         inject(
             SetupStateService,
@@ -118,6 +179,16 @@ export class Setup {
 
     readonly refreshing =
         signal(false);
+
+
+    readonly isSubmitting =
+        signal(false);
+
+
+    readonly submitError =
+        signal<string | null>(
+            null,
+        );
 
 
     readonly form =
@@ -192,13 +263,53 @@ export class Setup {
 
 
     submit(): void {
+        if (
+            this.isSubmitting()
+        ) {
+            return;
+        }
+
+
         /*
-         * 18F.4 отвечает только за
-         * форму и frontend validation.
+         * Backend сам нормализует эти
+         * значения, но лучше синхронизировать
+         * форму до validation и отправки.
          *
-         * POST /setup/initialize
-         * подключим в 18F.5.
+         * Password намеренно НЕ trim-им.
          */
+        this.form.controls
+            .companyName
+            .setValue(
+                this.form.controls
+                    .companyName
+                    .value
+                    .trim(),
+            );
+
+        this.form.controls
+            .companyShortName
+            .setValue(
+                this.form.controls
+                    .companyShortName
+                    .value
+                    .trim(),
+            );
+
+        this.form.controls
+            .username
+            .setValue(
+                this.form.controls
+                    .username
+                    .value
+                    .trim()
+                    .toLowerCase(),
+            );
+
+
+        this.form
+            .updateValueAndValidity();
+
+
         if (
             this.form.invalid
         ) {
@@ -207,6 +318,142 @@ export class Setup {
 
             return;
         }
+
+
+        const value =
+            this.form
+                .getRawValue();
+
+
+        const password =
+            value.password;
+
+
+        this.submitError.set(
+            null,
+        );
+
+        this.isSubmitting.set(
+            true,
+        );
+
+
+        this.setupApi
+            .initialize({
+                company: {
+                    name:
+                        value.companyName,
+
+                    short_name:
+                        value.companyShortName
+                        || null,
+                },
+
+                administrator: {
+                    username:
+                        value.username,
+
+                    password,
+                },
+            })
+            .pipe(
+                /*
+                 * Не доверяем одному только
+                 * initialize response.
+                 *
+                 * Перечитываем публичный
+                 * installation status.
+                 */
+                switchMap(
+                    response =>
+                        this.setupState
+                            .refresh()
+                            .pipe(
+                                map(
+                                    () =>
+                                        response,
+                                ),
+                            ),
+                ),
+
+
+                switchMap(
+                    response => {
+                        /*
+                         * Status refresh сам
+                         * fail-closed.
+                         *
+                         * Поэтому продолжать
+                         * authentication можно
+                         * только после реального
+                         * INSTALLED.
+                         */
+                        if (
+                            !this.setupState
+                                .isInstalled()
+                        ) {
+                            return throwError(
+                                () =>
+                                    new Error(
+                                        'Installation status was not confirmed',
+                                    ),
+                            );
+                        }
+
+
+                        /*
+                         * Используем username
+                         * из backend response:
+                         * backend уже применил
+                         * canonical normalization.
+                         */
+                        return this.auth
+                            .login({
+                                username:
+                                    response.username,
+
+                                password,
+                            });
+                    },
+                ),
+
+
+                switchMap(
+                    () =>
+                        this.companyContext
+                            .initialize(),
+                ),
+
+
+                switchMap(
+                    () =>
+                        this.permissions
+                            .initialize(),
+                ),
+
+
+                finalize(
+                    () => {
+                        this.isSubmitting.set(
+                            false,
+                        );
+                    },
+                ),
+            )
+            .subscribe({
+                next: () => {
+                    void this.router
+                        .navigateByUrl(
+                            '/',
+                        );
+                },
+
+                error: error => {
+                    this.handleSubmitError(
+                        error,
+                    );
+                },
+            });
     }
 
 
@@ -250,6 +497,126 @@ export class Setup {
                     .passwordConfirm
                     .dirty
             )
+        );
+    }
+
+
+    private handleSubmitError(
+        error: unknown,
+    ): void {
+        /*
+         * Installation уже завершилась,
+         * но automatic login не удался.
+         *
+         * Повторно POST /setup/initialize
+         * делать нельзя.
+         *
+         * /login уже разрешён, потому что
+         * installation state = INSTALLED.
+         */
+        if (
+            this.setupState
+                .isInstalled()
+        ) {
+            void this.router
+                .navigateByUrl(
+                    '/login',
+                );
+
+            return;
+        }
+
+
+        /*
+         * refresh installation status
+         * уже перевёл UI в соответствующий
+         * fail-closed экран.
+         */
+        if (
+            this.setupState
+                .hasError()
+            || this.setupState
+                .isInconsistent()
+        ) {
+            return;
+        }
+
+
+        if (
+            error instanceof
+            HttpErrorResponse
+        ) {
+            if (
+                error.status === 409
+            ) {
+                /*
+                 * Например, два installer
+                 * request одновременно.
+                 *
+                 * Backend защищён advisory lock
+                 * и один из запросов получит 409.
+                 *
+                 * Перечитываем реальное состояние.
+                 */
+                this.setupState
+                    .refresh()
+                    .subscribe({
+                        complete:
+                            () => {
+                                if (
+                                    this.setupState
+                                        .isInstalled()
+                                ) {
+                                    void this.router
+                                        .navigateByUrl(
+                                            '/login',
+                                        );
+
+                                    return;
+                                }
+
+
+                                if (
+                                    this.setupState
+                                        .isSetupRequired()
+                                ) {
+                                    this.submitError
+                                        .set(
+                                            (
+                                                'Состояние установки изменилось. '
+                                                + 'Повторите попытку.'
+                                            ),
+                                        );
+                                }
+                            },
+                    });
+
+                return;
+            }
+
+
+            if (
+                error.status === 422
+            ) {
+                this.submitError.set(
+                    (
+                        'Сервер отклонил параметры '
+                        + 'первоначальной настройки. '
+                        + 'Проверьте введённые данные.'
+                    ),
+                );
+
+                return;
+            }
+        }
+
+
+        this.submitError.set(
+            (
+                'Не удалось завершить '
+                + 'первоначальную настройку. '
+                + 'Попробуйте ещё раз.'
+            ),
         );
     }
 }

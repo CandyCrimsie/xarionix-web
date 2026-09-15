@@ -221,9 +221,23 @@
 
 
                     <div hlmField class="pt-2">
-                        <button hlmBtn type="submit" class="w-full" data-testid="setup-submit">
+                        <button hlmBtn type="submit" class="w-full" data-testid="setup-submit"
+                            [disabled]="isSubmitting()">
+                            @if (isSubmitting()) {
+                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                            Создаём систему...
+                            } @else {
                             Создать систему
+                            }
                         </button>
+
+
+                        @if (submitError()) {
+                        <p class="text-sm text-destructive" role="alert" data-testid="setup-submit-error">
+                            {{ submitError() }}
+                        </p>
+                        }
                     </div>
                 </div>
             </form>
