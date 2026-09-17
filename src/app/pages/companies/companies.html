@@ -233,6 +233,12 @@
                         <th hlmTh>
                             ID
                         </th>
+
+                        @if (canManageCompanies()) {
+                        <th hlmTh class="w-0">
+                            Действия
+                        </th>
+                        }
                     </tr>
                 </thead>
 
@@ -246,6 +252,7 @@
                                     'company-row-'
                                     + row.company.id
                                 ">
+
                         <td hlmTd>
                             <div class="flex items-center gap-2" [style.padding-left.px]="
                                             row.depth * 24
@@ -304,10 +311,113 @@
                             row.company.id
                             }}
                         </td>
+
+                        @if (canManageCompanies()) {
+                        <td hlmTd class="w-0 whitespace-nowrap">
+                            <hlm-dialog #editDialog>
+                                <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                    [attr.data-testid]="
+                'edit-company-action-'
+                + row.company.id
+            " [attr.aria-label]="
+                'Редактировать '
+                + row.company.name
+            " (click)="
+                startEdit(
+                    row.company
+                )
+            ">
+                                    <ng-icon name="lucidePencil" />
+                                </button>
+
+
+                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                    <hlm-dialog-header>
+                                        <h3 hlmDialogTitle>
+                                            Редактирование компании
+                                        </h3>
+
+                                        <p hlmDialogDescription>
+                                            Измените название
+                                            и короткое название компании.
+                                            Структура и статус компании
+                                            останутся без изменений.
+                                        </p>
+                                    </hlm-dialog-header>
+
+
+                                    <hlm-field-group>
+                                        <hlm-field>
+                                            <label hlmFieldLabel for="edit-company-name">
+                                                Название
+                                            </label>
+
+                                            <input hlmInput id="edit-company-name" maxlength="255" autocomplete="off"
+                                                data-testid="edit-company-name" [ngModel]="editName()" (ngModelChange)="
+                            editName.set($event)
+                        " />
+                                        </hlm-field>
+
+
+                                        <hlm-field>
+                                            <label hlmFieldLabel for="edit-company-short-name">
+                                                Короткое название
+                                            </label>
+
+                                            <input hlmInput id="edit-company-short-name" maxlength="100"
+                                                autocomplete="off" placeholder="Необязательно"
+                                                data-testid="edit-company-short-name" [ngModel]="editShortName()"
+                                                (ngModelChange)="
+                            editShortName.set($event)
+                        " />
+                                        </hlm-field>
+                                    </hlm-field-group>
+
+
+                                    @if (
+                                    editError();
+                                    as error
+                                    ) {
+                                    <p class="text-sm text-destructive" data-testid="edit-company-error">
+                                        {{ error }}
+                                    </p>
+                                    }
+
+
+                                    <hlm-dialog-footer>
+                                        <button hlmBtn variant="outline" type="button" hlmDialogClose
+                                            [disabled]="editSaving()" (click)="resetEditForm()">
+                                            Отмена
+                                        </button>
+
+
+                                        <button hlmBtn type="button" data-testid="edit-company-submit"
+                                            [disabled]="editSaving()" (click)="
+                        saveCompanyMetadata(
+                            editDialog
+                        )
+                    ">
+                                            @if (editSaving()) {
+                                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                                            Сохраняем...
+                                            } @else {
+                                            Сохранить
+                                            }
+                                        </button>
+                                    </hlm-dialog-footer>
+                                </hlm-dialog-content>
+                            </hlm-dialog>
+                        </td>
+                        }
                     </tr>
                     } @empty {
                     <tr hlmTr>
-                        <td hlmTd colspan="4" class="h-24 text-center text-muted-foreground">
+                        <td hlmTd [attr.colspan]="
+        canManageCompanies()
+            ? 5
+            : 4
+    " class="h-24 text-center text-muted-foreground">
                             Компании не найдены
                         </td>
                     </tr>

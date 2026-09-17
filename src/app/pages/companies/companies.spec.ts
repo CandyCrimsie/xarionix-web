@@ -164,6 +164,9 @@ describe(
 
             createRoot:
                 vi.fn(),
+
+            updateMetadata:
+                vi.fn(),
         };
 
 
@@ -235,6 +238,20 @@ describe(
                     .getTree
                     .mockReturnValue(
                         of(tree),
+                    );
+
+                companyApi
+                    .updateMetadata
+                    .mockReturnValue(
+                        of({
+                            ...tree.children[0],
+
+                            name:
+                                'Renamed Branch',
+
+                            short_name:
+                                'RB',
+                        }),
                     );
 
                 companyApi
@@ -798,6 +815,200 @@ describe(
                     component
                         .rootCreateError(),
                 ).toBeNull();
+            },
+        );
+
+        it(
+            'should hide edit actions without companies manage permission',
+            () => {
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="edit-company-action-1"]',
+                        ),
+                ).toBeNull();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="edit-company-action-2"]',
+                        ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should show edit actions with companies manage permission',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="edit-company-action-1"]',
+                        ),
+                ).not.toBeNull();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="edit-company-action-2"]',
+                        ),
+                ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should update child company metadata and refresh tree and switcher',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                const close =
+                    vi.fn();
+
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.startEdit(
+                    tree.children[0],
+                );
+
+
+                component.editName.set(
+                    '  Renamed Branch  ',
+                );
+
+                component.editShortName.set(
+                    '  RB  ',
+                );
+
+
+                component
+                    .saveCompanyMetadata(
+                        dialog,
+                    );
+
+
+                fixture.detectChanges();
+
+
+                expect(
+                    companyApi.updateMetadata,
+                ).toHaveBeenCalledWith(
+                    1,
+                    2,
+                    {
+                        name:
+                            'Renamed Branch',
+
+                        short_name:
+                            'RB',
+                    },
+                );
+
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                /*
+                 * Первый getTree —
+                 * создание компонента.
+                 *
+                 * Второй —
+                 * успешный metadata update.
+                 */
+                expect(
+                    companyApi.getTree,
+                ).toHaveBeenCalledTimes(
+                    2,
+                );
+
+
+                expect(
+                    companyContext
+                        .loadAvailableCompanies,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    component.editingCompany(),
+                ).toBeNull();
+
+
+                expect(
+                    component.editName(),
+                ).toBe('');
+
+
+                expect(
+                    component.editShortName(),
+                ).toBe('');
+
+
+                expect(
+                    component.editError(),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should reject empty company name when editing',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                const dialog = {
+                    close:
+                        vi.fn(),
+                } as unknown as BrnDialog;
+
+
+                component.startEdit(
+                    tree.children[0],
+                );
+
+                component.editName.set(
+                    '   ',
+                );
+
+
+                component
+                    .saveCompanyMetadata(
+                        dialog,
+                    );
+
+
+                expect(
+                    companyApi.updateMetadata,
+                ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.editError(),
+                ).toBe(
+                    'Укажите название компании',
+                );
             },
         );
     },

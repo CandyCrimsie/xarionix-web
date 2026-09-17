@@ -16,6 +16,7 @@ import {
     lucideLoaderCircle,
     lucideRefreshCw,
     lucidePlus,
+    lucidePencil,
 } from '@ng-icons/lucide';
 
 import {
@@ -117,6 +118,7 @@ interface CompanyTreeRow {
             lucideLoaderCircle,
             lucideRefreshCw,
             lucidePlus,
+            lucidePencil,
         }),
     ],
 
@@ -201,6 +203,26 @@ export class Companies {
         );
 
 
+    readonly editingCompany =
+        signal<CompanyTreeNode | null>(
+            null,
+        );
+
+    readonly editName =
+        signal('');
+
+    readonly editShortName =
+        signal('');
+
+    readonly editSaving =
+        signal(false);
+
+    readonly editError =
+        signal<string | null>(
+            null,
+        );
+
+
     readonly canCreateRootCompany =
         computed(
             () =>
@@ -273,6 +295,54 @@ export class Companies {
         );
 
         this.rootCreateError.set(
+            null,
+        );
+    }
+
+
+    startEdit(
+        company: CompanyTreeNode,
+    ): void {
+        this.editingCompany.set(
+            company,
+        );
+
+        this.editName.set(
+            company.name,
+        );
+
+        this.editShortName.set(
+            company.short_name ?? '',
+        );
+
+        this.editSaving.set(
+            false,
+        );
+
+        this.editError.set(
+            null,
+        );
+    }
+
+
+    resetEditForm(): void {
+        this.editingCompany.set(
+            null,
+        );
+
+        this.editName.set(
+            '',
+        );
+
+        this.editShortName.set(
+            '',
+        );
+
+        this.editSaving.set(
+            false,
+        );
+
+        this.editError.set(
             null,
         );
     }
@@ -512,6 +582,177 @@ export class Companies {
                     );
                 },
             });
+    }
+
+
+    saveCompanyMetadata(
+        dialog: BrnDialog,
+    ): void {
+        const rootCompanyId =
+            this.companyContext
+                .activeCompanyId();
+
+        const company =
+            this.editingCompany();
+
+
+        if (
+            rootCompanyId === null
+            || company === null
+            || this.editSaving()
+            || !this.canManageCompanies()
+        ) {
+            return;
+        }
+
+
+        const name =
+            this.editName()
+                .trim();
+
+        const shortName =
+            this.editShortName()
+                .trim();
+
+
+        if (!name) {
+            this.editError.set(
+                'Укажите название компании',
+            );
+
+            return;
+        }
+
+
+        if (name.length > 255) {
+            this.editError.set(
+                'Название не должно превышать 255 символов',
+            );
+
+            return;
+        }
+
+
+        if (
+            shortName.length > 100
+        ) {
+            this.editError.set(
+                'Короткое название не должно превышать 100 символов',
+            );
+
+            return;
+        }
+
+
+        this.editSaving.set(
+            true,
+        );
+
+        this.editError.set(
+            null,
+        );
+
+
+        this.companyApi
+            .updateMetadata(
+                rootCompanyId,
+                company.id,
+                {
+                    name,
+
+                    short_name:
+                        shortName || null,
+                },
+            )
+            .subscribe({
+                next: () => {
+                    this.resetEditForm();
+
+                    dialog.close({});
+
+
+                    /*
+                     * Обновляем дерево,
+                     * чтобы сразу показать
+                     * новое название.
+                     */
+                    this.retry();
+
+
+                    /*
+                     * Компания может присутствовать
+                     * в company switcher.
+                     *
+                     * Поэтому обновляем и список
+                     * доступных компаний.
+                     */
+                    this.companyContext
+                        .loadAvailableCompanies()
+                        .subscribe({
+                            error: () => {
+                                /*
+                                 * Metadata уже сохранена.
+                                 * Ошибка refresh switcher
+                                 * не должна провоцировать
+                                 * повторный PATCH.
+                                 */
+                            },
+                        });
+                },
+
+                error: error => {
+                    this.editSaving.set(
+                        false,
+                    );
+
+                    this.editError.set(
+                        this.getEditError(
+                            error,
+                        ),
+                    );
+                },
+            });
+    }
+
+
+    private getEditError(
+        error: unknown,
+    ): string {
+        if (
+            error
+            instanceof HttpErrorResponse
+        ) {
+            if (
+                error.status === 403
+            ) {
+                return (
+                    'Недостаточно прав для изменения компании'
+                );
+            }
+
+
+            if (
+                error.status === 404
+            ) {
+                return (
+                    'Компания недоступна в текущем дереве'
+                );
+            }
+
+
+            if (
+                error.status === 422
+            ) {
+                return (
+                    'Проверьте введённые данные'
+                );
+            }
+        }
+
+
+        return (
+            'Не удалось сохранить изменения'
+        );
     }
 
 
