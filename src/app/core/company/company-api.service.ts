@@ -86,6 +86,23 @@ export class CompanyApiService {
     }
 
 
+    updateMetadata(
+        rootCompanyId: number,
+        targetCompanyId: number,
+        data: CompanyUpdate,
+    ): Observable<Company> {
+        return this.http.patch<Company>(
+            (
+                `${API_BASE_URL}`
+                + `/companies/${rootCompanyId}`
+                + `/tree/${targetCompanyId}`
+                + '/metadata'
+            ),
+            data,
+        );
+    }
+
+
     move(
         rootCompanyId: number,
         targetCompanyId: number,

@@ -379,6 +379,84 @@ describe(
 
 
         it(
+            'should update company metadata inside tree',
+            async () => {
+                const rootCompanyId =
+                    10;
+
+                const targetCompanyId =
+                    12;
+
+
+                const data:
+                    CompanyUpdate = {
+                    name:
+                        'Renamed Branch',
+
+                    short_name:
+                        'BRANCH',
+                };
+
+
+                const updatedCompany:
+                    Company = {
+                    ...company,
+
+                    id:
+                        targetCompanyId,
+
+                    parent_id:
+                        rootCompanyId,
+
+                    name:
+                        data.name!,
+
+                    short_name:
+                        data.short_name!,
+                };
+
+
+                http.patch
+                    .mockReturnValue(
+                        of(
+                            updatedCompany,
+                        ),
+                    );
+
+
+                const result =
+                    await firstValueFrom(
+                        service.updateMetadata(
+                            rootCompanyId,
+                            targetCompanyId,
+                            data,
+                        ),
+                    );
+
+
+                expect(
+                    http.patch,
+                ).toHaveBeenCalledWith(
+                    (
+                        `${API_BASE_URL}`
+                        + `/companies/${rootCompanyId}`
+                        + `/tree/${targetCompanyId}`
+                        + '/metadata'
+                    ),
+                    data,
+                );
+
+
+                expect(
+                    result,
+                ).toEqual(
+                    updatedCompany,
+                );
+            },
+        );
+
+
+        it(
             'should move company inside tree',
             async () => {
                 const rootCompanyId =
