@@ -5,312 +5,315 @@
                 Компании
             </h1>
 
-            <p class="mt-1 text-sm text-zinc-500">
+            <p class="mt-1 text-sm text-muted-foreground">
                 Структура текущей компании
                 и её дочерних организаций
             </p>
         </div>
 
-        @if (canCreateRootCompany()) {
-        <hlm-dialog #createRootDialog>
-            <button hlmDialogTrigger hlmBtn variant="outline" type="button" data-testid="create-root-company-action"
-                (click)="resetRootCreateForm()">
-                <ng-icon name="lucidePlus" />
+        <div class="flex flex-wrap items-center justify-end gap-2">
+            @if (canCreateRootCompany()) {
+            <hlm-dialog #createRootDialog>
+                <button hlmDialogTrigger hlmBtn variant="outline" type="button" data-testid="create-root-company-action"
+                    (click)="resetRootCreateForm()">
+                    <ng-icon name="lucidePlus" />
 
-                Новая независимая компания
-            </button>
-
-
-            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                <hlm-dialog-header>
-                    <h3 hlmDialogTitle>
-                        Новая независимая компания
-                    </h3>
-
-                    <p hlmDialogDescription>
-                        Компания будет создана как
-                        отдельная организация верхнего уровня
-                        и не станет дочерней текущей компании.
-                        Вы получите роль Administrator
-                        в новой компании.
-                    </p>
-                </hlm-dialog-header>
+                    Новая независимая компания
+                </button>
 
 
-                <hlm-field-group>
-                    <hlm-field>
-                        <label hlmFieldLabel for="create-root-company-name">
-                            Название
-                        </label>
+                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                    <hlm-dialog-header>
+                        <h3 hlmDialogTitle>
+                            Новая независимая компания
+                        </h3>
 
-                        <input hlmInput id="create-root-company-name" maxlength="255" autocomplete="off"
-                            data-testid="create-root-company-name" [ngModel]="rootCreateName()"
-                            (ngModelChange)="rootCreateName.set($event)" />
-                    </hlm-field>
-
-
-                    <hlm-field>
-                        <label hlmFieldLabel for="create-root-company-short-name">
-                            Короткое название
-                        </label>
-
-                        <input hlmInput id="create-root-company-short-name" maxlength="100" autocomplete="off"
-                            placeholder="Необязательно" data-testid="create-root-company-short-name"
-                            [ngModel]="rootCreateShortName()" (ngModelChange)="rootCreateShortName.set($event)" />
-
-                        <p class="text-xs text-muted-foreground">
-                            Используется там, где полное
-                            название слишком длинное.
+                        <p hlmDialogDescription>
+                            Компания будет создана как
+                            отдельная организация верхнего уровня
+                            и не станет дочерней текущей компании.
+                            Вы получите роль Administrator
+                            в новой компании.
                         </p>
-                    </hlm-field>
-                </hlm-field-group>
+                    </hlm-dialog-header>
 
 
-                @if (
-                rootCreateError();
-                as error
-                ) {
-                <p class="text-sm text-destructive" data-testid="create-root-company-error">
-                    {{ error }}
-                </p>
-                }
+                    <hlm-field-group>
+                        <hlm-field>
+                            <label hlmFieldLabel for="create-root-company-name">
+                                Название
+                            </label>
+
+                            <input hlmInput id="create-root-company-name" maxlength="255" autocomplete="off"
+                                data-testid="create-root-company-name" [ngModel]="rootCreateName()"
+                                (ngModelChange)="rootCreateName.set($event)" />
+                        </hlm-field>
 
 
-                <hlm-dialog-footer>
-                    <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="rootCreating()"
-                        (click)="resetRootCreateForm()">
-                        Отмена
-                    </button>
+                        <hlm-field>
+                            <label hlmFieldLabel for="create-root-company-short-name">
+                                Короткое название
+                            </label>
 
-                    <button hlmBtn type="button" data-testid="create-root-company-submit" [disabled]="rootCreating()"
-                        (click)="createRoot(createRootDialog)">
-                        @if (rootCreating()) {
-                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                            <input hlmInput id="create-root-company-short-name" maxlength="100" autocomplete="off"
+                                placeholder="Необязательно" data-testid="create-root-company-short-name"
+                                [ngModel]="rootCreateShortName()" (ngModelChange)="rootCreateShortName.set($event)" />
 
-                        Создаём...
-                        } @else {
-                        Создать
-                        }
-                    </button>
-                </hlm-dialog-footer>
-            </hlm-dialog-content>
-        </hlm-dialog>
-        }
+                            <p class="text-xs text-muted-foreground">
+                                Используется там, где полное
+                                название слишком длинное.
+                            </p>
+                        </hlm-field>
+                    </hlm-field-group>
 
 
-        @if (canManageCompanies()) {
-        <hlm-dialog #createDialog>
-            <button hlmDialogTrigger hlmBtn type="button" data-testid="create-company-action"
-                (click)="resetCreateForm()">
-                <ng-icon name="lucidePlus" />
-
-                Добавить компанию
-            </button>
-
-
-            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                <hlm-dialog-header>
-                    <h3 hlmDialogTitle>
-                        Новая дочерняя компания
-                    </h3>
-
-                    <p hlmDialogDescription>
-                        Компания будет создана
-                        внутри текущей активной компании.
-                        Вы получите роль Administrator
-                        в новой компании.
+                    @if (
+                    rootCreateError();
+                    as error
+                    ) {
+                    <p class="text-sm text-destructive" data-testid="create-root-company-error">
+                        {{ error }}
                     </p>
-                </hlm-dialog-header>
+                    }
 
 
-                <hlm-field-group>
-                    <hlm-field>
-                        <label hlmFieldLabel for="create-company-name">
-                            Название
-                        </label>
+                    <hlm-dialog-footer>
+                        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="rootCreating()"
+                            (click)="resetRootCreateForm()">
+                            Отмена
+                        </button>
 
-                        <input hlmInput id="create-company-name" maxlength="255" autocomplete="off"
-                            data-testid="create-company-name" [ngModel]="createName()"
-                            (ngModelChange)="createName.set($event)" />
-                    </hlm-field>
+                        <button hlmBtn type="button" data-testid="create-root-company-submit"
+                            [disabled]="rootCreating()" (click)="createRoot(createRootDialog)">
+                            @if (rootCreating()) {
+                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                            Создаём...
+                            } @else {
+                            Создать
+                            }
+                        </button>
+                    </hlm-dialog-footer>
+                </hlm-dialog-content>
+            </hlm-dialog>
+            }
 
 
-                    <hlm-field>
-                        <label hlmFieldLabel for="create-company-short-name">
-                            Короткое название
-                        </label>
+            @if (canManageCompanies()) {
+            <hlm-dialog #createDialog>
+                <button hlmDialogTrigger hlmBtn type="button" data-testid="create-company-action"
+                    (click)="resetCreateForm()">
+                    <ng-icon name="lucidePlus" />
 
-                        <input hlmInput id="create-company-short-name" maxlength="100" autocomplete="off"
-                            placeholder="Необязательно" data-testid="create-company-short-name"
-                            [ngModel]="createShortName()" (ngModelChange)="createShortName.set($event)" />
+                    Добавить компанию
+                </button>
 
-                        <p class="text-xs text-zinc-500">
-                            Используется там, где полное
-                            название слишком длинное.
+
+                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                    <hlm-dialog-header>
+                        <h3 hlmDialogTitle>
+                            Новая дочерняя компания
+                        </h3>
+
+                        <p hlmDialogDescription>
+                            Компания будет создана
+                            внутри текущей активной компании.
+                            Вы получите роль Administrator
+                            в новой компании.
                         </p>
-                    </hlm-field>
-                </hlm-field-group>
+                    </hlm-dialog-header>
 
 
-                @if (
-                createError();
-                as error
-                ) {
-                <p class="text-sm text-destructive" data-testid="create-company-error">
-                    {{ error }}
-                </p>
-                }
+                    <hlm-field-group>
+                        <hlm-field>
+                            <label hlmFieldLabel for="create-company-name">
+                                Название
+                            </label>
+
+                            <input hlmInput id="create-company-name" maxlength="255" autocomplete="off"
+                                data-testid="create-company-name" [ngModel]="createName()"
+                                (ngModelChange)="createName.set($event)" />
+                        </hlm-field>
 
 
-                <hlm-dialog-footer>
-                    <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="creating()"
-                        (click)="resetCreateForm()">
-                        Отмена
-                    </button>
+                        <hlm-field>
+                            <label hlmFieldLabel for="create-company-short-name">
+                                Короткое название
+                            </label>
 
-                    <button hlmBtn type="button" data-testid="create-company-submit" [disabled]="creating()" (click)="
+                            <input hlmInput id="create-company-short-name" maxlength="100" autocomplete="off"
+                                placeholder="Необязательно" data-testid="create-company-short-name"
+                                [ngModel]="createShortName()" (ngModelChange)="createShortName.set($event)" />
+
+                            <p class="text-xs text-muted-foreground">
+                                Используется там, где полное
+                                название слишком длинное.
+                            </p>
+                        </hlm-field>
+                    </hlm-field-group>
+
+
+                    @if (
+                    createError();
+                    as error
+                    ) {
+                    <p class="text-sm text-destructive" data-testid="create-company-error">
+                        {{ error }}
+                    </p>
+                    }
+
+
+                    <hlm-dialog-footer>
+                        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="creating()"
+                            (click)="resetCreateForm()">
+                            Отмена
+                        </button>
+
+                        <button hlmBtn type="button" data-testid="create-company-submit" [disabled]="creating()"
+                            (click)="
                             createChild(
                                 createDialog
                             )
                         ">
-                        @if (creating()) {
-                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                            @if (creating()) {
+                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
-                        Создаём...
-                        } @else {
-                        Создать
-                        }
-                    </button>
-                </hlm-dialog-footer>
-            </hlm-dialog-content>
-        </hlm-dialog>
-        }
-    </div>
-
-
-    @if (state() === 'loading') {
-    <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500" data-testid="companies-loading">
-        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-
-        Загружаем структуру компаний...
-    </div>
-
-    } @else if (state() === 'error') {
-    <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="companies-error">
-        <span class="text-sm text-zinc-500">
-            Не удалось загрузить структуру компаний
-        </span>
-
-        <button hlmBtn variant="outline" type="button" data-testid="companies-retry" (click)="retry()">
-            <ng-icon name="lucideRefreshCw" />
-
-            Повторить
-        </button>
-    </div>
-
-    } @else if (state() === 'ready') {
-    <div class="overflow-hidden rounded-md border" data-testid="companies-table">
-        <div hlmTableContainer>
-            <table hlmTable>
-                <thead hlmTHead>
-                    <tr hlmTr>
-                        <th hlmTh>
-                            Компания
-                        </th>
-
-                        <th hlmTh>
-                            Тип
-                        </th>
-
-                        <th hlmTh>
-                            Статус
-                        </th>
-
-                        <th hlmTh>
-                            ID
-                        </th>
-                    </tr>
-                </thead>
+                            Создаём...
+                            } @else {
+                            Создать
+                            }
+                        </button>
+                    </hlm-dialog-footer>
+                </hlm-dialog-content>
+            </hlm-dialog>
+            }
+        </div>
 
 
-                <tbody hlmTBody>
-                    @for (
-                    row of rows();
-                    track row.company.id
-                    ) {
-                    <tr hlmTr [attr.data-testid]="
+        @if (state() === 'loading') {
+        <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"
+            data-testid="companies-loading">
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+            Загружаем структуру компаний...
+        </div>
+
+        } @else if (state() === 'error') {
+        <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="companies-error">
+            <span class="text-sm text-muted-foreground">
+                Не удалось загрузить структуру компаний
+            </span>
+
+            <button hlmBtn variant="outline" type="button" data-testid="companies-retry" (click)="retry()">
+                <ng-icon name="lucideRefreshCw" />
+
+                Повторить
+            </button>
+        </div>
+
+        } @else if (state() === 'ready') {
+        <div class="overflow-hidden rounded-md border" data-testid="companies-table">
+            <div hlmTableContainer>
+                <table hlmTable>
+                    <thead hlmTHead>
+                        <tr hlmTr>
+                            <th hlmTh>
+                                Компания
+                            </th>
+
+                            <th hlmTh>
+                                Тип
+                            </th>
+
+                            <th hlmTh>
+                                Статус
+                            </th>
+
+                            <th hlmTh>
+                                ID
+                            </th>
+                        </tr>
+                    </thead>
+
+
+                    <tbody hlmTBody>
+                        @for (
+                        row of rows();
+                        track row.company.id
+                        ) {
+                        <tr hlmTr [attr.data-testid]="
                                     'company-row-'
                                     + row.company.id
                                 ">
-                        <td hlmTd>
-                            <div class="flex items-center gap-2" [style.padding-left.px]="
+                            <td hlmTd>
+                                <div class="flex items-center gap-2" [style.padding-left.px]="
                                             row.depth * 24
                                         ">
-                                <ng-icon name="lucideBuilding2" class="shrink-0" />
+                                    <ng-icon name="lucideBuilding2" class="shrink-0" />
 
-                                <div class="min-w-0">
-                                    <div class="truncate font-medium">
-                                        {{
-                                        row.company.name
-                                        }}
-                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="truncate font-medium">
+                                            {{
+                                            row.company.name
+                                            }}
+                                        </div>
 
-                                    @if (
-                                    row.company.short_name
-                                    ) {
-                                    <div class="text-xs text-zinc-500">
-                                        {{
+                                        @if (
                                         row.company.short_name
-                                        }}
+                                        ) {
+                                        <div class="text-xs text-muted-foreground">
+                                            {{
+                                            row.company.short_name
+                                            }}
+                                        </div>
+                                        }
                                     </div>
-                                    }
                                 </div>
-                            </div>
-                        </td>
+                            </td>
 
 
-                        <td hlmTd>
-                            @if (
-                            row.depth === 0
-                            ) {
-                            Текущая компания
-                            } @else {
-                            Дочерняя компания
-                            }
-                        </td>
+                            <td hlmTd>
+                                @if (
+                                row.depth === 0
+                                ) {
+                                Текущая компания
+                                } @else {
+                                Дочерняя компания
+                                }
+                            </td>
 
 
-                        <td hlmTd>
-                            @if (
-                            row.company.is_active
-                            ) {
-                            <span hlmBadge>
-                                Активна
-                            </span>
-                            } @else {
-                            <span hlmBadge variant="secondary">
-                                Отключена
-                            </span>
-                            }
-                        </td>
+                            <td hlmTd>
+                                @if (
+                                row.company.is_active
+                                ) {
+                                <span hlmBadge>
+                                    Активна
+                                </span>
+                                } @else {
+                                <span hlmBadge variant="secondary">
+                                    Отключена
+                                </span>
+                                }
+                            </td>
 
 
-                        <td hlmTd>
-                            {{
-                            row.company.id
-                            }}
-                        </td>
-                    </tr>
-                    } @empty {
-                    <tr hlmTr>
-                        <td hlmTd colspan="4" class="h-24 text-center text-zinc-500">
-                            Компании не найдены
-                        </td>
-                    </tr>
-                    }
-                </tbody>
-            </table>
+                            <td hlmTd>
+                                {{
+                                row.company.id
+                                }}
+                            </td>
+                        </tr>
+                        } @empty {
+                        <tr hlmTr>
+                            <td hlmTd colspan="4" class="h-24 text-center text-muted-foreground">
+                                Компании не найдены
+                            </td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
+        }
     </div>
-    }
-</div>

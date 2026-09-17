@@ -232,6 +232,12 @@ describe(
                 );
 
                 companyApi
+                    .getTree
+                    .mockReturnValue(
+                        of(tree),
+                    );
+
+                companyApi
                     .createRoot
                     .mockReturnValue(
                         of({
