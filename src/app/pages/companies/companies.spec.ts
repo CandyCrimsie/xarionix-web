@@ -49,6 +49,14 @@ import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
 
+import {
+    AuthService,
+} from '../../core/auth/auth.service';
+
+import type {
+    User,
+} from '../../core/auth/auth.models';
+
 
 const canManage =
     signal(false);
@@ -71,6 +79,27 @@ describe(
 
         const canRead =
             signal(true);
+
+
+        const authUser =
+            signal<User | null>({
+                id: 100,
+
+                username:
+                    'admin',
+
+                is_active:
+                    true,
+
+                is_system_admin:
+                    false,
+
+                created_at:
+                    '2026-01-01T00:00:00Z',
+
+                updated_at:
+                    '2026-01-01T00:00:00Z',
+            });
 
 
         const tree:
@@ -132,6 +161,9 @@ describe(
 
             createChild:
                 vi.fn(),
+
+            createRoot:
+                vi.fn(),
         };
 
 
@@ -139,6 +171,14 @@ describe(
             activeCompanyId:
                 activeCompanyId
                     .asReadonly(),
+            loadAvailableCompanies:
+                vi.fn(),
+        };
+
+
+        const auth = {
+            user:
+                authUser.asReadonly(),
         };
 
 
@@ -192,9 +232,30 @@ describe(
                 );
 
                 companyApi
-                    .getTree
+                    .createRoot
                     .mockReturnValue(
-                        of(tree),
+                        of({
+                            ...tree,
+
+                            id:
+                                10,
+
+                            parent_id:
+                                null,
+
+                            name:
+                                'Independent Company',
+
+                            short_name:
+                                'IC',
+                        }),
+                    );
+
+
+                companyContext
+                    .loadAvailableCompanies
+                    .mockReturnValue(
+                        of([]),
                     );
 
                 canManage.set(
@@ -206,6 +267,25 @@ describe(
                     .mockReturnValue(
                         of(tree.children[0]),
                     );
+
+                authUser.set({
+                    id: 100,
+
+                    username:
+                        'admin',
+
+                    is_active:
+                        true,
+
+                    is_system_admin:
+                        false,
+
+                    created_at:
+                        '2026-01-01T00:00:00Z',
+
+                    updated_at:
+                        '2026-01-01T00:00:00Z',
+                });
 
 
                 await TestBed
@@ -237,6 +317,14 @@ describe(
 
                                 useValue:
                                     permissions,
+                            },
+
+                            {
+                                provide:
+                                    AuthService,
+
+                                useValue:
+                                    auth,
                             },
                         ],
                     })
@@ -568,6 +656,134 @@ describe(
                 ).toBe(
                     'Укажите название компании',
                 );
+            },
+        );
+
+        it(
+            'should hide independent root action for regular user',
+            () => {
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="create-root-company-action"]',
+                        ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should show independent root action for system administrator',
+            () => {
+                authUser.set({
+                    ...authUser()!,
+
+                    is_system_admin:
+                        true,
+                });
+
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="create-root-company-action"]',
+                        ),
+                ).not.toBeNull();
+            },
+        );
+
+        it(
+            'should create independent root company and refresh available companies',
+            () => {
+                authUser.set({
+                    ...authUser()!,
+
+                    is_system_admin:
+                        true,
+                });
+
+
+                fixture.detectChanges();
+
+
+                const close =
+                    vi.fn();
+
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component
+                    .rootCreateName
+                    .set(
+                        '  Second Company  ',
+                    );
+
+                component
+                    .rootCreateShortName
+                    .set(
+                        '  SECOND  ',
+                    );
+
+
+                component.createRoot(
+                    dialog,
+                );
+
+
+                expect(
+                    companyApi.createRoot,
+                ).toHaveBeenCalledWith({
+                    name:
+                        'Second Company',
+
+                    short_name:
+                        'SECOND',
+                });
+
+
+                expect(
+                    companyContext
+                        .loadAvailableCompanies,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    companyApi.getTree,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    component
+                        .rootCreateName(),
+                ).toBe('');
+
+
+                expect(
+                    component
+                        .rootCreateShortName(),
+                ).toBe('');
+
+
+                expect(
+                    component
+                        .rootCreateError(),
+                ).toBeNull();
             },
         );
     },

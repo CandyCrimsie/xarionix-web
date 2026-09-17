@@ -75,6 +75,10 @@ import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
 
+import {
+    AuthService,
+} from '../../core/auth/auth.service';
+
 
 type CompaniesState =
     | 'idle'
@@ -151,6 +155,11 @@ export class Companies {
             'idle',
         );
 
+    private readonly auth =
+        inject(
+            AuthService,
+        );
+
     private readonly _reloadVersion =
         signal(0);
 
@@ -174,6 +183,30 @@ export class Companies {
     readonly createError =
         signal<string | null>(
             null,
+        );
+
+
+    readonly rootCreateName =
+        signal('');
+
+    readonly rootCreateShortName =
+        signal('');
+
+    readonly rootCreating =
+        signal(false);
+
+    readonly rootCreateError =
+        signal<string | null>(
+            null,
+        );
+
+
+    readonly canCreateRootCompany =
+        computed(
+            () =>
+                this.auth.user()
+                    ?.is_system_admin
+                === true,
         );
 
 
@@ -223,6 +256,140 @@ export class Companies {
         this.createError.set(
             null,
         );
+    }
+
+
+    resetRootCreateForm(): void {
+        this.rootCreateName.set(
+            '',
+        );
+
+        this.rootCreateShortName.set(
+            '',
+        );
+
+        this.rootCreating.set(
+            false,
+        );
+
+        this.rootCreateError.set(
+            null,
+        );
+    }
+
+
+    createRoot(
+        dialog: BrnDialog,
+    ): void {
+        if (
+            this.rootCreating()
+            || !this.canCreateRootCompany()
+        ) {
+            return;
+        }
+
+
+        const name =
+            this.rootCreateName()
+                .trim();
+
+        const shortName =
+            this.rootCreateShortName()
+                .trim();
+
+
+        if (!name) {
+            this.rootCreateError.set(
+                'Укажите название компании',
+            );
+
+            return;
+        }
+
+
+        if (name.length > 255) {
+            this.rootCreateError.set(
+                'Название не должно превышать 255 символов',
+            );
+
+            return;
+        }
+
+
+        if (
+            shortName.length > 100
+        ) {
+            this.rootCreateError.set(
+                'Короткое название не должно превышать 100 символов',
+            );
+
+            return;
+        }
+
+
+        this.rootCreating.set(
+            true,
+        );
+
+        this.rootCreateError.set(
+            null,
+        );
+
+
+        this.companyApi
+            .createRoot({
+                name,
+
+                short_name:
+                    shortName || null,
+            })
+            .subscribe({
+                next: () => {
+                    this.resetRootCreateForm();
+
+                    dialog.close({});
+
+
+                    /*
+                     * Root-компания не входит
+                     * в дерево текущей компании.
+                     *
+                     * Поэтому tree перечитывать
+                     * не нужно.
+                     *
+                     * Обновляем только список
+                     * доступных пользователю
+                     * компаний для switcher.
+                     */
+                    this.companyContext
+                        .loadAvailableCompanies()
+                        .subscribe({
+                            error: () => {
+                                /*
+                                 * Компания уже создана.
+                                 *
+                                 * Ошибка обновления
+                                 * switcher не должна
+                                 * превращаться в ошибку
+                                 * создания и провоцировать
+                                 * повторный POST.
+                                 */
+                            },
+                        });
+                },
+
+                error: error => {
+                    this.rootCreating.set(
+                        false,
+                    );
+
+                    this.rootCreateError.set(
+                        this.getRootCreateError(
+                            error,
+                        ),
+                    );
+                },
+            });
     }
 
 
@@ -365,6 +532,47 @@ export class Companies {
 
         return (
             'Не удалось создать компанию'
+        );
+    }
+
+
+    private getRootCreateError(
+        error: unknown,
+    ): string {
+        if (
+            error
+            instanceof HttpErrorResponse
+        ) {
+            if (
+                error.status === 403
+            ) {
+                return (
+                    'Требуются права системного администратора'
+                );
+            }
+
+
+            if (
+                error.status === 422
+            ) {
+                return (
+                    'Проверьте введённые данные'
+                );
+            }
+
+
+            if (
+                error.status === 500
+            ) {
+                return (
+                    'Не удалось подготовить новую компанию'
+                );
+            }
+        }
+
+
+        return (
+            'Не удалось создать независимую компанию'
         );
     }
 

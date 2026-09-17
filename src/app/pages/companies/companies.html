@@ -11,6 +11,92 @@
             </p>
         </div>
 
+        @if (canCreateRootCompany()) {
+        <hlm-dialog #createRootDialog>
+            <button hlmDialogTrigger hlmBtn variant="outline" type="button" data-testid="create-root-company-action"
+                (click)="resetRootCreateForm()">
+                <ng-icon name="lucidePlus" />
+
+                Новая независимая компания
+            </button>
+
+
+            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                <hlm-dialog-header>
+                    <h3 hlmDialogTitle>
+                        Новая независимая компания
+                    </h3>
+
+                    <p hlmDialogDescription>
+                        Компания будет создана как
+                        отдельная организация верхнего уровня
+                        и не станет дочерней текущей компании.
+                        Вы получите роль Administrator
+                        в новой компании.
+                    </p>
+                </hlm-dialog-header>
+
+
+                <hlm-field-group>
+                    <hlm-field>
+                        <label hlmFieldLabel for="create-root-company-name">
+                            Название
+                        </label>
+
+                        <input hlmInput id="create-root-company-name" maxlength="255" autocomplete="off"
+                            data-testid="create-root-company-name" [ngModel]="rootCreateName()"
+                            (ngModelChange)="rootCreateName.set($event)" />
+                    </hlm-field>
+
+
+                    <hlm-field>
+                        <label hlmFieldLabel for="create-root-company-short-name">
+                            Короткое название
+                        </label>
+
+                        <input hlmInput id="create-root-company-short-name" maxlength="100" autocomplete="off"
+                            placeholder="Необязательно" data-testid="create-root-company-short-name"
+                            [ngModel]="rootCreateShortName()" (ngModelChange)="rootCreateShortName.set($event)" />
+
+                        <p class="text-xs text-muted-foreground">
+                            Используется там, где полное
+                            название слишком длинное.
+                        </p>
+                    </hlm-field>
+                </hlm-field-group>
+
+
+                @if (
+                rootCreateError();
+                as error
+                ) {
+                <p class="text-sm text-destructive" data-testid="create-root-company-error">
+                    {{ error }}
+                </p>
+                }
+
+
+                <hlm-dialog-footer>
+                    <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="rootCreating()"
+                        (click)="resetRootCreateForm()">
+                        Отмена
+                    </button>
+
+                    <button hlmBtn type="button" data-testid="create-root-company-submit" [disabled]="rootCreating()"
+                        (click)="createRoot(createRootDialog)">
+                        @if (rootCreating()) {
+                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                        Создаём...
+                        } @else {
+                        Создать
+                        }
+                    </button>
+                </hlm-dialog-footer>
+            </hlm-dialog-content>
+        </hlm-dialog>
+        }
+
 
         @if (canManageCompanies()) {
         <hlm-dialog #createDialog>
