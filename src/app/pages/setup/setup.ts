@@ -57,40 +57,6 @@ import {
 } from '../../core/setup/setup-api.service';
 
 
-const passwordsMatchValidator:
-    ValidatorFn = (
-        control:
-            AbstractControl,
-    ): ValidationErrors | null => {
-        const password =
-            control.get(
-                'password',
-            )?.value;
-
-        const passwordConfirm =
-            control.get(
-                'passwordConfirm',
-            )?.value;
-
-
-        if (
-            !password
-            || !passwordConfirm
-        ) {
-            return null;
-        }
-
-
-        return password
-            === passwordConfirm
-            ? null
-            : {
-                passwordMismatch:
-                    true,
-            };
-    };
-
-
 @Component({
     selector:
         'app-setup',
