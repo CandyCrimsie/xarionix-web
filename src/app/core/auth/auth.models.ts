@@ -21,3 +21,15 @@ export type AuthState =
     | 'loading'
     | 'authenticated'
     | 'anonymous';
+
+export interface User {
+    id: number;
+
+    username: string;
+
+    is_active: boolean;
+    is_system_admin: boolean;
+
+    created_at: string;
+    updated_at: string;
+}

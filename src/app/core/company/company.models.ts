@@ -26,6 +26,10 @@ export interface CompanyChildCreate {
 }
 
 
+export type CompanyRootCreate =
+    CompanyChildCreate;
+
+
 export interface CompanyUpdate {
     name?: string;
 

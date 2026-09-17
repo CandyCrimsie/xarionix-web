@@ -22,6 +22,7 @@ import type {
     CompanyMoveRequest,
     CompanyTreeNode,
     CompanyUpdate,
+    CompanyRootCreate
 } from './company.models';
 
 
@@ -49,6 +50,16 @@ export class CompanyApiService {
             CompanyTreeNode
         >(
             `${API_BASE_URL}/companies/${companyId}/tree`,
+        );
+    }
+
+
+    createRoot(
+        data: CompanyRootCreate,
+    ): Observable<Company> {
+        return this.http.post<Company>(
+            `${API_BASE_URL}/companies`,
+            data,
         );
     }
 

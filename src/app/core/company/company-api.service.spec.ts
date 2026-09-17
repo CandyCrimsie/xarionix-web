@@ -34,6 +34,7 @@ import type {
     CompanyMoveRequest,
     CompanyTreeNode,
     CompanyUpdate,
+    CompanyRootCreate
 } from './company.models';
 
 
@@ -202,6 +203,66 @@ describe(
             },
         );
 
+        it(
+            'should create independent root company',
+            async () => {
+                const data:
+                    CompanyRootCreate = {
+                    name:
+                        'Second Company',
+
+                    short_name:
+                        'SECOND',
+                };
+
+
+                const rootCompany:
+                    Company = {
+                    ...company,
+
+                    id:
+                        20,
+
+                    parent_id:
+                        null,
+
+                    name:
+                        data.name,
+
+                    short_name:
+                        data.short_name,
+                };
+
+
+                http.post
+                    .mockReturnValue(
+                        of(rootCompany),
+                    );
+
+
+                const result =
+                    await firstValueFrom(
+                        service.createRoot(
+                            data,
+                        ),
+                    );
+
+
+                expect(
+                    http.post,
+                ).toHaveBeenCalledWith(
+                    `${API_BASE_URL}/companies`,
+                    data,
+                );
+
+
+                expect(
+                    result,
+                ).toEqual(
+                    rootCompany,
+                );
+            },
+        );
 
         it(
             'should create child company',
