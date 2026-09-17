@@ -316,38 +316,20 @@ export class Setup {
     }
 
 
-    hasPasswordMismatch():
-        boolean {
-        return (
-            this.form
-                .hasError(
-                    'passwordMismatch',
-                )
-            && (
-                this.form.controls
-                    .passwordConfirm
-                    .touched
-                || this.form.controls
-                    .passwordConfirm
-                    .dirty
-            )
-        );
-    }
-
-
     private handleSubmitError(
         error: unknown,
     ): void {
         /*
-         * Installation уже завершилась,
-         * но automatic login не удался.
-         *
-         * Повторно POST /setup/initialize
-         * делать нельзя.
-         *
-         * /login уже разрешён, потому что
-         * installation state = INSTALLED.
-         */
+        * Installation могла уже завершиться,
+        * но подтверждение состояния или
+        * переход после setup завершились ошибкой.
+        *
+        * Повторно POST /setup/initialize
+        * делать нельзя.
+        *
+        * /login уже разрешён, потому что
+        * installation state = INSTALLED.
+        */
         if (
             this.setupState
                 .isInstalled()
