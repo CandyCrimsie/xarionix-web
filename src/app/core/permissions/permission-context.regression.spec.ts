@@ -86,10 +86,19 @@ describe(
 
         const user: User = {
             id: 100,
-            username: 'admin@example.com',
-            is_active: true,
+
+            username:
+                'admin@example.com',
+
+            is_active:
+                true,
+
+            is_system_admin:
+                false,
+
             created_at:
                 '2026-01-01T00:00:00Z',
+
             updated_at:
                 '2026-01-01T00:00:00Z',
         };
