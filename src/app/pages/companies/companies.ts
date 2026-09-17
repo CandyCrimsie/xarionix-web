@@ -473,11 +473,31 @@ export class Companies {
 
                     dialog.close({});
 
+
                     /*
-                     * Новый узел уже находится
-                     * в subtree текущей компании.
+                     * Обновляем дерево текущей компании.
                      */
                     this.retry();
+
+
+                    /*
+                     * Создатель получил membership
+                     * в новой дочерней компании,
+                     * поэтому она должна сразу
+                     * появиться в company switcher.
+                     */
+                    this.companyContext
+                        .loadAvailableCompanies()
+                        .subscribe({
+                            error: () => {
+                                /*
+                                 * Компания уже создана.
+                                 * Ошибка refresh switcher
+                                 * не должна провоцировать
+                                 * повторный POST.
+                                 */
+                            },
+                        });
                 },
 
                 error: error => {

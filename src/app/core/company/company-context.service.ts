@@ -118,31 +118,92 @@ export class CompanyContextService {
   private restoreActiveCompany(
     companies: Company[],
   ): void {
-    if (companies.length === 0) {
-      this._activeCompany.set(null);
+    const previousCompanyId =
+      this._activeCompany()
+        ?.id
+      ?? null;
+
+
+    if (
+      companies.length === 0
+    ) {
+      this._activeCompany.set(
+        null,
+      );
+
+
+      /*
+       * Если раньше company context
+       * существовал — уведомляем
+       * зависимые сервисы, что он
+       * исчез.
+       */
+      if (
+        previousCompanyId
+        !== null
+      ) {
+        this._companyChanged.next(
+          null,
+        );
+      }
+
 
       return;
     }
 
+
     const storedCompanyId =
       this.getStoredActiveCompanyId();
+
 
     const storedCompany =
       storedCompanyId !== null
         ? companies.find(
           company =>
-            company.id === storedCompanyId,
+            company.id
+            === storedCompanyId,
         )
         : undefined;
 
-    const company =
-      storedCompany ?? companies[0];
 
-    this._activeCompany.set(company);
+    const company =
+      storedCompany
+      ?? companies[0];
+
+
+    this._activeCompany.set(
+      company,
+    );
+
 
     this.storeActiveCompanyId(
       company.id,
     );
+
+
+    /*
+     * При обычном initial bootstrap
+     * previousCompanyId === null.
+     *
+     * PermissionService потом отдельно
+     * вызывается app initializer'ом,
+     * поэтому событие здесь не нужно.
+     *
+     * Но если существующий context
+     * автоматически сменился после
+     * refresh списка компаний —
+     * обязательно уведомляем listeners.
+     */
+    if (
+      previousCompanyId
+      !== null
+      && previousCompanyId
+      !== company.id
+    ) {
+      this._companyChanged.next(
+        company.id,
+      );
+    }
   }
 
 

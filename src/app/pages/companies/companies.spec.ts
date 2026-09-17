@@ -616,6 +616,14 @@ describe(
 
 
                 expect(
+                    companyContext
+                        .loadAvailableCompanies,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
                     component.createName(),
                 ).toBe('');
 
