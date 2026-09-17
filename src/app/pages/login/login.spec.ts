@@ -46,4 +46,23 @@ describe('Login', () => {
       component,
     ).toBeTruthy();
   });
+
+  it(
+    'should accept regular username without email format',
+    () => {
+      component.form
+        .setValue({
+          username:
+            'admin',
+
+          password:
+            'password123',
+        });
+
+
+      expect(
+        component.form.valid,
+      ).toBe(true);
+    },
+  );
 });

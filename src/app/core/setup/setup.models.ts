@@ -46,21 +46,9 @@ export interface SetupCompanyCreate {
 }
 
 
-export interface SetupAdministratorCreate {
-    username:
-    string;
-
-    password:
-    string;
-}
-
-
 export interface SetupInitializeRequest {
     company:
     SetupCompanyCreate;
-
-    administrator:
-    SetupAdministratorCreate;
 }
 
 

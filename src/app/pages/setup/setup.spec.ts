@@ -37,18 +37,6 @@ import {
 } from '@angular/router';
 
 import {
-    AuthService,
-} from '../../core/auth/auth.service';
-
-import {
-    CompanyContextService,
-} from '../../core/company/company-context.service';
-
-import {
-    PermissionService,
-} from '../../core/permissions/permission.service';
-
-import {
     SetupApiService,
 } from '../../core/setup/setup-api.service';
 
@@ -275,30 +263,6 @@ describe(
 
                             {
                                 provide:
-                                    AuthService,
-
-                                useValue:
-                                    auth,
-                            },
-
-                            {
-                                provide:
-                                    CompanyContextService,
-
-                                useValue:
-                                    companyContext,
-                            },
-
-                            {
-                                provide:
-                                    PermissionService,
-
-                                useValue:
-                                    permissions,
-                            },
-
-                            {
-                                provide:
                                     Router,
 
                                 useValue:
@@ -352,12 +316,6 @@ describe(
                 ).toBe(true);
 
                 expect(
-                    component.form.controls
-                        .username
-                        .touched,
-                ).toBe(true);
-
-                expect(
                     setupApi.initialize,
                 ).not.toHaveBeenCalled();
             },
@@ -374,65 +332,12 @@ describe(
 
                         companyShortName:
                             'Xarionix',
-
-                        username:
-                            'admin',
-
-                        password:
-                            'strong-password',
-
-                        passwordConfirm:
-                            'strong-password',
                     });
 
 
                 expect(
                     component.form.valid,
                 ).toBe(true);
-            },
-        );
-
-
-        it(
-            'should reject different passwords',
-            () => {
-                component.form
-                    .patchValue({
-                        companyName:
-                            'Xarionix Telecom',
-
-                        username:
-                            'admin',
-
-                        password:
-                            'strong-password',
-
-                        passwordConfirm:
-                            'different-password',
-                    });
-
-
-                component.form.controls
-                    .passwordConfirm
-                    .markAsTouched();
-
-
-                fixture.detectChanges();
-
-
-                expect(
-                    component.form
-                        .hasError(
-                            'passwordMismatch',
-                        ),
-                ).toBe(true);
-
-                expect(
-                    fixture.nativeElement
-                        .querySelector(
-                            '[data-testid="setup-password-mismatch"]',
-                        ),
-                ).not.toBeNull();
             },
         );
 
@@ -584,252 +489,8 @@ describe(
         );
 
         it(
-            'should initialize system, login administrator and open application',
+            'should initialize system and redirect to login',
             () => {
-                const initializeResponse = {
-                    state:
-                        InstallationState
-                            .Installed,
-
-                    company_id:
-                        1,
-
-                    company_name:
-                        'Xarionix Telecom',
-
-                    user_id:
-                        1,
-
-                    username:
-                        'admin',
-
-                    membership_id:
-                        1,
-
-                    administrator_role_id:
-                        1,
-                };
-
-
-                component.form
-                    .setValue({
-                        companyName:
-                            '  Xarionix Telecom  ',
-
-                        companyShortName:
-                            '  Xarionix  ',
-
-                        username:
-                            '  ADMIN  ',
-
-                        password:
-                            'strong-password',
-
-                        passwordConfirm:
-                            'strong-password',
-                    });
-
-
-                setupApi.initialize
-                    .mockReturnValue(
-                        of(
-                            initializeResponse,
-                        ),
-                    );
-
-
-                setupState.refresh
-                    .mockImplementation(
-                        () => {
-                            setupRequired.set(
-                                false,
-                            );
-
-                            installed.set(
-                                true,
-                            );
-
-                            return of(
-                                undefined,
-                            );
-                        },
-                    );
-
-
-                auth.login
-                    .mockReturnValue(
-                        of({
-                            id:
-                                1,
-
-                            username:
-                                'admin',
-
-                            is_active:
-                                true,
-
-                            created_at:
-                                '2026-01-01T00:00:00Z',
-
-                            updated_at:
-                                '2026-01-01T00:00:00Z',
-                        }),
-                    );
-
-
-                component.submit();
-
-
-                expect(
-                    setupApi.initialize,
-                ).toHaveBeenCalledWith({
-                    company: {
-                        name:
-                            'Xarionix Telecom',
-
-                        short_name:
-                            'Xarionix',
-                    },
-
-                    administrator: {
-                        username:
-                            'admin',
-
-                        password:
-                            'strong-password',
-                    },
-                });
-
-
-                expect(
-                    setupState.refresh,
-                ).toHaveBeenCalledTimes(
-                    1,
-                );
-
-
-                expect(
-                    auth.login,
-                ).toHaveBeenCalledWith({
-                    username:
-                        'admin',
-
-                    password:
-                        'strong-password',
-                });
-
-
-                expect(
-                    companyContext.initialize,
-                ).toHaveBeenCalledTimes(
-                    1,
-                );
-
-                expect(
-                    permissions.initialize,
-                ).toHaveBeenCalledTimes(
-                    1,
-                );
-
-
-                expect(
-                    router.navigateByUrl,
-                ).toHaveBeenCalledWith(
-                    '/',
-                );
-
-
-                expect(
-                    component.isSubmitting(),
-                ).toBe(false);
-            },
-        );
-
-        it(
-            'should show initialization validation error without login',
-            () => {
-                component.form
-                    .setValue({
-                        companyName:
-                            'Xarionix',
-
-                        companyShortName:
-                            '',
-
-                        username:
-                            'admin',
-
-                        password:
-                            'strong-password',
-
-                        passwordConfirm:
-                            'strong-password',
-                    });
-
-
-                setupApi.initialize
-                    .mockReturnValue(
-                        throwError(
-                            () =>
-                                new HttpErrorResponse({
-                                    status:
-                                        422,
-                                }),
-                        ),
-                    );
-
-
-                component.submit();
-
-
-                expect(
-                    auth.login,
-                ).not.toHaveBeenCalled();
-
-                expect(
-                    companyContext.initialize,
-                ).not.toHaveBeenCalled();
-
-                expect(
-                    permissions.initialize,
-                ).not.toHaveBeenCalled();
-
-
-                expect(
-                    component.submitError(),
-                ).toContain(
-                    'Сервер отклонил',
-                );
-
-
-                expect(
-                    component.isSubmitting(),
-                ).toBe(false);
-            },
-        );
-
-        it(
-            'should redirect to login when automatic administrator login fails after installation',
-            () => {
-                component.form
-                    .setValue({
-                        companyName:
-                            'Xarionix',
-
-                        companyShortName:
-                            '',
-
-                        username:
-                            'admin',
-
-                        password:
-                            'strong-password',
-
-                        passwordConfirm:
-                            'strong-password',
-                    });
-
-
                 setupApi.initialize
                     .mockReturnValue(
                         of({
@@ -841,7 +502,7 @@ describe(
                                 1,
 
                             company_name:
-                                'Xarionix',
+                                'Xarionix Telecom',
 
                             user_id:
                                 1,
@@ -876,18 +537,37 @@ describe(
                     );
 
 
-                auth.login
-                    .mockReturnValue(
-                        throwError(
-                            () =>
-                                new Error(
-                                    'Login unavailable',
-                                ),
-                        ),
-                    );
+                component.form
+                    .setValue({
+                        companyName:
+                            '  Xarionix Telecom  ',
+
+                        companyShortName:
+                            '  Xarionix  ',
+                    });
 
 
                 component.submit();
+
+
+                expect(
+                    setupApi.initialize,
+                ).toHaveBeenCalledWith({
+                    company: {
+                        name:
+                            'Xarionix Telecom',
+
+                        short_name:
+                            'Xarionix',
+                    },
+                });
+
+
+                expect(
+                    setupState.refresh,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
 
 
                 expect(
@@ -898,12 +578,56 @@ describe(
 
 
                 expect(
+                    component.isSubmitting(),
+                ).toBe(false);
+            },
+        );
+
+        it(
+            'should show initialization validation error without login',
+            () => {
+                component.form
+                    .setValue({
+                        companyName:
+                            'Xarionix Telecom',
+
+                        companyShortName:
+                            'Xarionix',
+                    });
+
+                setupApi.initialize
+                    .mockReturnValue(
+                        throwError(
+                            () =>
+                                new HttpErrorResponse({
+                                    status:
+                                        422,
+                                }),
+                        ),
+                    );
+
+
+                component.submit();
+
+
+                expect(
+                    auth.login,
+                ).not.toHaveBeenCalled();
+
+                expect(
                     companyContext.initialize,
                 ).not.toHaveBeenCalled();
 
                 expect(
                     permissions.initialize,
                 ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.submitError(),
+                ).toContain(
+                    'Сервер отклонил',
+                );
 
 
                 expect(

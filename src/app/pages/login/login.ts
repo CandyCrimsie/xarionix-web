@@ -57,8 +57,12 @@ export class Login {
       '',
       [
         Validators.required,
-        Validators.email,
-        Validators.maxLength(64),
+        Validators.minLength(
+          3,
+        ),
+        Validators.maxLength(
+          64,
+        ),
       ],
     ],
 

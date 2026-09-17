@@ -5,14 +5,14 @@
             <!-- Имя пользователя -->
             <div hlmField>
                 <label hlmFieldLabel for="username">
-                    Почта
+                    Имя пользователя
                 </label>
 
-                <input hlmInput id="username" type="email" formControlName="username" autocomplete="username"
-                    placeholder="Email" />
+                <input hlmInput id="username" type="text" formControlName="username" autocomplete="username"
+                    placeholder="Введите имя пользователя" />
 
                 <hlm-field-error validator="required">
-                    Укажите почту.
+                    Укажите имя пользователя.
                 </hlm-field-error>
 
                 <hlm-field-error validator="minlength">

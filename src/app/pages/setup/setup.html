@@ -198,8 +198,8 @@
                     </h1>
 
                     <p class="mt-1 text-sm text-zinc-500">
-                        Создайте первую компанию и
-                        учётную запись администратора.
+                        Настройте первую компанию
+                        Xarionix ERP.
                     </p>
                 </div>
             </div>
@@ -252,80 +252,6 @@
 
 
                     <div class="my-2 border-t"></div>
-
-
-                    <div>
-                        <h2 class="mb-4 text-sm font-semibold">
-                            Администратор
-                        </h2>
-
-                        <div hlmFieldGroup>
-                            <div hlmField>
-                                <label hlmFieldLabel for="username">
-                                    Имя пользователя
-                                </label>
-
-                                <input hlmInput id="username" type="text" formControlName="username"
-                                    autocomplete="username" placeholder="admin" />
-
-                                <hlm-field-error validator="required">
-                                    Укажите имя пользователя.
-                                </hlm-field-error>
-
-                                <hlm-field-error validator="minlength">
-                                    Минимум 3 символа.
-                                </hlm-field-error>
-
-                                <hlm-field-error validator="maxlength">
-                                    Максимум 64 символа.
-                                </hlm-field-error>
-                            </div>
-
-
-                            <div hlmField>
-                                <label hlmFieldLabel for="password">
-                                    Пароль
-                                </label>
-
-                                <input hlmInput id="password" type="password" formControlName="password"
-                                    autocomplete="new-password" placeholder="Минимум 8 символов" />
-
-                                <hlm-field-error validator="required">
-                                    Укажите пароль.
-                                </hlm-field-error>
-
-                                <hlm-field-error validator="minlength">
-                                    Минимум 8 символов.
-                                </hlm-field-error>
-
-                                <hlm-field-error validator="maxlength">
-                                    Максимум 128 символов.
-                                </hlm-field-error>
-                            </div>
-
-
-                            <div hlmField>
-                                <label hlmFieldLabel for="passwordConfirm">
-                                    Повторите пароль
-                                </label>
-
-                                <input hlmInput id="passwordConfirm" type="password" formControlName="passwordConfirm"
-                                    autocomplete="new-password" placeholder="Повторите пароль" />
-
-                                <hlm-field-error validator="required">
-                                    Повторите пароль.
-                                </hlm-field-error>
-
-                                @if (
-                                hasPasswordMismatch()
-                                ) {
-                                <p class="text-sm text-destructive" data-testid="setup-password-mismatch">
-                                    Пароли не совпадают.
-                                </p>
-                                }
-                            </div>
-                        </div>
-                    </div>
 
 
                     <div hlmField class="pt-2">

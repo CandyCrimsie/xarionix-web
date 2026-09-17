@@ -150,14 +150,6 @@ describe(
                         short_name:
                             'Xarionix',
                     },
-
-                    administrator: {
-                        username:
-                            'admin',
-
-                        password:
-                            'strong-password',
-                    },
                 };
 
 

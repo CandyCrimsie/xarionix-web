@@ -5,11 +5,8 @@ import {
 } from '@angular/core';
 
 import {
-    AbstractControl,
     FormBuilder,
     ReactiveFormsModule,
-    ValidationErrors,
-    ValidatorFn,
     Validators,
 } from '@angular/forms';
 
@@ -53,20 +50,7 @@ import {
     finalize,
     map,
     switchMap,
-    throwError,
 } from 'rxjs';
-
-import {
-    AuthService,
-} from '../../core/auth/auth.service';
-
-import {
-    CompanyContextService,
-} from '../../core/company/company-context.service';
-
-import {
-    PermissionService,
-} from '../../core/permissions/permission.service';
 
 import {
     SetupApiService,
@@ -147,24 +131,6 @@ export class Setup {
         );
 
 
-    private readonly auth =
-        inject(
-            AuthService,
-        );
-
-
-    private readonly companyContext =
-        inject(
-            CompanyContextService,
-        );
-
-
-    private readonly permissions =
-        inject(
-            PermissionService,
-        );
-
-
     private readonly router =
         inject(
             Router,
@@ -194,72 +160,26 @@ export class Setup {
     readonly form =
         this.formBuilder
             .nonNullable
-            .group(
-                {
-                    companyName: [
-                        '',
-                        [
-                            Validators.required,
-                            Validators.maxLength(
-                                255,
-                            ),
-                        ],
+            .group({
+                companyName: [
+                    '',
+                    [
+                        Validators.required,
+                        Validators.maxLength(
+                            255,
+                        ),
                     ],
+                ],
 
-                    companyShortName: [
-                        '',
-                        [
-                            Validators.maxLength(
-                                100,
-                            ),
-                        ],
+                companyShortName: [
+                    '',
+                    [
+                        Validators.maxLength(
+                            100,
+                        ),
                     ],
-
-                    username: [
-                        '',
-                        [
-                            Validators.required,
-                            Validators.minLength(
-                                3,
-                            ),
-                            Validators.maxLength(
-                                64,
-                            ),
-                        ],
-                    ],
-
-                    password: [
-                        '',
-                        [
-                            Validators.required,
-                            Validators.minLength(
-                                8,
-                            ),
-                            Validators.maxLength(
-                                128,
-                            ),
-                        ],
-                    ],
-
-                    passwordConfirm: [
-                        '',
-                        [
-                            Validators.required,
-                            Validators.minLength(
-                                8,
-                            ),
-                            Validators.maxLength(
-                                128,
-                            ),
-                        ],
-                    ],
-                },
-                {
-                    validators: [
-                        passwordsMatchValidator,
-                    ],
-                },
-            );
+                ],
+            });
 
 
     submit(): void {
@@ -270,13 +190,6 @@ export class Setup {
         }
 
 
-        /*
-         * Backend сам нормализует эти
-         * значения, но лучше синхронизировать
-         * форму до validation и отправки.
-         *
-         * Password намеренно НЕ trim-им.
-         */
         this.form.controls
             .companyName
             .setValue(
@@ -293,16 +206,6 @@ export class Setup {
                     .companyShortName
                     .value
                     .trim(),
-            );
-
-        this.form.controls
-            .username
-            .setValue(
-                this.form.controls
-                    .username
-                    .value
-                    .trim()
-                    .toLowerCase(),
             );
 
 
@@ -325,10 +228,6 @@ export class Setup {
                 .getRawValue();
 
 
-        const password =
-            value.password;
-
-
         this.submitError.set(
             null,
         );
@@ -348,89 +247,30 @@ export class Setup {
                         value.companyShortName
                         || null,
                 },
-
-                administrator: {
-                    username:
-                        value.username,
-
-                    password,
-                },
             })
             .pipe(
                 /*
-                 * Не доверяем одному только
-                 * initialize response.
-                 *
-                 * Перечитываем публичный
-                 * installation status.
+                 * После initialize обязательно
+                 * перечитываем installation state.
                  */
                 switchMap(
-                    response =>
+                    () =>
                         this.setupState
-                            .refresh()
-                            .pipe(
-                                map(
-                                    () =>
-                                        response,
-                                ),
-                            ),
+                            .refresh(),
                 ),
 
-
-                switchMap(
-                    response => {
-                        /*
-                         * Status refresh сам
-                         * fail-closed.
-                         *
-                         * Поэтому продолжать
-                         * authentication можно
-                         * только после реального
-                         * INSTALLED.
-                         */
+                map(
+                    () => {
                         if (
                             !this.setupState
                                 .isInstalled()
                         ) {
-                            return throwError(
-                                () =>
-                                    new Error(
-                                        'Installation status was not confirmed',
-                                    ),
+                            throw new Error(
+                                'Installation status was not confirmed',
                             );
                         }
-
-
-                        /*
-                         * Используем username
-                         * из backend response:
-                         * backend уже применил
-                         * canonical normalization.
-                         */
-                        return this.auth
-                            .login({
-                                username:
-                                    response.username,
-
-                                password,
-                            });
                     },
                 ),
-
-
-                switchMap(
-                    () =>
-                        this.companyContext
-                            .initialize(),
-                ),
-
-
-                switchMap(
-                    () =>
-                        this.permissions
-                            .initialize(),
-                ),
-
 
                 finalize(
                     () => {
@@ -442,9 +282,16 @@ export class Setup {
             )
             .subscribe({
                 next: () => {
+                    /*
+                     * Пароля администратора
+                     * frontend не знает.
+                     *
+                     * После установки пользователь
+                     * входит credentials из .env.
+                     */
                     void this.router
                         .navigateByUrl(
-                            '/',
+                            '/login',
                         );
                 },
 
