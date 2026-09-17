@@ -1,23 +1,23 @@
-<main class="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-10">
+<main class="flex min-h-screen items-center justify-center bg-background px-4 py-10">
     <div class="w-full max-w-xl">
         @if (
         setupState.state()
         === 'loading'
         ) {
-        <div class="flex min-h-80 flex-col items-center justify-center gap-3 rounded-xl border bg-white p-8 shadow-sm"
+        <div class="flex min-h-80 flex-col items-center justify-center gap-3 rounded-xl border bg-card text-card-foreground p-8 shadow-sm"
             data-testid="setup-loading">
             <ng-icon name="lucideLoaderCircle" class="size-6 animate-spin" />
 
-            <p class="text-sm text-zinc-500">
+            <p class="text-sm text-muted-foreground">
                 Проверяем состояние системы...
             </p>
         </div>
         } @else if (
         setupState.hasError()
         ) {
-        <div class="flex min-h-80 flex-col items-center justify-center gap-4 rounded-xl border bg-white p-8 text-center shadow-sm"
+        <div class="flex min-h-80 flex-col items-center justify-center gap-4 rounded-xl border bg-card text-card-foreground p-8 text-center shadow-sm"
             data-testid="setup-status-error">
-            <div class="flex size-12 items-center justify-center rounded-full bg-zinc-100">
+            <div class="flex size-12 items-center justify-center rounded-full bg-muted">
                 <ng-icon name="lucideAlertTriangle" class="size-6" />
             </div>
 
@@ -26,7 +26,7 @@
                     Не удалось проверить систему
                 </h1>
 
-                <p class="text-sm text-zinc-500">
+                <p class="text-sm text-muted-foreground">
                     Сервер не ответил на запрос состояния
                     первоначальной настройки.
                 </p>
@@ -46,9 +46,10 @@
         } @else if (
         setupState.isInconsistent()
         ) {
-        <div class="rounded-xl border bg-white p-6 shadow-sm sm:p-8" data-testid="setup-inconsistent">
+        <div class="rounded-xl border bg-card text-card-foreground p-6 shadow-sm sm:p-8"
+            data-testid="setup-inconsistent">
             <div class="flex items-start gap-4">
-                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
+                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted">
                     <ng-icon name="lucideAlertTriangle" class="size-5" />
                 </div>
 
@@ -57,7 +58,7 @@
                         Требуется восстановление установки
                     </h1>
 
-                    <p class="mt-1 text-sm text-zinc-500">
+                    <p class="mt-1 text-sm text-muted-foreground">
                         В базе данных уже существуют
                         данные Xarionix ERP, но система
                         не обнаружила действующего
@@ -150,12 +151,12 @@
             }
 
 
-            <div class="mt-6 rounded-lg bg-zinc-50 p-4">
+            <div class="mt-6 rounded-lg bg-background p-4">
                 <p class="text-sm font-medium">
                     Автоматическая установка заблокирована
                 </p>
 
-                <p class="mt-1 text-sm text-zinc-500">
+                <p class="mt-1 text-sm text-muted-foreground">
                     Xarionix ERP не будет автоматически
                     изменять или удалять существующие данные.
                     Перед ручным восстановлением сделайте
@@ -163,7 +164,7 @@
                     installation state в согласованное состояние.
                 </p>
 
-                <p class="mt-2 text-sm text-zinc-500">
+                <p class="mt-2 text-sm text-muted-foreground">
                     После исправления состояния нажмите
                     «Проверить снова».
                 </p>
@@ -186,9 +187,9 @@
         } @else if (
         setupState.isSetupRequired()
         ) {
-        <section class="rounded-xl border bg-white p-6 shadow-sm sm:p-8" data-testid="setup-form">
+        <section class="rounded-xl border bg-card text-card-foreground p-6 shadow-sm sm:p-8" data-testid="setup-form">
             <div class="mb-8 flex items-start gap-4">
-                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-zinc-100">
+                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted">
                     <ng-icon name="lucideSettings" class="size-5" />
                 </div>
 
@@ -197,7 +198,7 @@
                         Первоначальная настройка
                     </h1>
 
-                    <p class="mt-1 text-sm text-zinc-500">
+                    <p class="mt-1 text-sm text-muted-foreground">
                         Настройте первую компанию
                         Xarionix ERP.
                     </p>
@@ -239,7 +240,7 @@
                                 <input hlmInput id="companyShortName" type="text" formControlName="companyShortName"
                                     placeholder="Xarionix" />
 
-                                <p class="text-xs text-zinc-500">
+                                <p class="text-xs text-muted-foreground">
                                     Необязательно.
                                 </p>
 
@@ -277,9 +278,9 @@
             </form>
         </section>
         } @else {
-        <div class="flex min-h-80 items-center justify-center rounded-xl border bg-white p-8 text-center shadow-sm"
+        <div class="flex min-h-80 items-center justify-center rounded-xl border bg-card text-card-foreground p-8 text-center shadow-sm"
             data-testid="setup-unavailable">
-            <p class="text-sm text-zinc-500">
+            <p class="text-sm text-muted-foreground">
                 Первоначальная настройка сейчас недоступна.
             </p>
         </div>
