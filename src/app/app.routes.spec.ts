@@ -13,7 +13,7 @@ describe(
     'application routes',
     () => {
         it(
-            'should protect invite route with a permission guard',
+            'should protect invitations route with a permission guard',
             () => {
                 const appRoute =
                     routes.find(
@@ -28,7 +28,7 @@ describe(
                 const inviteRoute =
                     appRoute?.children?.find(
                         route =>
-                            route.path === 'invite',
+                            route.path === 'invitations',
                     );
 
                 expect(
@@ -49,6 +49,32 @@ describe(
                 ).toBe(
                     'always',
                 );
+            },
+        );
+
+        it(
+            'should expose public token route outside authenticated layout',
+            () => {
+                const publicInviteRoute =
+                    routes.find(
+                        route =>
+                            route.path === 'invite/:token',
+                    );
+
+                expect(publicInviteRoute).toBeDefined();
+                expect(publicInviteRoute?.canActivate?.length).toBe(1);
+
+                const appRoute =
+                    routes.find(
+                        route =>
+                            route.path === '',
+                    );
+
+                expect(
+                    appRoute?.children?.some(
+                        route => route.path === 'invite/:token',
+                    ),
+                ).toBe(false);
             },
         );
 

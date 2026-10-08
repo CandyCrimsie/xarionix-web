@@ -1,144 +1,76 @@
-<!-- Таблица -->
 <div class="overflow-hidden rounded-md border">
-
     <div hlmTableContainer>
-
         <table hlmTable>
-
             <thead hlmTHead>
-                @for (headerGroup of _table.getHeaderGroups(); track headerGroup.id) {
                 <tr hlmTr>
-                    @for (header of headerGroup.headers; track header.id) {
-                    <th hlmTh [attr.colSpan]="header.colSpan">
+                    <th hlmTh>Код</th>
+                    <th hlmTh>Создано</th>
+                    <th hlmTh>Истекает</th>
+                    <th hlmTh>Статус</th>
+                    <th hlmTh>Создал</th>
 
-                        @if (!header.isPlaceholder) {
-                        <ng-container *flexRenderHeader="header; let headerContent">
-                            {{ headerContent }}
-                        </ng-container>
-                        }
-
-                    </th>
+                    @if (canManage()) {
+                    <th hlmTh class="w-28 text-right">Действия</th>
                     }
                 </tr>
-                }
             </thead>
 
             <tbody hlmTBody>
-
-                @for (row of _table.getRowModel().rows; track row.id) {
-
-                <tr hlmTr>
-
-                    @for (cell of row.getVisibleCells(); track cell.id) {
-
+                @for (invitation of invitations(); track invitation.id) {
+                <tr hlmTr [attr.data-testid]="'invitation-row-' + invitation.id">
                     <td hlmTd>
-
-                        <!-- Код приглашения -->
-                        @if (cell.column.id === 'code') {
-
-                        <div class="flex items-center gap-2">
-
-                            <span class="font-mono">
-                                {{ row.original.code }}
-                            </span>
-
-                            <button type="button" hlmBtn variant="ghost" class="h-7 w-7 p-0"
-                                [attr.aria-label]="'Скопировать код ' + row.original.code"
-                                (click)="_copyCode(row.original.code)">
-
-                                @if (_copiedCode() === row.original.code) {
-                                <ng-icon name="lucideCheck" class="size-4" />
-                                } @else {
-                                <ng-icon name="lucideCopy" class="size-4" />
-                                }
-
-                            </button>
-
-                        </div>
-
-                        }
-
-                        <!-- Статус -->
-                        @else if (cell.column.id === 'status') {
-
-                        <span hlmBadge [variant]="_getStatusVariant(row.original.status)">
-
-                            @switch (row.original.status) {
-
-                            @case ('success') {
+                        <span class="font-mono text-sm">
+                            {{ invitation.token_prefix }}…
+                        </span>
+                    </td>
+                    <td hlmTd>{{ invitation.created_at | date:'dd.MM.yyyy HH:mm' }}</td>
+                    <td hlmTd>{{ invitation.expires_at | date:'dd.MM.yyyy HH:mm' }}</td>
+                    <td hlmTd>
+                        <span hlmBadge [variant]="getStatusVariant(invitation.status)"
+                            [attr.data-testid]="'invitation-status-' + invitation.status">
+                            @switch (invitation.status) {
+                            @case ('accepted') {
                             <ng-icon name="lucideCheck" />
                             }
-
                             @case ('pending') {
-                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                            <ng-icon name="lucideClock3" />
                             }
-
                             @case ('expired') {
                             <ng-icon name="lucideX" />
                             }
-
+                            @case ('revoked') {
+                            <ng-icon name="lucideBan" />
                             }
-
-                            {{ _getStatusLabel(row.original.status) }}
-
+                            }
+                            {{ getStatusLabel(invitation.status) }}
                         </span>
-
-                        }
-
-                        <!-- Обычные ячейки -->
-                        @else {
-
-                        <ng-container *flexRenderCell="cell; let cellContent">
-                            {{ cellContent }}
-                        </ng-container>
-
-                        }
-
                     </td>
+                    <td hlmTd>{{ invitation.created_by_username }}</td>
 
+                    @if (canManage()) {
+                    <td hlmTd class="text-right">
+                        @if (invitation.status === 'pending') {
+                        <button hlmBtn type="button" size="sm" variant="outline"
+                            [disabled]="revokingId() === invitation.id"
+                            [attr.data-testid]="'revoke-invitation-' + invitation.id"
+                            (click)="revokeRequested.emit(invitation)">
+                            @if (revokingId() === invitation.id) {
+                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                            }
+                            Отозвать
+                        </button>
+                        }
+                    </td>
                     }
-
                 </tr>
-
                 } @empty {
-
                 <tr hlmTr>
-                    <td hlmTd class="h-24 text-center" [attr.colspan]="_table.getVisibleLeafColumns().length">
+                    <td hlmTd class="h-24 text-center text-muted-foreground" [attr.colspan]="canManage() ? 6 : 5">
                         Приглашения не найдены
                     </td>
                 </tr>
-
                 }
-
             </tbody>
-
         </table>
-
     </div>
-
-</div>
-
-
-<!-- Footer -->
-<div class="flex pt-4 justify-center">
-
-    @if (_table.getRowCount() > 0) {
-
-
-    <!-- Pagination -->
-    <div class="flex gap-2">
-
-        <button hlmBtn size="sm" variant="outline" [disabled]="!_table.getCanPreviousPage()"
-            (click)="_table.previousPage()">
-            <ng-icon name="lucideArrowLeft " />
-        </button>
-
-        <button hlmBtn size="sm" variant="outline" [disabled]="!_table.getCanNextPage()" (click)="_table.nextPage()">
-            <ng-icon name="lucideArrowRight " />
-        </button>
-
-    </div>
-
-    }
-
 </div>

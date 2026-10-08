@@ -95,6 +95,34 @@ export const routes:
         },
         {
             path:
+                'invite/:token',
+
+            canActivate: [
+                installationGuard,
+            ],
+
+            component:
+                AuthLayout,
+
+            children: [
+                {
+                    path:
+                        '',
+
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/invitation-acceptance/invitation-acceptance'
+                            )
+                                .then(
+                                    module =>
+                                        module.InvitationAcceptance,
+                                ),
+                },
+            ],
+        },
+        {
+            path:
                 '',
 
             canActivate: [
@@ -121,12 +149,15 @@ export const routes:
 
                 {
                     path:
-                        'invite',
+                        'invitations',
 
                     canActivate: [
                         permissionGuard(
                             PermissionCode
                                 .MembersManage,
+
+                            PermissionScope
+                                .Company,
                         ),
                     ],
 

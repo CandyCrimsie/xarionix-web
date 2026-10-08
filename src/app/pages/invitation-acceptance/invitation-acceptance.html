@@ -1,0 +1,106 @@
+<section class="mx-auto flex w-full max-w-lg flex-col gap-6 rounded-xl border bg-card p-6 shadow-sm">
+    @if (state() === 'loading') {
+    <div class="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground"
+        data-testid="public-invitation-loading">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+        Проверяем приглашение...
+    </div>
+    } @else if (state() === 'error') {
+    <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center"
+        data-testid="public-invitation-error">
+        <p class="text-sm text-destructive">{{ errorMessage() }}</p>
+        <button hlmBtn type="button" variant="outline" data-testid="public-invitation-retry"
+            (click)="loadInvitation()">
+            <ng-icon name="lucideRefreshCw" />
+            Повторить
+        </button>
+    </div>
+    } @else if (state() === 'accepted') {
+    <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center"
+        data-testid="existing-invitation-accepted">
+        <span class="flex size-12 items-center justify-center rounded-full bg-muted">
+            <ng-icon name="lucideCheck" class="size-6" />
+        </span>
+        <h1 class="text-xl font-semibold">Вы присоединились к компании</h1>
+        <p class="text-sm text-muted-foreground">
+            Компания добавлена в переключатель доступных компаний.
+        </p>
+    </div>
+    } @else if (invitation(); as invite) {
+    <header class="flex flex-col gap-3 text-center">
+        <span class="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+            <ng-icon name="lucideBuilding2" class="size-6" />
+        </span>
+        <div>
+            <p class="text-sm text-muted-foreground">Приглашение в компанию</p>
+            <h1 class="text-2xl font-semibold" data-testid="invitation-company-name">
+                {{ invite.company.name }}
+            </h1>
+        </div>
+        <p class="text-sm text-muted-foreground">
+            Действует до {{ invite.expires_at | date:'dd.MM.yyyy HH:mm' }}
+        </p>
+    </header>
+
+    @if (invite.status !== 'pending') {
+    <div class="rounded-md bg-muted p-4 text-center text-sm" data-testid="invitation-unavailable">
+        @switch (invite.status) {
+        @case ('accepted') { Это приглашение уже использовано. }
+        @case ('expired') { Срок действия приглашения истёк. }
+        @case ('revoked') { Приглашение было отозвано. }
+        }
+    </div>
+    } @else if (auth.isAuthenticated()) {
+    <div class="flex flex-col gap-4">
+        <p class="text-center text-sm text-muted-foreground">
+            Вы вошли как <span class="font-medium text-foreground">{{ auth.user()?.username }}</span>
+        </p>
+        <button hlmBtn type="button" class="w-full" data-testid="accept-existing-invitation"
+            [disabled]="submitting()" (click)="acceptExisting()">
+            @if (submitting()) {
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+            Присоединяем...
+            } @else {
+            Присоединиться к {{ invite.company.short_name || invite.company.name }}
+            }
+        </button>
+    </div>
+    } @else {
+    <form class="flex flex-col gap-4" [formGroup]="form" (ngSubmit)="submitNewUser()">
+        <hlm-field-group>
+            <hlm-field>
+                <label hlmFieldLabel for="invitation-username">Имя пользователя</label>
+                <input hlmInput id="invitation-username" formControlName="username" autocomplete="username"
+                    data-testid="invitation-username" />
+            </hlm-field>
+            <hlm-field>
+                <label hlmFieldLabel for="invitation-password">Пароль</label>
+                <input hlmInput id="invitation-password" type="password" formControlName="password"
+                    autocomplete="new-password" data-testid="invitation-password" />
+            </hlm-field>
+            <hlm-field>
+                <label hlmFieldLabel for="invitation-password-confirm">Повторите пароль</label>
+                <input hlmInput id="invitation-password-confirm" type="password" formControlName="confirmPassword"
+                    autocomplete="new-password" data-testid="invitation-password-confirm" />
+            </hlm-field>
+        </hlm-field-group>
+
+        <button hlmBtn type="submit" class="w-full" data-testid="accept-new-invitation"
+            [disabled]="submitting()">
+            @if (submitting()) {
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+            Создаём пользователя...
+            } @else {
+            Принять приглашение
+            }
+        </button>
+    </form>
+    }
+
+    @if (errorMessage()) {
+    <p class="text-center text-sm text-destructive" data-testid="invitation-acceptance-error">
+        {{ errorMessage() }}
+    </p>
+    }
+    }
+</section>

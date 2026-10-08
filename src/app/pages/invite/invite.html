@@ -1,49 +1,116 @@
-<div class="block w-full h-full px-4 pb-4 gap-4">
-    <hlm-tabs tab="my-invites" class="flex flex-col gap-4">
-
-        <!-- Табы -->
-        <div class=" flex gap-4">
-            <hlm-tabs-list aria-label="tabs example">
-                <button hlmTabsTrigger="my-invites">Мои приглашения</button>
-                <button hlmTabsTrigger="all-invites">Все приглашения</button>
-            </hlm-tabs-list>
-
-            @if (canCreateInvite()) {
-            <hlm-dialog>
-                <button hlmDialogTrigger hlmBtn variant="secondary" data-testid="create-invite-action">
-                    <ng-icon name="lucidePlus" />
-                </button>
-                <hlm-dialog-content *hlmDialogPortal="let ctx">
-                    <hlm-dialog-header>
-                        <h3 hlmDialogTitle>Создание приглашения</h3>
-                        <p hlmDialogDescription>Одноразовая ссылка для регистрации новых пользователей</p>
-                    </hlm-dialog-header>
-                    <hlm-field-group>
-                        <hlm-field>
-                            <label hlmFieldLabel for="username">Примечание</label>
-                            <input hlmInput id="username" />
-                        </hlm-field>
-                    </hlm-field-group>
-                    <hlm-dialog-footer>
-                        <button hlmBtn variant="outline" hlmDialogClose>Отмена</button>
-                        <button hlmBtn type="submit" data-testid="create-invite-submit">
-                            Создать
-                        </button>
-                    </hlm-dialog-footer>
-                </hlm-dialog-content>
-            </hlm-dialog>
-            }
+<div class="flex h-full w-full flex-col gap-4 px-4 pb-4">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold">Приглашения</h1>
+            <p class="mt-1 text-sm text-muted-foreground">
+                Одноразовые ссылки для присоединения к текущей компании
+            </p>
         </div>
 
-        <!-- Мои приглашения -->
-        <div hlmTabsContent="my-invites">
-            <app-invite-table />
-        </div>
+        @if (canManageInvitations()) {
+        <hlm-dialog>
+            <button hlmDialogTrigger hlmBtn type="button" data-testid="create-invite-action"
+                (click)="resetCreate()">
+                <ng-icon name="lucidePlus" />
+                Создать приглашение
+            </button>
 
-        <!-- Все приглашения -->
-        <div hlmTabsContent="all-invites">
-            <app-invite-table />
-        </div>
+            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                <hlm-dialog-header>
+                    <h3 hlmDialogTitle>Создание приглашения</h3>
+                    <p hlmDialogDescription>
+                        Ссылка показывается только один раз. После закрытия окна восстановить её нельзя.
+                    </p>
+                </hlm-dialog-header>
 
+                @if (createdLink(); as link) {
+                <div class="flex flex-col gap-3">
+                    <label class="text-sm font-medium" for="created-invitation-link">
+                        Ссылка приглашения
+                    </label>
+                    <input hlmInput id="created-invitation-link" readonly [value]="link"
+                        data-testid="created-invitation-link" />
+                    <button hlmBtn type="button" variant="secondary" data-testid="copy-invitation-link"
+                        (click)="copyCreatedLink()">
+                        <ng-icon [name]="linkCopied() ? 'lucideCheck' : 'lucideCopy'" />
+                        {{ linkCopied() ? 'Скопировано' : 'Копировать ссылку' }}
+                    </button>
+                </div>
+                } @else {
+                <hlm-field-group>
+                    <hlm-field>
+                        <label hlmFieldLabel for="invitation-expires-hours">Срок действия, часов</label>
+                        <input hlmInput id="invitation-expires-hours" type="number" min="1" max="720"
+                            data-testid="invitation-expires-hours" [ngModel]="createExpiresHours()"
+                            (ngModelChange)="createExpiresHours.set($event)" />
+                        <p class="text-xs text-muted-foreground">От 1 часа до 30 дней</p>
+                    </hlm-field>
+                </hlm-field-group>
+                }
+
+                @if (createError(); as error) {
+                <p class="text-sm text-destructive" data-testid="create-invite-error">{{ error }}</p>
+                }
+
+                <hlm-dialog-footer>
+                    <button hlmBtn variant="outline" type="button" hlmDialogClose>
+                        {{ createdLink() ? 'Закрыть' : 'Отмена' }}
+                    </button>
+
+                    @if (!createdLink()) {
+                    <button hlmBtn type="button" data-testid="create-invite-submit" [disabled]="createSaving()"
+                        (click)="createInvitation()">
+                        @if (createSaving()) {
+                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                        Создаём...
+                        } @else {
+                        Создать
+                        }
+                    </button>
+                    }
+                </hlm-dialog-footer>
+            </hlm-dialog-content>
+        </hlm-dialog>
+        }
+    </div>
+
+    <hlm-tabs [tab]="scope()" class="flex flex-col gap-4">
+        <hlm-tabs-list aria-label="Список приглашений">
+            <button hlmTabsTrigger="mine" data-testid="invite-scope-mine" (click)="selectScope('mine')">
+                Мои приглашения
+            </button>
+            <button hlmTabsTrigger="all" data-testid="invite-scope-all" (click)="selectScope('all')">
+                Все приглашения
+            </button>
+        </hlm-tabs-list>
+
+        @if (state() === 'loading') {
+        <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"
+            data-testid="invitations-loading">
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+            Загружаем приглашения...
+        </div>
+        } @else if (state() === 'error') {
+        <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="invitations-error">
+            <span class="text-sm text-muted-foreground">Не удалось загрузить приглашения</span>
+            <button hlmBtn type="button" variant="outline" data-testid="invitations-retry" (click)="retry()">
+                <ng-icon name="lucideRefreshCw" />
+                Повторить
+            </button>
+        </div>
+        } @else if (state() === 'ready') {
+        @if (revokeError(); as error) {
+        <p class="text-sm text-destructive" data-testid="revoke-invite-error">{{ error }}</p>
+        }
+
+        <div hlmTabsContent="mine">
+            <app-invite-table [invitations]="invitations()" [canManage]="canManageInvitations()"
+                [revokingId]="revokingId()" (revokeRequested)="revokeInvitation($event)" />
+        </div>
+        <div hlmTabsContent="all">
+            <app-invite-table [invitations]="invitations()" [canManage]="canManageInvitations()"
+                [revokingId]="revokingId()" (revokeRequested)="revokeInvitation($event)" />
+        </div>
+        }
     </hlm-tabs>
 </div>
