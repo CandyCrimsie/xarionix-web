@@ -17,6 +17,9 @@ import {
     lucideRefreshCw,
     lucidePlus,
     lucidePencil,
+    lucidePower,
+    lucidePowerOff,
+    lucideMoveRight,
 } from '@ng-icons/lucide';
 
 import {
@@ -72,6 +75,14 @@ import {
     HlmInputImports,
 } from '@spartan-ng/helm/input';
 
+import {
+    HlmAlertDialogImports,
+} from '@spartan-ng/helm/alert-dialog';
+
+import {
+    HlmNativeSelectImports,
+} from '@spartan-ng/helm/native-select';
+
 import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
@@ -110,6 +121,8 @@ interface CompanyTreeRow {
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
+        HlmAlertDialogImports,
+        HlmNativeSelectImports,
     ],
 
     providers: [
@@ -119,6 +132,9 @@ interface CompanyTreeRow {
             lucideRefreshCw,
             lucidePlus,
             lucidePencil,
+            lucidePower,
+            lucidePowerOff,
+            lucideMoveRight,
         }),
     ],
 
@@ -223,6 +239,36 @@ export class Companies {
         );
 
 
+    readonly activationSavingCompanyId =
+        signal<number | null>(
+            null,
+        );
+
+    readonly activationError =
+        signal<string | null>(
+            null,
+        );
+
+
+    readonly movingCompany =
+        signal<CompanyTreeNode | null>(
+            null,
+        );
+
+    readonly moveParentId =
+        signal<number | null>(
+            null,
+        );
+
+    readonly moveSaving =
+        signal(false);
+
+    readonly moveError =
+        signal<string | null>(
+            null,
+        );
+
+
     readonly canCreateRootCompany =
         computed(
             () =>
@@ -258,6 +304,35 @@ export class Companies {
                 return this.flattenTree(
                     tree,
                 );
+            },
+        );
+
+
+    readonly moveParentOptions =
+        computed(
+            () => {
+                const company =
+                    this.movingCompany();
+
+
+                if (company === null) {
+                    return [];
+                }
+
+
+                const unavailableIds =
+                    this.getSubtreeIds(
+                        company,
+                    );
+
+
+                return this.rows()
+                    .filter(
+                        row =>
+                            !unavailableIds.has(
+                                row.company.id,
+                            ),
+                    );
             },
         );
 
@@ -344,6 +419,87 @@ export class Companies {
 
         this.editError.set(
             null,
+        );
+    }
+
+
+    startMove(
+        company: CompanyTreeNode,
+    ): void {
+        this.movingCompany.set(
+            company,
+        );
+
+        this.moveParentId.set(
+            company.parent_id,
+        );
+
+        this.moveSaving.set(
+            false,
+        );
+
+        this.moveError.set(
+            null,
+        );
+    }
+
+
+    resetMoveForm(): void {
+        this.movingCompany.set(
+            null,
+        );
+
+        this.moveParentId.set(
+            null,
+        );
+
+        this.moveSaving.set(
+            false,
+        );
+
+        this.moveError.set(
+            null,
+        );
+    }
+
+
+    setMoveParent(
+        value: string | null | undefined,
+    ): void {
+        if (!value) {
+            this.moveParentId.set(
+                null,
+            );
+
+            return;
+        }
+
+
+        const parentId =
+            Number(value);
+
+
+        this.moveParentId.set(
+            Number.isInteger(parentId)
+                && parentId > 0
+                ? parentId
+                : null,
+        );
+
+        this.moveError.set(
+            null,
+        );
+    }
+
+
+    getMoveParentLabel(
+        row: CompanyTreeRow,
+    ): string {
+        return (
+            '\u00a0\u00a0'.repeat(
+                row.depth,
+            )
+            + row.company.name
         );
     }
 
@@ -715,6 +871,311 @@ export class Companies {
     }
 
 
+    setCompanyActivation(
+        company: CompanyTreeNode,
+        isActive: boolean,
+        dialog?: BrnDialog,
+    ): void {
+        const rootCompanyId =
+            this.companyContext
+                .activeCompanyId();
+
+
+        if (
+            rootCompanyId === null
+            || this.activationSavingCompanyId()
+                !== null
+            || !this.canManageCompanies()
+            || (
+                company.id
+                === rootCompanyId
+                && !isActive
+            )
+        ) {
+            return;
+        }
+
+
+        this.activationSavingCompanyId.set(
+            company.id,
+        );
+
+        this.activationError.set(
+            null,
+        );
+
+
+        this.companyApi
+            .setActivation(
+                rootCompanyId,
+                company.id,
+                {
+                    is_active:
+                        isActive,
+                },
+            )
+            .subscribe({
+                next: () => {
+                    this.activationSavingCompanyId.set(
+                        null,
+                    );
+
+                    dialog?.close({});
+
+
+                    this.retry();
+
+
+                    /*
+                     * Деактивированные компании
+                     * должны сразу исчезнуть
+                     * из company switcher.
+                     *
+                     * PATCH уже выполнен, поэтому
+                     * ошибка refresh не должна
+                     * провоцировать повторный запрос.
+                     */
+                    this.companyContext
+                        .loadAvailableCompanies()
+                        .subscribe({
+                            error: () => {
+                                // Activation уже сохранена.
+                            },
+                        });
+                },
+
+                error: error => {
+                    this.activationSavingCompanyId.set(
+                        null,
+                    );
+
+                    this.activationError.set(
+                        this.getActivationError(
+                            error,
+                            isActive,
+                        ),
+                    );
+                },
+            });
+    }
+
+
+    clearActivationError(): void {
+        this.activationError.set(
+            null,
+        );
+    }
+
+
+    moveCompany(
+        dialog: BrnDialog,
+    ): void {
+        const rootCompanyId =
+            this.companyContext
+                .activeCompanyId();
+
+        const company =
+            this.movingCompany();
+
+        const parentId =
+            this.moveParentId();
+
+
+        if (
+            rootCompanyId === null
+            || company === null
+            || this.moveSaving()
+            || !this.canManageCompanies()
+        ) {
+            return;
+        }
+
+
+        if (
+            company.id
+            === rootCompanyId
+        ) {
+            this.moveError.set(
+                'Корневую компанию нельзя перемещать',
+            );
+
+            return;
+        }
+
+
+        if (parentId === null) {
+            this.moveError.set(
+                'Выберите новую родительскую компанию',
+            );
+
+            return;
+        }
+
+
+        this.moveSaving.set(
+            true,
+        );
+
+        this.moveError.set(
+            null,
+        );
+
+
+        this.companyApi
+            .move(
+                rootCompanyId,
+                company.id,
+                {
+                    parent_id:
+                        parentId,
+                },
+            )
+            .subscribe({
+                next: () => {
+                    this.resetMoveForm();
+
+                    dialog.close({});
+
+
+                    this.retry();
+                },
+
+                error: error => {
+                    this.moveSaving.set(
+                        false,
+                    );
+
+                    this.moveError.set(
+                        this.getMoveError(
+                            error,
+                        ),
+                    );
+                },
+            });
+    }
+
+
+    private getMoveError(
+        error: unknown,
+    ): string {
+        if (
+            error
+            instanceof HttpErrorResponse
+        ) {
+            if (
+                error.status === 400
+            ) {
+                return (
+                    'Корневую компанию нельзя перемещать'
+                );
+            }
+
+
+            if (
+                error.status === 403
+            ) {
+                return (
+                    'Недостаточно прав для перемещения компании'
+                );
+            }
+
+
+            if (
+                error.status === 404
+            ) {
+                return (
+                    'Компания или новый родитель недоступны в текущем дереве'
+                );
+            }
+
+
+            if (
+                error.status === 409
+            ) {
+                const detail =
+                    typeof error.error
+                    ?.detail === 'string'
+                        ? error.error.detail
+                        : '';
+
+
+                if (
+                    detail.includes(
+                        'inactive',
+                    )
+                ) {
+                    return (
+                        'Нельзя переместить активную компанию под отключённую'
+                    );
+                }
+
+
+                return (
+                    'Нельзя переместить компанию внутрь её дочерней ветки'
+                );
+            }
+        }
+
+
+        return (
+            'Не удалось переместить компанию'
+        );
+    }
+
+
+    private getActivationError(
+        error: unknown,
+        isActive: boolean,
+    ): string {
+        if (
+            error
+            instanceof HttpErrorResponse
+        ) {
+            if (
+                error.status === 403
+            ) {
+                return (
+                    'Недостаточно прав для изменения статуса компании'
+                );
+            }
+
+
+            if (
+                error.status === 404
+            ) {
+                return (
+                    'Компания недоступна в текущем дереве'
+                );
+            }
+
+
+            if (
+                error.status === 400
+                && !isActive
+            ) {
+                return (
+                    'Текущую корневую компанию нельзя отключить'
+                );
+            }
+
+
+            if (
+                error.status === 409
+                && isActive
+            ) {
+                return (
+                    'Сначала активируйте родительскую компанию'
+                );
+            }
+        }
+
+
+        return isActive
+            ? 'Не удалось активировать компанию'
+            : 'Не удалось отключить компанию';
+    }
+
+
     private getEditError(
         error: unknown,
     ): string {
@@ -986,5 +1447,41 @@ export class Companies {
 
 
         return rows;
+    }
+
+
+    private getSubtreeIds(
+        root: CompanyTreeNode,
+    ): Set<number> {
+        const ids =
+            new Set<number>();
+
+
+        const visit = (
+            company:
+                CompanyTreeNode,
+        ): void => {
+            ids.add(
+                company.id,
+            );
+
+
+            for (
+                const child
+                of company.children
+            ) {
+                visit(
+                    child,
+                );
+            }
+        };
+
+
+        visit(
+            root,
+        );
+
+
+        return ids;
     }
 }

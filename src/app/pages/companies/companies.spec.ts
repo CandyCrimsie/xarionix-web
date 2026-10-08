@@ -53,6 +53,10 @@ import {
     AuthService,
 } from '../../core/auth/auth.service';
 
+import {
+    HttpErrorResponse,
+} from '@angular/common/http';
+
 import type {
     User,
 } from '../../core/auth/auth.models';
@@ -167,6 +171,12 @@ describe(
 
             updateMetadata:
                 vi.fn(),
+
+            setActivation:
+                vi.fn(),
+
+            move:
+                vi.fn(),
         };
 
 
@@ -251,6 +261,28 @@ describe(
 
                             short_name:
                                 'RB',
+                        }),
+                    );
+
+                companyApi
+                    .setActivation
+                    .mockReturnValue(
+                        of({
+                            ...tree.children[0],
+
+                            is_active:
+                                true,
+                        }),
+                    );
+
+                companyApi
+                    .move
+                    .mockReturnValue(
+                        of({
+                            ...tree.children[0],
+
+                            parent_id:
+                                1,
                         }),
                     );
 
@@ -835,6 +867,14 @@ describe(
                             '[data-testid="edit-company-action-2"]',
                         ),
                 ).toBeNull();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="move-company-action-2"]',
+                        ),
+                ).toBeNull();
             },
         );
 
@@ -1008,6 +1048,652 @@ describe(
                     component.editError(),
                 ).toBe(
                     'Укажите название компании',
+                );
+            },
+        );
+
+        it(
+            'should not repeat metadata update when switcher refresh fails',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                companyContext
+                    .loadAvailableCompanies
+                    .mockReturnValueOnce(
+                        throwError(
+                            () =>
+                                new Error(
+                                    'Switcher unavailable',
+                                ),
+                        ),
+                    );
+
+
+                const close =
+                    vi.fn();
+
+
+                component.startEdit(
+                    tree.children[0],
+                );
+
+                component.editName.set(
+                    'Renamed Branch',
+                );
+
+
+                component.saveCompanyMetadata({
+                    close,
+                } as unknown as BrnDialog);
+
+
+                expect(
+                    companyApi.updateMetadata,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    component.editError(),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should show activation only for inactive child company',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="activate-company-action-2"]',
+                        ),
+                ).not.toBeNull();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="activate-company-action-1"]',
+                        ),
+                ).toBeNull();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="deactivate-company-action-1"]',
+                        ),
+                ).toBeNull();
+
+
+                companyApi
+                    .getTree
+                    .mockReturnValue(
+                        of({
+                            ...tree,
+
+                            children: [
+                                {
+                                    ...tree.children[0],
+
+                                    is_active:
+                                        true,
+                                },
+                            ],
+                        }),
+                    );
+
+
+                component.retry();
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="deactivate-company-action-2"]',
+                        ),
+                ).not.toBeNull();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="activate-company-action-2"]',
+                        ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should activate child company and refresh tree and switcher',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                component.setCompanyActivation(
+                    tree.children[0],
+                    true,
+                );
+
+
+                fixture.detectChanges();
+
+
+                expect(
+                    companyApi.setActivation,
+                ).toHaveBeenCalledWith(
+                    1,
+                    2,
+                    {
+                        is_active:
+                            true,
+                    },
+                );
+
+
+                expect(
+                    companyApi.getTree,
+                ).toHaveBeenCalledTimes(
+                    2,
+                );
+
+
+                expect(
+                    companyContext
+                        .loadAvailableCompanies,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    component
+                        .activationSavingCompanyId(),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should deactivate child company after confirmation and refresh contexts',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                const activeChild:
+                    CompanyTreeNode = {
+                    ...tree.children[0],
+
+                    is_active:
+                        true,
+                };
+
+
+                const close =
+                    vi.fn();
+
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.setCompanyActivation(
+                    activeChild,
+                    false,
+                    dialog,
+                );
+
+
+                fixture.detectChanges();
+
+
+                expect(
+                    companyApi.setActivation,
+                ).toHaveBeenCalledWith(
+                    1,
+                    2,
+                    {
+                        is_active:
+                            false,
+                    },
+                );
+
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    companyApi.getTree,
+                ).toHaveBeenCalledTimes(
+                    2,
+                );
+
+
+                expect(
+                    companyContext
+                        .loadAvailableCompanies,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+            },
+        );
+
+        it(
+            'should explain that parent must be active before activation',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                companyApi
+                    .setActivation
+                    .mockReturnValueOnce(
+                        throwError(
+                            () =>
+                                new HttpErrorResponse({
+                                    status:
+                                        409,
+                                }),
+                        ),
+                    );
+
+
+                component.setCompanyActivation(
+                    tree.children[0],
+                    true,
+                );
+
+
+                fixture.detectChanges();
+
+
+                expect(
+                    component.activationError(),
+                ).toBe(
+                    'Сначала активируйте родительскую компанию',
+                );
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="company-activation-error"]',
+                        )
+                        ?.textContent,
+                ).toContain(
+                    'Сначала активируйте родительскую компанию',
+                );
+            },
+        );
+
+        it(
+            'should show move action only for child companies with manage permission',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="move-company-action-2"]',
+                        ),
+                ).not.toBeNull();
+
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="move-company-action-1"]',
+                        ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should exclude moving company and its descendants from parent options',
+            () => {
+                const deepTree:
+                    CompanyTreeNode = {
+                    ...tree,
+
+                    children: [
+                        {
+                            ...tree.children[0],
+
+                            is_active:
+                                true,
+
+                            children: [
+                                {
+                                    ...tree.children[0],
+
+                                    id:
+                                        3,
+
+                                    parent_id:
+                                        2,
+
+                                    name:
+                                        'Branch Leaf',
+
+                                    children:
+                                        [],
+                                },
+                            ],
+                        },
+
+                        {
+                            ...tree.children[0],
+
+                            id:
+                                4,
+
+                            parent_id:
+                                1,
+
+                            name:
+                                'Other Branch',
+
+                            is_active:
+                                true,
+
+                            children:
+                                [],
+                        },
+                    ],
+                };
+
+
+                companyApi
+                    .getTree
+                    .mockReturnValue(
+                        of(deepTree),
+                    );
+
+
+                component.retry();
+
+                fixture.detectChanges();
+
+
+                component.startMove(
+                    deepTree.children[0],
+                );
+
+
+                expect(
+                    component
+                        .moveParentOptions()
+                        .map(
+                            row =>
+                                row.company.id,
+                        ),
+                ).toEqual([
+                    1,
+                    4,
+                ]);
+
+
+                expect(
+                    component.getMoveParentLabel(
+                        component
+                            .moveParentOptions()[1],
+                    ),
+                ).toBe(
+                    '\u00a0\u00a0Other Branch',
+                );
+            },
+        );
+
+        it(
+            'should move child company and reload only the tree',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                const close =
+                    vi.fn();
+
+
+                const dialog = {
+                    close,
+                } as unknown as BrnDialog;
+
+
+                component.startMove(
+                    tree.children[0],
+                );
+
+                component.setMoveParent(
+                    '1',
+                );
+
+
+                component.moveCompany(
+                    dialog,
+                );
+
+
+                fixture.detectChanges();
+
+
+                expect(
+                    companyApi.move,
+                ).toHaveBeenCalledWith(
+                    1,
+                    2,
+                    {
+                        parent_id:
+                            1,
+                    },
+                );
+
+
+                expect(
+                    close,
+                ).toHaveBeenCalledTimes(
+                    1,
+                );
+
+
+                expect(
+                    companyApi.getTree,
+                ).toHaveBeenCalledTimes(
+                    2,
+                );
+
+
+                expect(
+                    companyContext
+                        .loadAvailableCompanies,
+                ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.movingCompany(),
+                ).toBeNull();
+
+
+                expect(
+                    component.moveParentId(),
+                ).toBeNull();
+
+
+                expect(
+                    component.moveError(),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should require a new parent before moving company',
+            () => {
+                canManage.set(
+                    true,
+                );
+
+
+                const dialog = {
+                    close:
+                        vi.fn(),
+                } as unknown as BrnDialog;
+
+
+                component.startMove(
+                    tree.children[0],
+                );
+
+                component.setMoveParent(
+                    null,
+                );
+
+
+                component.moveCompany(
+                    dialog,
+                );
+
+
+                expect(
+                    companyApi.move,
+                ).not.toHaveBeenCalled();
+
+
+                expect(
+                    component.moveError(),
+                ).toBe(
+                    'Выберите новую родительскую компанию',
+                );
+            },
+        );
+
+        it.each([
+            {
+                status:
+                    400,
+
+                detail:
+                    'Root company cannot be moved',
+
+                expected:
+                    'Корневую компанию нельзя перемещать',
+            },
+
+            {
+                status:
+                    404,
+
+                detail:
+                    'Company not found',
+
+                expected:
+                    'Компания или новый родитель недоступны в текущем дереве',
+            },
+
+            {
+                status:
+                    409,
+
+                detail:
+                    'Company hierarchy cycle detected',
+
+                expected:
+                    'Нельзя переместить компанию внутрь её дочерней ветки',
+            },
+
+            {
+                status:
+                    409,
+
+                detail:
+                    'Active company cannot be moved under inactive company',
+
+                expected:
+                    'Нельзя переместить активную компанию под отключённую',
+            },
+        ])(
+            'should map move error $status: $detail',
+            (
+                {
+                    status,
+                    detail,
+                    expected,
+                },
+            ) => {
+                canManage.set(
+                    true,
+                );
+
+
+                companyApi
+                    .move
+                    .mockReturnValueOnce(
+                        throwError(
+                            () =>
+                                new HttpErrorResponse({
+                                    status,
+
+                                    error: {
+                                        detail,
+                                    },
+                                }),
+                        ),
+                    );
+
+
+                component.startMove(
+                    tree.children[0],
+                );
+
+                component.setMoveParent(
+                    '1',
+                );
+
+
+                component.moveCompany({
+                    close:
+                        vi.fn(),
+                } as unknown as BrnDialog);
+
+
+                expect(
+                    component.moveError(),
+                ).toBe(
+                    expected,
                 );
             },
         );
