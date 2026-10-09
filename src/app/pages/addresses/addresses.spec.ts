@@ -204,6 +204,25 @@ describe('Addresses', () => {
     });
 
 
+    it('should render the create-root form inside the dialog overlay', async () => {
+        createComponent();
+
+        const trigger = fixture.nativeElement.querySelector(
+            '[data-testid="create-root-address-action"]',
+        ) as HTMLElement | null;
+        trigger?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
+        expect(dialog).not.toBeNull();
+        expect(dialog?.textContent).toContain('Новый адресный объект');
+        expect(dialog?.querySelector('[data-testid="address-object-type"]')).not.toBeNull();
+        expect(dialog?.querySelector('[data-testid="address-object-name"]')).not.toBeNull();
+    });
+
+
     it('should show loading, error and retry states', () => {
         const pending = new Subject<AddressType[]>();
         addressApi.listTypes.mockReturnValue(pending);

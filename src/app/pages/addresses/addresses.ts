@@ -6,7 +6,6 @@ import {
     signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 
@@ -29,9 +28,7 @@ import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
-import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmInputImports } from '@spartan-ng/helm/input';
-import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import type { BrnDialog } from '@spartan-ng/brain/dialog';
 
 import { AddressApiService } from '../../core/addresses/address-api.service';
@@ -49,6 +46,12 @@ import {
     PermissionScope,
 } from '../../core/permissions/permission.models';
 import { PermissionService } from '../../core/permissions/permission.service';
+import {
+    AddressObjectDialogForm,
+    BuildingDialogForm,
+    EntranceDialogForm,
+    LocationDialogForm,
+} from './address-dialog-forms';
 
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -92,15 +95,16 @@ const ALLOWED_CHILD_CATEGORIES: Record<
     selector: 'app-addresses',
     imports: [
         FormsModule,
-        NgTemplateOutlet,
         NgIcon,
         HlmAlertDialogImports,
         HlmBadgeImports,
         HlmButtonImports,
         HlmDialogImports,
-        HlmFieldImports,
         HlmInputImports,
-        HlmNativeSelectImports,
+        AddressObjectDialogForm,
+        BuildingDialogForm,
+        EntranceDialogForm,
+        LocationDialogForm,
     ],
     providers: [
         provideIcons({
