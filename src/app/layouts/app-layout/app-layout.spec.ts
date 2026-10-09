@@ -68,6 +68,9 @@ describe(
     const canReadRoles =
       signal(false);
 
+    const canReadAddresses =
+      signal(false);
+
     const permissionState =
       signal<PermissionState>(
         'ready',
@@ -131,6 +134,16 @@ describe(
               === PermissionCode.MembersManage
             ) {
               return canManageMembers
+                .asReadonly();
+            }
+
+            if (
+              permission
+              === PermissionCode.AddressesRead
+              && minimumScope
+              === PermissionScope.Company
+            ) {
+              return canReadAddresses
                 .asReadonly();
             }
 
@@ -216,6 +229,10 @@ describe(
         false,
       );
 
+      canReadAddresses.set(
+        false,
+      );
+
       canReadCompanies.set(
         false,
       );
@@ -277,6 +294,30 @@ describe(
       },
     );
 
+
+    it(
+      'should show addresses navigation only with addresses read permission',
+      () => {
+        expect(
+          fixture.nativeElement.querySelector(
+            '[data-testid="addresses-nav-item"]',
+          ),
+        ).toBeNull();
+
+        canReadAddresses.set(true);
+        fixture.detectChanges();
+
+        expect(
+          fixture.nativeElement.querySelector(
+            '[data-testid="addresses-nav-item"]',
+          ),
+        ).not.toBeNull();
+        expect(permissions.canSignal).toHaveBeenCalledWith(
+          PermissionCode.AddressesRead,
+          PermissionScope.Company,
+        );
+      },
+    );
 
     it(
       'should hide members navigation without members manage permission',

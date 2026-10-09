@@ -2,6 +2,9 @@ export const PermissionCode = {
     CompaniesRead: 'companies.read',
     CompaniesManage: 'companies.manage',
 
+    AddressesRead: 'addresses.read',
+    AddressesManage: 'addresses.manage',
+
     OrganizationalUnitsRead:
         'organizational_units.read',
 

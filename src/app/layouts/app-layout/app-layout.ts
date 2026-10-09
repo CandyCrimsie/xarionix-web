@@ -24,6 +24,7 @@ import {
   lucideLoaderCircle,
   lucideRefreshCw,
   lucideTriangleAlert,
+  lucideMapPin,
 } from '@ng-icons/lucide';
 
 import {
@@ -60,6 +61,7 @@ import { PermissionService } from '../../core/permissions/permission.service';
       lucideLoaderCircle,
       lucideRefreshCw,
       lucideTriangleAlert,
+      lucideMapPin,
     }),
   ],
   templateUrl: './app-layout.html',
@@ -102,6 +104,12 @@ export class AppLayout {
 
       PermissionScope
         .Company,
+    );
+
+  readonly canReadAddresses =
+    this.permissions.canSignal(
+      PermissionCode.AddressesRead,
+      PermissionScope.Company,
     );
 
   private readonly router = inject(Router);

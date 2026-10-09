@@ -1,0 +1,549 @@
+<div class="flex h-full min-h-0 flex-col gap-4 p-4">
+    <header class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold">Адресная база</h1>
+            <p class="mt-1 text-sm text-muted-foreground">
+                Общий каталог физических адресов и помещения текущей компании
+            </p>
+        </div>
+
+        @if (canManageAddresses()) {
+        <hlm-dialog #rootObjectDialog>
+            <button hlmDialogTrigger hlmBtn type="button" data-testid="create-root-address-action"
+                (click)="startCreateObject(null)">
+                <ng-icon name="lucidePlus" />
+                Добавить корневой объект
+            </button>
+            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                <ng-container *ngTemplateOutlet="objectForm; context: {$implicit: rootObjectDialog}" />
+            </hlm-dialog-content>
+        </hlm-dialog>
+        }
+    </header>
+
+    <form class="flex gap-2" (ngSubmit)="search()">
+        <div class="relative min-w-0 flex-1">
+            <ng-icon name="lucideSearch"
+                class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input hlmInput class="w-full pl-9" autocomplete="off" data-testid="address-search-input"
+                placeholder="Москва Ленина 15 или Раменское Гагарина 34 корпус 2"
+                [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" name="addressSearch" />
+        </div>
+        <button hlmBtn type="submit" data-testid="address-search-submit">Найти</button>
+    </form>
+
+    @if (searchState() !== 'idle') {
+    <section class="rounded-lg border bg-card p-3" data-testid="address-search-results">
+        @if (searchState() === 'loading') {
+        <div class="flex items-center gap-2 text-sm text-muted-foreground">
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+            Ищем адреса...
+        </div>
+        } @else if (searchState() === 'error') {
+        <p class="text-sm text-destructive">Не удалось выполнить поиск</p>
+        } @else {
+        <div class="flex flex-col gap-1">
+            @for (building of searchResults(); track building.id) {
+            <button hlmBtn variant="ghost" type="button" class="h-auto justify-start py-2 text-left"
+                [attr.data-testid]="'address-search-result-' + building.id"
+                (click)="openSearchResult(building)">
+                <ng-icon name="lucideBuilding2" />
+                {{ building.full_address }}
+            </button>
+            } @empty {
+            <p class="py-2 text-sm text-muted-foreground" data-testid="address-search-empty">
+                Подходящие адреса не найдены
+            </p>
+            }
+        </div>
+        }
+    </section>
+    }
+
+    @if (actionError(); as error) {
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+        data-testid="address-action-error">
+        {{ error }}
+    </div>
+    }
+
+    @if (state() === 'loading') {
+    <div class="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground"
+        data-testid="addresses-loading">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+        Загружаем адресный каталог...
+    </div>
+    } @else if (state() === 'error') {
+    <div class="flex min-h-64 flex-col items-center justify-center gap-3" data-testid="addresses-error">
+        <p class="text-sm text-muted-foreground">Не удалось загрузить адресный каталог</p>
+        <button hlmBtn variant="outline" type="button" data-testid="addresses-retry" (click)="retry()">
+            <ng-icon name="lucideRefreshCw" />
+            Повторить
+        </button>
+    </div>
+    } @else if (state() === 'ready') {
+    <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,2fr)]">
+        <section class="min-h-0 overflow-auto rounded-lg border bg-card" data-testid="address-tree">
+            <div class="sticky top-0 z-10 border-b bg-card px-4 py-3">
+                <h2 class="font-medium">Адресные объекты</h2>
+            </div>
+            <div class="p-2">
+                @for (row of treeRows(); track row.node.id) {
+                <div class="flex items-center gap-1" [style.padding-left.px]="row.depth * 18">
+                    <button hlmBtn variant="ghost" size="icon" type="button" class="size-8 shrink-0"
+                        [attr.aria-label]="row.node.expanded ? 'Свернуть' : 'Развернуть'"
+                        [attr.data-testid]="'toggle-address-' + row.node.id" (click)="toggleNode(row.node)">
+                        @if (row.node.loading) {
+                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                        } @else if (row.node.expanded) {
+                        <ng-icon name="lucideChevronDown" />
+                        } @else {
+                        <ng-icon name="lucideChevronRight" />
+                        }
+                    </button>
+                    <button hlmBtn variant="ghost" type="button"
+                        class="h-auto min-w-0 flex-1 justify-start px-2 py-2 text-left"
+                        [class.bg-muted]="selectedObject()?.id === row.node.id"
+                        [attr.data-testid]="'address-object-' + row.node.id" (click)="selectObject(row.node)">
+                        <span class="truncate">{{ row.node.name }}</span>
+                        <span class="ml-auto text-xs text-muted-foreground">{{ row.node.type_short_name || row.node.type_name }}</span>
+                    </button>
+                </div>
+                } @empty {
+                <p class="p-6 text-center text-sm text-muted-foreground" data-testid="addresses-empty">
+                    Адресные объекты ещё не созданы
+                </p>
+                }
+            </div>
+        </section>
+
+        <section class="min-h-0 overflow-auto rounded-lg border bg-card">
+            @if (selectedObject(); as addressObject) {
+            <div class="flex flex-col gap-5 p-4 sm:p-6">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <ng-icon name="lucideMapPin" class="text-muted-foreground" />
+                            <h2 class="text-xl font-semibold" data-testid="selected-address-name">{{ addressObject.name }}</h2>
+                        </div>
+                        <p class="mt-1 text-sm text-muted-foreground">{{ addressObject.type_name }}</p>
+                    </div>
+                    @if (canManageAddresses()) {
+                    <div class="flex flex-wrap gap-2">
+                        @if (canCreateChild(addressObject)) {
+                        <hlm-dialog #childObjectDialog>
+                            <button hlmDialogTrigger hlmBtn variant="outline" type="button"
+                                data-testid="create-child-address-action" (click)="startCreateObject(addressObject)">
+                                <ng-icon name="lucidePlus" />
+                                Дочерний объект
+                            </button>
+                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                <ng-container *ngTemplateOutlet="objectForm; context: {$implicit: childObjectDialog}" />
+                            </hlm-dialog-content>
+                        </hlm-dialog>
+                        }
+
+                        <hlm-dialog #editObjectDialog>
+                            <button hlmDialogTrigger hlmBtn variant="outline" type="button"
+                                data-testid="edit-address-action" (click)="startEditObject(addressObject)">
+                                <ng-icon name="lucidePencil" />
+                                Изменить
+                            </button>
+                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                <ng-container *ngTemplateOutlet="objectForm; context: {$implicit: editObjectDialog}" />
+                            </hlm-dialog-content>
+                        </hlm-dialog>
+
+                        <hlm-alert-dialog>
+                            <button hlmAlertDialogTrigger hlmBtn variant="outline" size="icon" type="button"
+                                aria-label="Удалить адресный объект" data-testid="delete-address-action">
+                                <ng-icon name="lucideTrash2" />
+                            </button>
+                            <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+                                <hlm-alert-dialog-header>
+                                    <h3 hlmAlertDialogTitle>Удалить адресный объект?</h3>
+                                    <p hlmAlertDialogDescription>
+                                        Удаление возможно только после удаления дочерних объектов и зданий.
+                                    </p>
+                                </hlm-alert-dialog-header>
+                                <hlm-alert-dialog-footer>
+                                    <button hlmAlertDialogCancel type="button">Отмена</button>
+                                    <button hlmAlertDialogAction variant="destructive" type="button"
+                                        data-testid="delete-address-confirm" (click)="deleteSelectedObject()">
+                                        Удалить
+                                    </button>
+                                </hlm-alert-dialog-footer>
+                            </hlm-alert-dialog-content>
+                        </hlm-alert-dialog>
+                    </div>
+                    }
+                </div>
+
+                <div class="border-t pt-5">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <h3 class="font-medium">Здания</h3>
+                        @if (canManageAddresses() && addressObject.type_category === 'thoroughfare') {
+                        <hlm-dialog #createBuildingDialog>
+                            <button hlmDialogTrigger hlmBtn size="sm" type="button"
+                                data-testid="create-building-action" (click)="startCreateBuilding()">
+                                <ng-icon name="lucidePlus" />
+                                Добавить дом
+                            </button>
+                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-xl">
+                                <ng-container *ngTemplateOutlet="buildingForm; context: {$implicit: createBuildingDialog}" />
+                            </hlm-dialog-content>
+                        </hlm-dialog>
+                        }
+                    </div>
+
+                    @if (buildingsState() === 'loading') {
+                    <div class="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                        Загружаем здания...
+                    </div>
+                    } @else if (buildingsState() === 'error') {
+                    <p class="py-4 text-sm text-destructive">Не удалось загрузить здания</p>
+                    } @else {
+                    <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="building-list">
+                        @for (building of buildings(); track building.id) {
+                        <button type="button" class="rounded-md border p-3 text-left transition-colors hover:bg-muted"
+                            [class.bg-muted]="selectedBuilding()?.id === building.id"
+                            [attr.data-testid]="'building-' + building.id" (click)="selectBuilding(building)">
+                            <div class="flex items-center gap-2 font-medium">
+                                <ng-icon name="lucideBuilding2" />
+                                Дом {{ building.number }}
+                            </div>
+                            @if (building.corpus || building.structure) {
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                @if (building.corpus) { корпус {{ building.corpus }} }
+                                @if (building.structure) { строение {{ building.structure }} }
+                            </p>
+                            }
+                        </button>
+                        } @empty {
+                        <p class="col-span-full py-6 text-center text-sm text-muted-foreground"
+                            data-testid="buildings-empty">Здания не добавлены</p>
+                        }
+                    </div>
+                    }
+                </div>
+
+                @if (selectedBuilding(); as building) {
+                <article class="flex flex-col gap-5 rounded-lg border bg-background p-4" data-testid="building-details">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 class="font-semibold" data-testid="building-full-address">{{ building.full_address }}</h3>
+                            <p class="mt-1 text-sm text-muted-foreground">
+                                Координаты:
+                                @if (building.latitude !== null && building.longitude !== null) {
+                                {{ building.latitude }}, {{ building.longitude }}
+                                } @else { не заданы }
+                            </p>
+                        </div>
+                        @if (canManageAddresses()) {
+                        <div class="flex gap-2">
+                            <hlm-dialog #editBuildingDialog>
+                                <button hlmDialogTrigger hlmBtn variant="outline" size="sm" type="button"
+                                    data-testid="edit-building-action" (click)="startEditBuilding(building)">
+                                    <ng-icon name="lucidePencil" />
+                                    Изменить дом
+                                </button>
+                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-xl">
+                                    <ng-container *ngTemplateOutlet="buildingForm; context: {$implicit: editBuildingDialog}" />
+                                </hlm-dialog-content>
+                            </hlm-dialog>
+                            <hlm-alert-dialog>
+                                <button hlmAlertDialogTrigger hlmBtn variant="outline" size="icon" type="button"
+                                    aria-label="Удалить здание"><ng-icon name="lucideTrash2" /></button>
+                                <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+                                    <hlm-alert-dialog-header>
+                                        <h3 hlmAlertDialogTitle>Удалить здание?</h3>
+                                        <p hlmAlertDialogDescription>
+                                            Сначала потребуется удалить подъезды и помещения здания.
+                                        </p>
+                                    </hlm-alert-dialog-header>
+                                    <hlm-alert-dialog-footer>
+                                        <button hlmAlertDialogCancel type="button">Отмена</button>
+                                        <button hlmAlertDialogAction variant="destructive" type="button"
+                                            (click)="deleteSelectedBuilding()">Удалить</button>
+                                    </hlm-alert-dialog-footer>
+                                </hlm-alert-dialog-content>
+                            </hlm-alert-dialog>
+                        </div>
+                        }
+                    </div>
+
+                    @if (detailsState() === 'loading') {
+                    <div class="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                        Загружаем помещения...
+                    </div>
+                    } @else if (detailsState() === 'error') {
+                    <p class="text-sm text-destructive">Не удалось загрузить подъезды и помещения</p>
+                    } @else {
+                    <div class="grid gap-5 xl:grid-cols-2">
+                        <section>
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4 class="font-medium">Подъезды</h4>
+                                @if (canManageAddresses()) {
+                                <hlm-dialog #createEntranceDialog>
+                                    <button hlmDialogTrigger hlmBtn variant="outline" size="sm" type="button"
+                                        data-testid="create-entrance-action" (click)="startCreateEntrance()">
+                                        <ng-icon name="lucidePlus" /> Добавить
+                                    </button>
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+                                        <ng-container *ngTemplateOutlet="entranceForm; context: {$implicit: createEntranceDialog}" />
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+                                }
+                            </div>
+                            <div class="flex flex-col gap-2" data-testid="entrance-list">
+                                @for (entrance of entrances(); track entrance.id) {
+                                <div class="flex items-center justify-between rounded-md border px-3 py-2">
+                                    <span class="flex items-center gap-2"><ng-icon name="lucideDoorOpen" /> Подъезд {{ entrance.number }}</span>
+                                    @if (canManageAddresses()) {
+                                    <div class="flex gap-1">
+                                        <hlm-dialog #editEntranceDialog>
+                                            <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                                (click)="startEditEntrance(entrance)"><ng-icon name="lucidePencil" /></button>
+                                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+                                                <ng-container *ngTemplateOutlet="entranceForm; context: {$implicit: editEntranceDialog}" />
+                                            </hlm-dialog-content>
+                                        </hlm-dialog>
+                                        <hlm-alert-dialog>
+                                            <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon"
+                                                type="button" aria-label="Удалить подъезд">
+                                                <ng-icon name="lucideTrash2" />
+                                            </button>
+                                            <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+                                                <hlm-alert-dialog-header>
+                                                    <h3 hlmAlertDialogTitle>Удалить подъезд {{ entrance.number }}?</h3>
+                                                    <p hlmAlertDialogDescription>
+                                                        Удаление невозможно, пока к подъезду привязаны помещения.
+                                                    </p>
+                                                </hlm-alert-dialog-header>
+                                                <hlm-alert-dialog-footer>
+                                                    <button hlmAlertDialogCancel type="button">Отмена</button>
+                                                    <button hlmAlertDialogAction variant="destructive" type="button"
+                                                        (click)="deleteEntrance(entrance)">Удалить</button>
+                                                </hlm-alert-dialog-footer>
+                                            </hlm-alert-dialog-content>
+                                        </hlm-alert-dialog>
+                                    </div>
+                                    }
+                                </div>
+                                } @empty {
+                                <p class="py-3 text-sm text-muted-foreground">Подъезды не добавлены</p>
+                                }
+                            </div>
+                        </section>
+
+                        <section>
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4 class="font-medium">Помещения</h4>
+                                @if (canManageAddresses()) {
+                                <hlm-dialog #createLocationDialog>
+                                    <button hlmDialogTrigger hlmBtn variant="outline" size="sm" type="button"
+                                        data-testid="create-location-action" (click)="startCreateLocation()">
+                                        <ng-icon name="lucidePlus" /> Добавить
+                                    </button>
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                        <ng-container *ngTemplateOutlet="locationForm; context: {$implicit: createLocationDialog}" />
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+                                }
+                            </div>
+                            <div class="flex flex-col gap-2" data-testid="location-list">
+                                @for (location of locations(); track location.id) {
+                                <div class="rounded-md border px-3 py-2">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <p class="flex items-center gap-2 font-medium"><ng-icon name="lucideWarehouse" /> {{ location.name }}</p>
+                                            <p class="text-xs text-muted-foreground">
+                                                {{ entranceLabel(location.entrance_id) }}
+                                                @if (location.floor) { · этаж {{ location.floor }} }
+                                            </p>
+                                        </div>
+                                        @if (canManageAddresses()) {
+                                        <div class="flex gap-1">
+                                            <hlm-dialog #editLocationDialog>
+                                                <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                                    (click)="startEditLocation(location)"><ng-icon name="lucidePencil" /></button>
+                                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                                    <ng-container *ngTemplateOutlet="locationForm; context: {$implicit: editLocationDialog}" />
+                                                </hlm-dialog-content>
+                                            </hlm-dialog>
+                                            <hlm-alert-dialog>
+                                                <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon"
+                                                    type="button" aria-label="Удалить помещение">
+                                                    <ng-icon name="lucideTrash2" />
+                                                </button>
+                                                <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+                                                    <hlm-alert-dialog-header>
+                                                        <h3 hlmAlertDialogTitle>Удалить помещение?</h3>
+                                                        <p hlmAlertDialogDescription>
+                                                            Помещение нельзя удалить, если к нему привязаны другие данные.
+                                                        </p>
+                                                    </hlm-alert-dialog-header>
+                                                    <hlm-alert-dialog-footer>
+                                                        <button hlmAlertDialogCancel type="button">Отмена</button>
+                                                        <button hlmAlertDialogAction variant="destructive" type="button"
+                                                            (click)="deleteLocation(location)">Удалить</button>
+                                                    </hlm-alert-dialog-footer>
+                                                </hlm-alert-dialog-content>
+                                            </hlm-alert-dialog>
+                                        </div>
+                                        }
+                                    </div>
+                                    @if (location.description) {
+                                    <p class="mt-2 text-sm text-muted-foreground">{{ location.description }}</p>
+                                    }
+                                </div>
+                                } @empty {
+                                <p class="py-3 text-sm text-muted-foreground">Помещения не добавлены</p>
+                                }
+                            </div>
+                        </section>
+                    </div>
+                    }
+                </article>
+                }
+            </div>
+            } @else {
+            <div class="flex min-h-72 flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
+                <ng-icon name="lucideMapPin" class="size-10" />
+                <p>Выберите адресный объект слева или найдите здание через поиск</p>
+            </div>
+            }
+        </section>
+    </div>
+    }
+</div>
+
+<ng-template #objectForm let-dialog>
+    <hlm-dialog-header>
+        <h3 hlmDialogTitle>{{ editingObject() ? 'Изменение адресного объекта' : 'Новый адресный объект' }}</h3>
+        <p hlmDialogDescription>
+            @if (objectParent(); as parent) { Родитель: {{ parent.name }} } @else { Корневой уровень каталога }
+        </p>
+    </hlm-dialog-header>
+    <hlm-field-group>
+        <hlm-field>
+            <label hlmFieldLabel for="address-object-type">Тип</label>
+            <select id="address-object-type" class="h-9 rounded-md border bg-background px-3 text-sm"
+                data-testid="address-object-type" [ngModel]="objectTypeId()"
+                (ngModelChange)="objectTypeId.set(+$event)">
+                @for (type of availableObjectTypes(); track type.id) {
+                <option [ngValue]="type.id">{{ type.name }}</option>
+                }
+            </select>
+        </hlm-field>
+        <hlm-field>
+            <label hlmFieldLabel for="address-object-name">Название</label>
+            <input hlmInput id="address-object-name" maxlength="255" autocomplete="off"
+                data-testid="address-object-name" [ngModel]="objectName()"
+                (ngModelChange)="objectName.set($event)" />
+        </hlm-field>
+    </hlm-field-group>
+    @if (objectError(); as error) {
+    <p class="text-sm text-destructive" data-testid="address-object-error">{{ error }}</p>
+    }
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="objectSaving()">Отмена</button>
+        <button hlmBtn type="button" data-testid="address-object-submit" [disabled]="objectSaving()"
+            (click)="saveObject(dialog)">
+            @if (objectSaving()) { <ng-icon name="lucideLoaderCircle" class="animate-spin" /> }
+            Сохранить
+        </button>
+    </hlm-dialog-footer>
+</ng-template>
+
+<ng-template #buildingForm let-dialog>
+    <hlm-dialog-header>
+        <h3 hlmDialogTitle>{{ editingBuilding() ? 'Изменение здания' : 'Новое здание' }}</h3>
+        <p hlmDialogDescription>{{ selectedObject()?.name }}</p>
+    </hlm-dialog-header>
+    <hlm-field-group>
+        <div class="grid gap-4 sm:grid-cols-3">
+            <hlm-field><label hlmFieldLabel for="building-number">Номер</label>
+                <input hlmInput id="building-number" maxlength="50" data-testid="building-number"
+                    [ngModel]="buildingNumber()" (ngModelChange)="buildingNumber.set($event)" /></hlm-field>
+            <hlm-field><label hlmFieldLabel for="building-corpus">Корпус</label>
+                <input hlmInput id="building-corpus" maxlength="50" [ngModel]="buildingCorpus()"
+                    (ngModelChange)="buildingCorpus.set($event)" /></hlm-field>
+            <hlm-field><label hlmFieldLabel for="building-structure">Строение</label>
+                <input hlmInput id="building-structure" maxlength="50" [ngModel]="buildingStructure()"
+                    (ngModelChange)="buildingStructure.set($event)" /></hlm-field>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+            <hlm-field><label hlmFieldLabel for="building-latitude">Широта</label>
+                <input hlmInput id="building-latitude" inputmode="decimal" placeholder="55.1234567"
+                    [ngModel]="buildingLatitude()" (ngModelChange)="buildingLatitude.set($event)" /></hlm-field>
+            <hlm-field><label hlmFieldLabel for="building-longitude">Долгота</label>
+                <input hlmInput id="building-longitude" inputmode="decimal" placeholder="37.1234567"
+                    [ngModel]="buildingLongitude()" (ngModelChange)="buildingLongitude.set($event)" /></hlm-field>
+        </div>
+    </hlm-field-group>
+    @if (buildingError(); as error) { <p class="text-sm text-destructive">{{ error }}</p> }
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="buildingSaving()">Отмена</button>
+        <button hlmBtn type="button" data-testid="building-submit" [disabled]="buildingSaving()"
+            (click)="saveBuilding(dialog)">Сохранить</button>
+    </hlm-dialog-footer>
+</ng-template>
+
+<ng-template #entranceForm let-dialog>
+    <hlm-dialog-header>
+        <h3 hlmDialogTitle>{{ editingEntrance() ? 'Изменение подъезда' : 'Новый подъезд' }}</h3>
+    </hlm-dialog-header>
+    <hlm-field>
+        <label hlmFieldLabel for="entrance-number">Номер</label>
+        <input hlmInput id="entrance-number" maxlength="20" data-testid="entrance-number"
+            [ngModel]="entranceNumber()" (ngModelChange)="entranceNumber.set($event)" />
+    </hlm-field>
+    @if (entranceError(); as error) { <p class="text-sm text-destructive">{{ error }}</p> }
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="entranceSaving()">Отмена</button>
+        <button hlmBtn type="button" data-testid="entrance-submit" [disabled]="entranceSaving()"
+            (click)="saveEntrance(dialog)">Сохранить</button>
+    </hlm-dialog-footer>
+</ng-template>
+
+<ng-template #locationForm let-dialog>
+    <hlm-dialog-header>
+        <h3 hlmDialogTitle>{{ editingLocation() ? 'Изменение помещения' : 'Новое помещение' }}</h3>
+    </hlm-dialog-header>
+    <hlm-field-group>
+        <hlm-field>
+            <label hlmFieldLabel for="location-entrance">Подъезд</label>
+            <select id="location-entrance" class="h-9 rounded-md border bg-background px-3 text-sm"
+                data-testid="location-entrance" [ngModel]="locationEntranceId()"
+                (ngModelChange)="locationEntranceId.set($event === null ? null : +$event)">
+                <option [ngValue]="null">Без подъезда</option>
+                @for (entrance of entrances(); track entrance.id) {
+                <option [ngValue]="entrance.id">Подъезд {{ entrance.number }}</option>
+                }
+            </select>
+        </hlm-field>
+        <div class="grid gap-4 sm:grid-cols-[8rem_1fr]">
+            <hlm-field><label hlmFieldLabel for="location-floor">Этаж</label>
+                <input hlmInput id="location-floor" maxlength="20" data-testid="location-floor"
+                    [ngModel]="locationFloor()" (ngModelChange)="locationFloor.set($event)" /></hlm-field>
+            <hlm-field><label hlmFieldLabel for="location-name">Название</label>
+                <input hlmInput id="location-name" maxlength="255" data-testid="location-name"
+                    [ngModel]="locationName()" (ngModelChange)="locationName.set($event)" /></hlm-field>
+        </div>
+        <hlm-field>
+            <label hlmFieldLabel for="location-description">Описание</label>
+            <textarea id="location-description" class="min-h-24 rounded-md border bg-background p-3 text-sm"
+                maxlength="5000" [ngModel]="locationDescription()"
+                (ngModelChange)="locationDescription.set($event)"></textarea>
+        </hlm-field>
+    </hlm-field-group>
+    @if (locationError(); as error) { <p class="text-sm text-destructive">{{ error }}</p> }
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="locationSaving()">Отмена</button>
+        <button hlmBtn type="button" data-testid="location-submit" [disabled]="locationSaving()"
+            (click)="saveLocation(dialog)">Сохранить</button>
+    </hlm-dialog-footer>
+</ng-template>

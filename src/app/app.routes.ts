@@ -149,6 +149,34 @@ export const routes:
 
                 {
                     path:
+                        'addresses',
+
+                    canActivate: [
+                        permissionGuard(
+                            PermissionCode
+                                .AddressesRead,
+
+                            PermissionScope
+                                .Company,
+                        ),
+                    ],
+
+                    runGuardsAndResolvers:
+                        'always',
+
+                    loadComponent:
+                        () =>
+                            import(
+                                './pages/addresses/addresses'
+                            )
+                                .then(
+                                    module =>
+                                        module.Addresses,
+                                ),
+                },
+
+                {
+                    path:
                         'invitations',
 
                     canActivate: [

@@ -13,6 +13,19 @@ describe(
     'application routes',
     () => {
         it(
+            'should protect addresses route with company read permission',
+            () => {
+                const appRoute = routes.find(route => route.path === '');
+                const addressRoute = appRoute?.children?.find(
+                    route => route.path === 'addresses',
+                );
+                expect(addressRoute).toBeDefined();
+                expect(addressRoute?.canActivate?.length).toBe(1);
+                expect(addressRoute?.runGuardsAndResolvers).toBe('always');
+            },
+        );
+
+        it(
             'should protect invitations route with a permission guard',
             () => {
                 const appRoute =
