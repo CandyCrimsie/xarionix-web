@@ -182,6 +182,13 @@ export class Addresses {
 
     readonly reloadVersion = signal(0);
 
+    private contextGeneration = 0;
+    private buildingsRequestGeneration = 0;
+    private buildingDetailsRequestGeneration = 0;
+    private searchRequestGeneration = 0;
+    private searchResultRequestGeneration = 0;
+    private readonly childRequestGenerations = new Map<number, number>();
+
     readonly treeRows = computed(() => {
         const rows: AddressTreeRow[] = [];
         const append = (nodes: AddressTreeNode[], depth: number): void => {
@@ -221,6 +228,8 @@ export class Addresses {
     constructor() {
         effect(onCleanup => {
             this.reloadVersion();
+            const contextGeneration = ++this.contextGeneration;
+            this.invalidatePendingRequests();
             const companyId = this.companyContext.activeCompanyId();
             const canRead = this.canReadAddresses();
             this.resetSelection();
@@ -238,11 +247,17 @@ export class Addresses {
                 roots: this.addressApi.listObjects(),
             }).subscribe({
                 next: result => {
+                    if (contextGeneration !== this.contextGeneration) {
+                        return;
+                    }
                     this.types.set(result.types);
                     this.roots.set(result.roots.map(item => this.toTreeNode(item)));
                     this.state.set('ready');
                 },
                 error: () => {
+                    if (contextGeneration !== this.contextGeneration) {
+                        return;
+                    }
                     this.state.set('error');
                 },
             });
@@ -268,16 +283,24 @@ export class Addresses {
             this.updateTreeNode(node.id, current => ({ ...current, expanded: false }));
             return;
         }
+        if (node.loading) {
+            return;
+        }
         if (node.loaded) {
             this.updateTreeNode(node.id, current => ({ ...current, expanded: true }));
             return;
         }
 
-        const companyId = this.companyContext.activeCompanyId();
+        const contextGeneration = this.contextGeneration;
+        const requestGeneration = (this.childRequestGenerations.get(node.id) ?? 0) + 1;
+        this.childRequestGenerations.set(node.id, requestGeneration);
         this.updateTreeNode(node.id, current => ({ ...current, loading: true }));
         this.addressApi.listObjects(node.id).subscribe({
             next: children => {
-                if (companyId !== this.companyContext.activeCompanyId()) {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || this.childRequestGenerations.get(node.id) !== requestGeneration
+                ) {
                     return;
                 }
                 this.updateTreeNode(node.id, current => ({
@@ -289,6 +312,12 @@ export class Addresses {
                 }));
             },
             error: () => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || this.childRequestGenerations.get(node.id) !== requestGeneration
+                ) {
+                    return;
+                }
                 this.updateTreeNode(node.id, current => ({ ...current, loading: false }));
                 this.actionError.set('Не удалось загрузить дочерние адресные объекты');
             },
@@ -297,6 +326,7 @@ export class Addresses {
 
 
     selectObject(addressObject: AddressObject): void {
+        this.searchResultRequestGeneration += 1;
         this.selectedObject.set(addressObject);
         this.selectedBuilding.set(null);
         this.entrances.set([]);
@@ -307,16 +337,21 @@ export class Addresses {
 
 
     selectBuilding(building: Building): void {
+        const contextGeneration = this.contextGeneration;
+        const requestGeneration = ++this.buildingDetailsRequestGeneration;
         this.selectedBuilding.set(building);
         this.detailsState.set('loading');
         this.actionError.set(null);
-        const companyId = this.companyContext.activeCompanyId();
         forkJoin({
             entrances: this.addressApi.listEntrances(building.id),
             locations: this.addressApi.listLocations(building.id),
         }).subscribe({
             next: result => {
-                if (companyId !== this.companyContext.activeCompanyId()) {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.buildingDetailsRequestGeneration
+                    || this.selectedBuilding()?.id !== building.id
+                ) {
                     return;
                 }
                 this.entrances.set(result.entrances);
@@ -324,6 +359,13 @@ export class Addresses {
                 this.detailsState.set('ready');
             },
             error: () => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.buildingDetailsRequestGeneration
+                    || this.selectedBuilding()?.id !== building.id
+                ) {
+                    return;
+                }
                 this.detailsState.set('error');
             },
         });
@@ -332,6 +374,8 @@ export class Addresses {
 
     search(): void {
         const query = this.searchQuery().trim();
+        const contextGeneration = this.contextGeneration;
+        const requestGeneration = ++this.searchRequestGeneration;
         if (!query) {
             this.searchResults.set([]);
             this.searchState.set('idle');
@@ -340,23 +384,53 @@ export class Addresses {
         this.searchState.set('loading');
         this.addressApi.search(query).subscribe({
             next: result => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.searchRequestGeneration
+                ) {
+                    return;
+                }
                 this.searchResults.set(result.items);
                 this.searchState.set('ready');
             },
-            error: () => this.searchState.set('error'),
+            error: () => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.searchRequestGeneration
+                ) {
+                    return;
+                }
+                this.searchState.set('error');
+            },
         });
     }
 
 
     openSearchResult(building: Building): void {
+        const contextGeneration = this.contextGeneration;
+        const requestGeneration = ++this.searchResultRequestGeneration;
         this.addressApi.getObject(building.address_object_id).subscribe({
             next: addressObject => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.searchResultRequestGeneration
+                ) {
+                    return;
+                }
+                this.buildingsRequestGeneration += 1;
+                this.buildingDetailsRequestGeneration += 1;
                 this.selectedObject.set(addressObject);
                 this.buildings.set([building]);
                 this.buildingsState.set('ready');
                 this.selectBuilding(building);
             },
             error: () => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.searchResultRequestGeneration
+                ) {
+                    return;
+                }
                 this.actionError.set('Адресный объект больше недоступен');
             },
         });
@@ -648,9 +722,19 @@ export class Addresses {
 
 
     private loadBuildings(addressObjectId: number, selectId?: number): void {
+        const contextGeneration = this.contextGeneration;
+        const requestGeneration = ++this.buildingsRequestGeneration;
+        this.buildingDetailsRequestGeneration += 1;
         this.buildingsState.set('loading');
         this.addressApi.listBuildings(addressObjectId).subscribe({
             next: buildings => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.buildingsRequestGeneration
+                    || this.selectedObject()?.id !== addressObjectId
+                ) {
+                    return;
+                }
                 this.buildings.set(buildings);
                 this.buildingsState.set('ready');
                 const selected = selectId === undefined
@@ -661,8 +745,26 @@ export class Addresses {
                     this.selectBuilding(selected);
                 }
             },
-            error: () => this.buildingsState.set('error'),
+            error: () => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.buildingsRequestGeneration
+                    || this.selectedObject()?.id !== addressObjectId
+                ) {
+                    return;
+                }
+                this.buildingsState.set('error');
+            },
         });
+    }
+
+
+    private invalidatePendingRequests(): void {
+        this.buildingsRequestGeneration += 1;
+        this.buildingDetailsRequestGeneration += 1;
+        this.searchRequestGeneration += 1;
+        this.searchResultRequestGeneration += 1;
+        this.childRequestGenerations.clear();
     }
 
 

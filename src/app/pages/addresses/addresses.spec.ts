@@ -235,6 +235,172 @@ describe('Addresses', () => {
     });
 
 
+    it('should ignore an older building list after another street is selected', () => {
+        const otherStreet: AddressObject = {
+            ...street,
+            id: 13,
+            name: 'Гагарина',
+        };
+        const otherBuilding: Building = {
+            ...building,
+            id: 21,
+            address_object_id: otherStreet.id,
+            number: '17',
+            full_address: 'Москва, ул. Гагарина, д. 17',
+        };
+        const firstRequest = new Subject<Building[]>();
+        const secondRequest = new Subject<Building[]>();
+        addressApi.listBuildings.mockImplementation((addressObjectId: number) => (
+            addressObjectId === street.id ? firstRequest : secondRequest
+        ));
+        createComponent();
+
+        component.selectObject(street);
+        component.selectObject(otherStreet);
+        secondRequest.next([otherBuilding]);
+        secondRequest.complete();
+        firstRequest.error(new Error('late street error'));
+
+        expect(component.selectedObject()?.id).toBe(otherStreet.id);
+        expect(component.buildings()).toEqual([otherBuilding]);
+        expect(component.buildingsState()).toBe('ready');
+    });
+
+
+    it('should ignore older building details and their late error', () => {
+        const otherBuilding: Building = {
+            ...building,
+            id: 21,
+            number: '17',
+            full_address: 'Москва, ул. Дмитрия Ульянова, д. 17',
+        };
+        const otherEntrance: Entrance = {
+            ...entrance,
+            id: 31,
+            building_id: otherBuilding.id,
+            number: '2',
+        };
+        const otherLocation: Location = {
+            ...location,
+            id: 41,
+            building_id: otherBuilding.id,
+            entrance_id: otherEntrance.id,
+            name: 'Серверная',
+        };
+        const firstEntrances = new Subject<Entrance[]>();
+        const firstLocations = new Subject<Location[]>();
+        const secondEntrances = new Subject<Entrance[]>();
+        const secondLocations = new Subject<Location[]>();
+        addressApi.listEntrances.mockImplementation((buildingId: number) => (
+            buildingId === building.id ? firstEntrances : secondEntrances
+        ));
+        addressApi.listLocations.mockImplementation((buildingId: number) => (
+            buildingId === building.id ? firstLocations : secondLocations
+        ));
+        createComponent();
+
+        component.selectBuilding(building);
+        component.selectBuilding(otherBuilding);
+        secondEntrances.next([otherEntrance]);
+        secondEntrances.complete();
+        secondLocations.next([otherLocation]);
+        secondLocations.complete();
+        firstEntrances.error(new Error('late building error'));
+
+        expect(component.selectedBuilding()?.id).toBe(otherBuilding.id);
+        expect(component.entrances()).toEqual([otherEntrance]);
+        expect(component.locations()).toEqual([otherLocation]);
+        expect(component.detailsState()).toBe('ready');
+    });
+
+
+    it('should keep only the latest search response', () => {
+        const otherBuilding: Building = {
+            ...building,
+            id: 21,
+            number: '17',
+            full_address: 'Москва, ул. Гагарина, д. 17',
+        };
+        const firstSearch = new Subject<{
+            items: Building[];
+            total: number;
+            limit: number;
+            offset: number;
+        }>();
+        const secondSearch = new Subject<{
+            items: Building[];
+            total: number;
+            limit: number;
+            offset: number;
+        }>();
+        addressApi.search.mockImplementation((query: string) => (
+            query === 'Ленина 15' ? firstSearch : secondSearch
+        ));
+        createComponent();
+
+        component.searchQuery.set('Ленина 15');
+        component.search();
+        component.searchQuery.set('Гагарина 17');
+        component.search();
+        secondSearch.next({ items: [otherBuilding], total: 1, limit: 20, offset: 0 });
+        secondSearch.complete();
+        firstSearch.error(new Error('late search error'));
+
+        expect(component.searchResults()).toEqual([otherBuilding]);
+        expect(component.searchState()).toBe('ready');
+    });
+
+
+    it('should ignore an older opened search result', () => {
+        const otherStreet: AddressObject = {
+            ...street,
+            id: 13,
+            name: 'Гагарина',
+        };
+        const otherBuilding: Building = {
+            ...building,
+            id: 21,
+            address_object_id: otherStreet.id,
+            number: '17',
+            full_address: 'Москва, ул. Гагарина, д. 17',
+        };
+        const firstObject = new Subject<AddressObject>();
+        const secondObject = new Subject<AddressObject>();
+        addressApi.getObject.mockImplementation((addressObjectId: number) => (
+            addressObjectId === street.id ? firstObject : secondObject
+        ));
+        createComponent();
+
+        component.openSearchResult(building);
+        component.openSearchResult(otherBuilding);
+        secondObject.next(otherStreet);
+        secondObject.complete();
+        firstObject.error(new Error('late result error'));
+
+        expect(component.selectedObject()).toEqual(otherStreet);
+        expect(component.selectedBuilding()).toEqual(otherBuilding);
+        expect(component.actionError()).toBeNull();
+    });
+
+
+    it('should invalidate lazy child requests when company context changes', () => {
+        const pendingChildren = new Subject<AddressObject[]>();
+        addressApi.listObjects.mockImplementation((parentId?: number) => (
+            parentId === city.id ? pendingChildren : of([city])
+        ));
+        createComponent();
+
+        component.toggleNode(component.roots()[0]);
+        activeCompanyId.set(2);
+        fixture.detectChanges();
+        pendingChildren.error(new Error('late company A error'));
+
+        expect(component.actionError()).toBeNull();
+        expect(component.roots()[0].children).toEqual([]);
+        expect(component.roots()[0].loading).toBe(false);
+    });
+
+
     it('should create a normalized building and reject invalid input first', () => {
         createComponent();
         component.selectObject(street);
