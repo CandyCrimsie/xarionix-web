@@ -22,6 +22,7 @@ import type {
     CompanyInvitationCreated,
     InvitationAcceptance,
     InvitationNewUserAccept,
+    InvitationPolicy,
     InvitationScope,
     PublicInvitation,
 } from './invitation.models';
@@ -85,11 +86,19 @@ export class InvitationApiService {
     }
 
 
-    getPublic(
+    getPolicy(): Observable<InvitationPolicy> {
+        return this.http.get<InvitationPolicy>(
+            `${API_BASE_URL}/invitations/policy`,
+        );
+    }
+
+
+    resolve(
         token: string,
     ): Observable<PublicInvitation> {
-        return this.http.get<PublicInvitation>(
-            `${API_BASE_URL}/invitations/${encodeURIComponent(token)}`,
+        return this.http.post<PublicInvitation>(
+            `${API_BASE_URL}/invitations/resolve`,
+            { token },
         );
     }
 
@@ -99,11 +108,11 @@ export class InvitationApiService {
         data: InvitationNewUserAccept,
     ): Observable<InvitationAcceptance> {
         return this.http.post<InvitationAcceptance>(
-            (
-                `${API_BASE_URL}/invitations/`
-                + `${encodeURIComponent(token)}/accept`
-            ),
-            data,
+            `${API_BASE_URL}/invitations/accept`,
+            {
+                token,
+                ...data,
+            },
         );
     }
 
@@ -112,12 +121,8 @@ export class InvitationApiService {
         token: string,
     ): Observable<InvitationAcceptance> {
         return this.http.post<InvitationAcceptance>(
-            (
-                `${API_BASE_URL}/invitations/`
-                + `${encodeURIComponent(token)}`
-                + '/accept-existing'
-            ),
-            null,
+            `${API_BASE_URL}/invitations/accept-existing`,
+            { token },
         );
     }
 }

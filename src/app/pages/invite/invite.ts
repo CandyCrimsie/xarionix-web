@@ -30,6 +30,7 @@ import { InvitationApiService } from '../../core/invitations/invitation-api.serv
 
 import type {
   CompanyInvitation,
+  InvitationPolicy,
   InvitationScope,
 } from '../../core/invitations/invitation.models';
 
@@ -98,7 +99,12 @@ export class Invite {
 
   readonly state = signal<InvitationListState>('idle');
 
-  readonly createExpiresHours = signal(72);
+  readonly invitationPolicy =
+    signal<InvitationPolicy | null>(null);
+
+  readonly policyLoading = signal(false);
+  readonly policyError = signal(false);
+  readonly createExpiresHours = signal<number | null>(null);
   readonly createSaving = signal(false);
   readonly createError = signal<string | null>(null);
   readonly createdLink = signal<string | null>(null);
@@ -108,6 +114,8 @@ export class Invite {
 
 
   constructor() {
+    this.loadInvitationPolicy();
+
     effect(onCleanup => {
       this.reloadVersion();
 
@@ -160,7 +168,11 @@ export class Invite {
 
 
   resetCreate(): void {
-    this.createExpiresHours.set(72);
+    this.createExpiresHours.set(
+      this.invitationPolicy()
+        ?.default_expire_hours
+      ?? null,
+    );
     this.createSaving.set(false);
     this.createError.set(null);
     this.createdLink.set(null);
@@ -172,11 +184,14 @@ export class Invite {
     const companyId =
       this.companyContext.activeCompanyId();
 
-    const expiresInHours =
-      Number(this.createExpiresHours());
+    const policy = this.invitationPolicy();
+
+    const expiresInHours = this.createExpiresHours();
 
     if (
       companyId === null
+      || policy === null
+      || expiresInHours === null
       || this.createSaving()
       || !this.canManageInvitations()
     ) {
@@ -186,10 +201,13 @@ export class Invite {
     if (
       !Number.isInteger(expiresInHours)
       || expiresInHours < 1
-      || expiresInHours > 720
+      || expiresInHours > policy.max_expire_hours
     ) {
       this.createError.set(
-        'Укажите срок от 1 до 720 часов',
+        (
+          'Укажите срок от 1 до '
+          + `${policy.max_expire_hours} часов`
+        ),
       );
       return;
     }
@@ -206,7 +224,7 @@ export class Invite {
         next: invitation => {
           this.createSaving.set(false);
           this.createdLink.set(
-            `${window.location.origin}/invite/${invitation.token}`,
+            `${window.location.origin}/invite#${invitation.token}`,
           );
           this.linkCopied.set(false);
           this.retry();
@@ -216,6 +234,34 @@ export class Invite {
           this.createError.set(
             this.getCreateError(error),
           );
+        },
+      });
+  }
+
+
+  loadInvitationPolicy(): void {
+    if (this.policyLoading()) {
+      return;
+    }
+
+    this.policyLoading.set(true);
+    this.policyError.set(false);
+
+    this.invitationApi
+      .getPolicy()
+      .subscribe({
+        next: policy => {
+          this.invitationPolicy.set(policy);
+          this.createExpiresHours.set(
+            policy.default_expire_hours,
+          );
+          this.policyLoading.set(false);
+        },
+        error: () => {
+          this.invitationPolicy.set(null);
+          this.createExpiresHours.set(null);
+          this.policyLoading.set(false);
+          this.policyError.set(true);
         },
       });
   }

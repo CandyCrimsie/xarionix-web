@@ -95,7 +95,7 @@ export const routes:
         },
         {
             path:
-                'invite/:token',
+                'invite',
 
             canActivate: [
                 installationGuard,

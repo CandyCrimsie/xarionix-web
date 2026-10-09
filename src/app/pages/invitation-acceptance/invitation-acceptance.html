@@ -25,6 +25,9 @@
         <p class="text-sm text-muted-foreground">
             Компания добавлена в переключатель доступных компаний.
         </p>
+        <button hlmBtn type="button" data-testid="invitation-go-to-erp" (click)="goToErp()">
+            Перейти в ERP
+        </button>
     </div>
     } @else if (invitation(); as invite) {
     <header class="flex flex-col gap-3 text-center">

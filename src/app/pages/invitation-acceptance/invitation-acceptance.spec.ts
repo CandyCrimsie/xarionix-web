@@ -5,8 +5,6 @@ import {
 } from '@angular/core/testing';
 
 import {
-  ActivatedRoute,
-  convertToParamMap,
   Router,
 } from '@angular/router';
 
@@ -60,7 +58,7 @@ describe('InvitationAcceptance', () => {
   } | null>(null);
 
   const invitationApi = {
-    getPublic: vi.fn(() => of(pendingInvitation)),
+    resolve: vi.fn(() => of(pendingInvitation)),
     acceptNew: vi.fn(),
     acceptExisting: vi.fn(),
   };
@@ -83,10 +81,15 @@ describe('InvitationAcceptance', () => {
     vi.clearAllMocks();
     authenticated.set(false);
     currentUser.set(null);
-    invitationApi.getPublic.mockReturnValue(
+    invitationApi.resolve.mockReturnValue(
       of(pendingInvitation),
     );
     companyContext.loadAvailableCompanies.mockReturnValue(of([]));
+    window.history.replaceState(
+      {},
+      '',
+      '/invite#public-token',
+    );
 
     await TestBed.configureTestingModule({
       imports: [InvitationAcceptance],
@@ -107,16 +110,6 @@ describe('InvitationAcceptance', () => {
           provide: Router,
           useValue: router,
         },
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            snapshot: {
-              paramMap: convertToParamMap({
-                token: 'public-token',
-              }),
-            },
-          },
-        },
       ],
     }).compileComponents();
 
@@ -129,7 +122,7 @@ describe('InvitationAcceptance', () => {
 
 
   it('should validate token and render company details', () => {
-    expect(invitationApi.getPublic).toHaveBeenCalledWith(
+    expect(invitationApi.resolve).toHaveBeenCalledWith(
       'public-token',
     );
     expect(component.state()).toBe('ready');
@@ -142,7 +135,7 @@ describe('InvitationAcceptance', () => {
 
 
   it('should expose validation error and retry', () => {
-    invitationApi.getPublic.mockReturnValue(
+    invitationApi.resolve.mockReturnValue(
       throwError(() => new HttpErrorResponse({
         status: 404,
       })),
@@ -156,12 +149,42 @@ describe('InvitationAcceptance', () => {
       'Приглашение не найдено',
     );
 
-    invitationApi.getPublic.mockReturnValue(
+    invitationApi.resolve.mockReturnValue(
       of(pendingInvitation),
     );
     component.loadInvitation();
 
     expect(component.state()).toBe('ready');
+  });
+
+
+  it('should hide acceptance when company is unavailable', () => {
+    invitationApi.resolve.mockReturnValue(
+      throwError(() => new HttpErrorResponse({
+        status: 409,
+        error: {
+          detail: 'Company is inactive or unavailable',
+        },
+      })),
+    );
+
+    component.loadInvitation();
+    fixture.detectChanges();
+
+    expect(component.state()).toBe('error');
+    expect(component.errorMessage()).toBe(
+      'Компания недоступна',
+    );
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="accept-new-invitation"]',
+      ),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="accept-existing-invitation"]',
+      ),
+    ).toBeNull();
   });
 
 
@@ -187,6 +210,7 @@ describe('InvitationAcceptance', () => {
       },
     );
     expect(router.navigateByUrl).toHaveBeenCalledWith('/login');
+    expect(window.location.hash).toBe('');
   });
 
 
@@ -228,6 +252,11 @@ describe('InvitationAcceptance', () => {
       companyContext.loadAvailableCompanies,
     ).toHaveBeenCalledTimes(1);
     expect(component.state()).toBe('accepted');
+    expect(window.location.hash).toBe('');
+
+    component.goToErp();
+
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/');
   });
 
 
@@ -253,13 +282,16 @@ describe('InvitationAcceptance', () => {
 
     expect(invitationApi.acceptExisting).toHaveBeenCalledTimes(1);
     expect(component.state()).toBe('accepted');
-    expect(component.errorMessage()).toBeNull();
+    expect(component.errorMessage()).toBe(
+      'Компания добавлена, но список компаний не удалось обновить',
+    );
+    expect(window.location.hash).toBe('');
   });
 
 
   it('should preserve loading state until validation completes', () => {
     const response = new Subject<PublicInvitation>();
-    invitationApi.getPublic.mockReturnValue(response);
+    invitationApi.resolve.mockReturnValue(response);
 
     component.loadInvitation();
 

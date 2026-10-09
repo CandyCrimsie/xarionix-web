@@ -37,15 +37,36 @@
                     </button>
                 </div>
                 } @else {
+                @if (invitationPolicy(); as policy) {
                 <hlm-field-group>
                     <hlm-field>
                         <label hlmFieldLabel for="invitation-expires-hours">Срок действия, часов</label>
-                        <input hlmInput id="invitation-expires-hours" type="number" min="1" max="720"
+                        <input hlmInput id="invitation-expires-hours" type="number" min="1"
+                            [max]="policy.max_expire_hours"
                             data-testid="invitation-expires-hours" [ngModel]="createExpiresHours()"
                             (ngModelChange)="createExpiresHours.set($event)" />
-                        <p class="text-xs text-muted-foreground">От 1 часа до 30 дней</p>
+                        <p class="text-xs text-muted-foreground">
+                            От 1 до {{ policy.max_expire_hours }} часов
+                        </p>
                     </hlm-field>
                 </hlm-field-group>
+                } @else if (policyError()) {
+                <div class="flex flex-col items-start gap-2">
+                    <p class="text-sm text-destructive">
+                        Не удалось загрузить политику приглашений
+                    </p>
+                    <button hlmBtn type="button" variant="outline" data-testid="invitation-policy-retry"
+                        (click)="loadInvitationPolicy()">
+                        <ng-icon name="lucideRefreshCw" />
+                        Повторить
+                    </button>
+                </div>
+                } @else {
+                <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                    Загружаем политику приглашений...
+                </div>
+                }
                 }
 
                 @if (createError(); as error) {
@@ -58,7 +79,8 @@
                     </button>
 
                     @if (!createdLink()) {
-                    <button hlmBtn type="button" data-testid="create-invite-submit" [disabled]="createSaving()"
+                    <button hlmBtn type="button" data-testid="create-invite-submit"
+                        [disabled]="createSaving() || invitationPolicy() === null"
                         (click)="createInvitation()">
                         @if (createSaving()) {
                         <ng-icon name="lucideLoaderCircle" class="animate-spin" />

@@ -18,7 +18,6 @@ import {
 import { DatePipe } from '@angular/common';
 
 import {
-  ActivatedRoute,
   Router,
 } from '@angular/router';
 
@@ -77,13 +76,11 @@ export class InvitationAcceptance {
     inject(CompanyContextService);
 
   private readonly formBuilder = inject(FormBuilder);
-  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   readonly auth = inject(AuthService);
 
-  private readonly token =
-    this.route.snapshot.paramMap.get('token') ?? '';
+  private readonly token = this.readTokenFromFragment();
 
   readonly state = signal<PublicInvitationState>('loading');
   readonly invitation = signal<PublicInvitation | null>(null);
@@ -130,7 +127,7 @@ export class InvitationAcceptance {
     this.errorMessage.set(null);
 
     this.invitationApi
-      .getPublic(this.token)
+      .resolve(this.token)
       .subscribe({
         next: invitation => {
           this.invitation.set(invitation);
@@ -178,6 +175,7 @@ export class InvitationAcceptance {
       .subscribe({
         next: () => {
           this.submitting.set(false);
+          this.clearSecretFromUrl();
           void this.router.navigateByUrl('/login');
         },
         error: error => {
@@ -206,14 +204,21 @@ export class InvitationAcceptance {
       .acceptExisting(this.token)
       .subscribe({
         next: () => {
-          this.submitting.set(false);
-          this.state.set('accepted');
+          this.clearSecretFromUrl();
 
           this.companyContext
             .loadAvailableCompanies()
             .subscribe({
+              next: () => {
+                this.submitting.set(false);
+                this.state.set('accepted');
+              },
               error: () => {
-                // Membership уже создан: не повторяем acceptance.
+                this.submitting.set(false);
+                this.state.set('accepted');
+                this.errorMessage.set(
+                  'Компания добавлена, но список компаний не удалось обновить',
+                );
               },
             });
         },
@@ -227,12 +232,53 @@ export class InvitationAcceptance {
   }
 
 
+  goToErp(): void {
+    void this.router.navigateByUrl('/');
+  }
+
+
+  private readTokenFromFragment(): string {
+    const fragment = window.location.hash;
+
+    if (fragment.length <= 1) {
+      return '';
+    }
+
+    try {
+      return decodeURIComponent(
+        fragment.slice(1),
+      );
+    } catch {
+      return '';
+    }
+  }
+
+
+  private clearSecretFromUrl(): void {
+    window.history.replaceState(
+      window.history.state,
+      '',
+      window.location.pathname
+      + window.location.search,
+    );
+  }
+
+
   private getLoadError(error: unknown): string {
     if (
       error instanceof HttpErrorResponse
       && error.status === 404
     ) {
       return 'Приглашение не найдено';
+    }
+
+    if (
+      error instanceof HttpErrorResponse
+      && error.status === 409
+      && typeof error.error?.detail === 'string'
+      && error.error.detail.includes('Company')
+    ) {
+      return 'Компания недоступна';
     }
 
     return 'Не удалось проверить приглашение';

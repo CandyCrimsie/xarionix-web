@@ -51,6 +51,10 @@ describe('Invite', () => {
   const activeCompanyId = signal<number | null>(1);
 
   const invitationApi = {
+    getPolicy: vi.fn(() => of({
+      default_expire_hours: 18,
+      max_expire_hours: 96,
+    })),
     list: vi.fn(() => of([pendingInvitation])),
     create: vi.fn(),
     revoke: vi.fn(),
@@ -72,6 +76,10 @@ describe('Invite', () => {
     invitationApi.list.mockReturnValue(
       of([pendingInvitation]),
     );
+    invitationApi.getPolicy.mockReturnValue(of({
+      default_expire_hours: 18,
+      max_expire_hours: 96,
+    }));
 
     await TestBed.configureTestingModule({
       imports: [Invite],
@@ -105,6 +113,32 @@ describe('Invite', () => {
     expect(invitationApi.list).toHaveBeenCalledWith(1, 'mine');
     expect(component.state()).toBe('ready');
     expect(component.invitations()).toEqual([pendingInvitation]);
+  });
+
+
+  it('should use backend invitation expiration policy', () => {
+    expect(invitationApi.getPolicy).toHaveBeenCalledTimes(1);
+    expect(component.invitationPolicy()).toEqual({
+      default_expire_hours: 18,
+      max_expire_hours: 96,
+    });
+    expect(component.createExpiresHours()).toBe(18);
+
+    component.resetCreate();
+
+    expect(component.createExpiresHours()).toBe(18);
+  });
+
+
+  it('should validate expiration against backend maximum', () => {
+    component.createExpiresHours.set(97);
+
+    component.createInvitation();
+
+    expect(invitationApi.create).not.toHaveBeenCalled();
+    expect(component.createError()).toBe(
+      'Укажите срок от 1 до 96 часов',
+    );
   });
 
 
@@ -173,7 +207,10 @@ describe('Invite', () => {
       { expires_in_hours: 24 },
     );
     expect(component.createdLink()).toBe(
-      `${window.location.origin}/invite/raw-secret-token`,
+      `${window.location.origin}/invite#raw-secret-token`,
+    );
+    expect(component.createdLink()).not.toContain(
+      '/invite/raw-secret-token',
     );
     expect(component.createSaving()).toBe(false);
   });
@@ -191,12 +228,12 @@ describe('Invite', () => {
       },
     );
 
-    component.createdLink.set('https://erp.test/invite/token');
+    component.createdLink.set('https://erp.test/invite#token');
 
     await component.copyCreatedLink();
 
     expect(writeText).toHaveBeenCalledWith(
-      'https://erp.test/invite/token',
+      'https://erp.test/invite#token',
     );
     expect(component.linkCopied()).toBe(true);
   });

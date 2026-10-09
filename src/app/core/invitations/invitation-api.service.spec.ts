@@ -93,18 +93,34 @@ describe(
         it(
             'should use public and authenticated acceptance endpoints',
             () => {
-                service.getPublic('a/b').subscribe();
+                service.getPolicy().subscribe();
 
-                const validationRequest = http.expectOne(
-                    '/api/v1/invitations/a%2Fb',
+                const policyRequest = http.expectOne(
+                    '/api/v1/invitations/policy',
                 );
 
-                expect(validationRequest.request.method).toBe('GET');
+                expect(policyRequest.request.method).toBe('GET');
+                policyRequest.flush({});
+
+
+                service.resolve('raw-secret-token').subscribe();
+
+                const validationRequest = http.expectOne(
+                    '/api/v1/invitations/resolve',
+                );
+
+                expect(validationRequest.request.method).toBe('POST');
+                expect(validationRequest.request.url).not.toContain(
+                    'raw-secret-token',
+                );
+                expect(validationRequest.request.body).toEqual({
+                    token: 'raw-secret-token',
+                });
                 validationRequest.flush({});
 
 
                 service.acceptNew(
-                    'token',
+                    'raw-secret-token',
                     {
                         username: 'employee',
                         password: 'password123',
@@ -112,24 +128,34 @@ describe(
                 ).subscribe();
 
                 const newUserRequest = http.expectOne(
-                    '/api/v1/invitations/token/accept',
+                    '/api/v1/invitations/accept',
                 );
 
                 expect(newUserRequest.request.method).toBe('POST');
+                expect(newUserRequest.request.url).not.toContain(
+                    'raw-secret-token',
+                );
                 expect(newUserRequest.request.body).toEqual({
+                    token: 'raw-secret-token',
                     username: 'employee',
                     password: 'password123',
                 });
                 newUserRequest.flush({});
 
 
-                service.acceptExisting('token').subscribe();
+                service.acceptExisting('raw-secret-token').subscribe();
 
                 const existingRequest = http.expectOne(
-                    '/api/v1/invitations/token/accept-existing',
+                    '/api/v1/invitations/accept-existing',
                 );
 
                 expect(existingRequest.request.method).toBe('POST');
+                expect(existingRequest.request.url).not.toContain(
+                    'raw-secret-token',
+                );
+                expect(existingRequest.request.body).toEqual({
+                    token: 'raw-secret-token',
+                });
                 existingRequest.flush({});
             },
         );

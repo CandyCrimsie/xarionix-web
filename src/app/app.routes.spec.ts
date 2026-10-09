@@ -58,7 +58,7 @@ describe(
                 const publicInviteRoute =
                     routes.find(
                         route =>
-                            route.path === 'invite/:token',
+                            route.path === 'invite',
                     );
 
                 expect(publicInviteRoute).toBeDefined();
@@ -72,7 +72,7 @@ describe(
 
                 expect(
                     appRoute?.children?.some(
-                        route => route.path === 'invite/:token',
+                        route => route.path === 'invite',
                     ),
                 ).toBe(false);
             },

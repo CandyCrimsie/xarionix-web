@@ -34,6 +34,12 @@ export interface CompanyInvitationCreate {
 }
 
 
+export interface InvitationPolicy {
+    default_expire_hours: number;
+    max_expire_hours: number;
+}
+
+
 export interface CompanyInvitationCreated
     extends CompanyInvitation {
     token: string;
