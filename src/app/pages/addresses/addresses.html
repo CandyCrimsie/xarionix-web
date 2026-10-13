@@ -15,7 +15,17 @@
                 Добавить корневой объект
             </button>
             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                <ng-container *ngTemplateOutlet="objectForm; context: {$implicit: rootObjectDialog}" />
+                <app-address-object-dialog-form
+                    [editing]="editingObject() !== null"
+                    [parentName]="objectParent()?.name ?? null"
+                    [types]="availableObjectTypes()"
+                    [typeId]="objectTypeId()"
+                    [name]="objectName()"
+                    [saving]="objectSaving()"
+                    [error]="objectError()"
+                    (typeIdChange)="objectTypeId.set($event)"
+                    (nameChange)="objectName.set($event)"
+                    (saveRequested)="saveObject(rootObjectDialog)" />
             </hlm-dialog-content>
         </hlm-dialog>
         }
@@ -138,7 +148,17 @@
                                 Дочерний объект
                             </button>
                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                                <ng-container *ngTemplateOutlet="objectForm; context: {$implicit: childObjectDialog}" />
+                                <app-address-object-dialog-form
+                                    [editing]="editingObject() !== null"
+                                    [parentName]="objectParent()?.name ?? null"
+                                    [types]="availableObjectTypes()"
+                                    [typeId]="objectTypeId()"
+                                    [name]="objectName()"
+                                    [saving]="objectSaving()"
+                                    [error]="objectError()"
+                                    (typeIdChange)="objectTypeId.set($event)"
+                                    (nameChange)="objectName.set($event)"
+                                    (saveRequested)="saveObject(childObjectDialog)" />
                             </hlm-dialog-content>
                         </hlm-dialog>
                         }
@@ -150,7 +170,17 @@
                                 Изменить
                             </button>
                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                                <ng-container *ngTemplateOutlet="objectForm; context: {$implicit: editObjectDialog}" />
+                                <app-address-object-dialog-form
+                                    [editing]="editingObject() !== null"
+                                    [parentName]="objectParent()?.name ?? null"
+                                    [types]="availableObjectTypes()"
+                                    [typeId]="objectTypeId()"
+                                    [name]="objectName()"
+                                    [saving]="objectSaving()"
+                                    [error]="objectError()"
+                                    (typeIdChange)="objectTypeId.set($event)"
+                                    (nameChange)="objectName.set($event)"
+                                    (saveRequested)="saveObject(editObjectDialog)" />
                             </hlm-dialog-content>
                         </hlm-dialog>
 
@@ -190,7 +220,22 @@
                                 Добавить дом
                             </button>
                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-xl">
-                                <ng-container *ngTemplateOutlet="buildingForm; context: {$implicit: createBuildingDialog}" />
+                                <app-building-dialog-form
+                                    [editing]="editingBuilding() !== null"
+                                    [addressObjectName]="selectedObject()?.name ?? ''"
+                                    [number]="buildingNumber()"
+                                    [corpus]="buildingCorpus()"
+                                    [structure]="buildingStructure()"
+                                    [latitude]="buildingLatitude()"
+                                    [longitude]="buildingLongitude()"
+                                    [saving]="buildingSaving()"
+                                    [error]="buildingError()"
+                                    (numberChange)="buildingNumber.set($event)"
+                                    (corpusChange)="buildingCorpus.set($event)"
+                                    (structureChange)="buildingStructure.set($event)"
+                                    (latitudeChange)="buildingLatitude.set($event)"
+                                    (longitudeChange)="buildingLongitude.set($event)"
+                                    (saveRequested)="saveBuilding(createBuildingDialog)" />
                             </hlm-dialog-content>
                         </hlm-dialog>
                         }
@@ -249,7 +294,23 @@
                                     Изменить дом
                                 </button>
                                 <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-xl">
-                                    <ng-container *ngTemplateOutlet="buildingForm; context: {$implicit: editBuildingDialog}" />
+                                    <app-building-dialog-form
+                                        [editing]="editingBuilding() !== null"
+                                        [addressObjectName]="selectedObject()?.name ?? ''"
+                                        [number]="buildingNumber()"
+                                        [corpus]="buildingCorpus()"
+                                        [structure]="buildingStructure()"
+                                        [latitude]="buildingLatitude()"
+                                        [longitude]="buildingLongitude()"
+                                        [saving]="buildingSaving()"
+                                        [error]="buildingError()"
+                                        (numberChange)="buildingNumber.set($event)"
+                                        (corpusChange)="buildingCorpus.set($event)"
+                                        (structureChange)="buildingStructure.set($event)"
+                                        (latitudeChange)="buildingLatitude.set($event)"
+                                        (longitudeChange)="buildingLongitude.set($event)"
+                                        (saveRequested)="saveBuilding(editBuildingDialog)"
+                                    />
                                 </hlm-dialog-content>
                             </hlm-dialog>
                             <hlm-alert-dialog>
@@ -292,7 +353,14 @@
                                         <ng-icon name="lucidePlus" /> Добавить
                                     </button>
                                     <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
-                                        <ng-container *ngTemplateOutlet="entranceForm; context: {$implicit: createEntranceDialog}" />
+                                        <app-entrance-dialog-form
+                                            [editing]="editingEntrance() !== null"
+                                            [number]="entranceNumber()"
+                                            [saving]="entranceSaving()"
+                                            [error]="entranceError()"
+                                            (numberChange)="entranceNumber.set($event)"
+                                            (saveRequested)="saveEntrance(createEntranceDialog)"
+                                        />
                                     </hlm-dialog-content>
                                 </hlm-dialog>
                                 }
@@ -305,9 +373,17 @@
                                     <div class="flex gap-1">
                                         <hlm-dialog #editEntranceDialog>
                                             <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                                [attr.data-testid]="'edit-entrance-action-' + entrance.id"
                                                 (click)="startEditEntrance(entrance)"><ng-icon name="lucidePencil" /></button>
                                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
-                                                <ng-container *ngTemplateOutlet="entranceForm; context: {$implicit: editEntranceDialog}" />
+                                                <app-entrance-dialog-form
+                                                    [editing]="editingEntrance() !== null"
+                                                    [number]="entranceNumber()"
+                                                    [saving]="entranceSaving()"
+                                                    [error]="entranceError()"
+                                                    (numberChange)="entranceNumber.set($event)"
+                                                    (saveRequested)="saveEntrance(editEntranceDialog)"
+                                                />
                                             </hlm-dialog-content>
                                         </hlm-dialog>
                                         <hlm-alert-dialog>
@@ -348,7 +424,21 @@
                                         <ng-icon name="lucidePlus" /> Добавить
                                     </button>
                                     <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                                        <ng-container *ngTemplateOutlet="locationForm; context: {$implicit: createLocationDialog}" />
+                                        <app-location-dialog-form
+                                            [editing]="editingLocation() !== null"
+                                            [entrances]="entrances()"
+                                            [entranceId]="locationEntranceId()"
+                                            [floor]="locationFloor()"
+                                            [name]="locationName()"
+                                            [description]="locationDescription()"
+                                            [saving]="locationSaving()"
+                                            [error]="locationError()"
+                                            (entranceIdChange)="locationEntranceId.set($event)"
+                                            (floorChange)="locationFloor.set($event)"
+                                            (nameChange)="locationName.set($event)"
+                                            (descriptionChange)="locationDescription.set($event)"
+                                            (saveRequested)="saveLocation(createLocationDialog)"
+                                        />
                                     </hlm-dialog-content>
                                 </hlm-dialog>
                                 }
@@ -368,9 +458,24 @@
                                         <div class="flex gap-1">
                                             <hlm-dialog #editLocationDialog>
                                                 <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                                    [attr.data-testid]="'edit-location-action-' + location.id"
                                                     (click)="startEditLocation(location)"><ng-icon name="lucidePencil" /></button>
                                                 <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                                                    <ng-container *ngTemplateOutlet="locationForm; context: {$implicit: editLocationDialog}" />
+                                                    <app-location-dialog-form
+                                                        [editing]="editingLocation() !== null"
+                                                        [entrances]="entrances()"
+                                                        [entranceId]="locationEntranceId()"
+                                                        [floor]="locationFloor()"
+                                                        [name]="locationName()"
+                                                        [description]="locationDescription()"
+                                                        [saving]="locationSaving()"
+                                                        [error]="locationError()"
+                                                        (entranceIdChange)="locationEntranceId.set($event)"
+                                                        (floorChange)="locationFloor.set($event)"
+                                                        (nameChange)="locationName.set($event)"
+                                                        (descriptionChange)="locationDescription.set($event)"
+                                                        (saveRequested)="saveLocation(editLocationDialog)"
+                                                    />
                                                 </hlm-dialog-content>
                                             </hlm-dialog>
                                             <hlm-alert-dialog>
@@ -419,131 +524,3 @@
     </div>
     }
 </div>
-
-<ng-template #objectForm let-dialog>
-    <hlm-dialog-header>
-        <h3 hlmDialogTitle>{{ editingObject() ? 'Изменение адресного объекта' : 'Новый адресный объект' }}</h3>
-        <p hlmDialogDescription>
-            @if (objectParent(); as parent) { Родитель: {{ parent.name }} } @else { Корневой уровень каталога }
-        </p>
-    </hlm-dialog-header>
-    <hlm-field-group>
-        <hlm-field>
-            <label hlmFieldLabel for="address-object-type">Тип</label>
-            <select id="address-object-type" class="h-9 rounded-md border bg-background px-3 text-sm"
-                data-testid="address-object-type" [ngModel]="objectTypeId()"
-                (ngModelChange)="objectTypeId.set(+$event)">
-                @for (type of availableObjectTypes(); track type.id) {
-                <option [ngValue]="type.id">{{ type.name }}</option>
-                }
-            </select>
-        </hlm-field>
-        <hlm-field>
-            <label hlmFieldLabel for="address-object-name">Название</label>
-            <input hlmInput id="address-object-name" maxlength="255" autocomplete="off"
-                data-testid="address-object-name" [ngModel]="objectName()"
-                (ngModelChange)="objectName.set($event)" />
-        </hlm-field>
-    </hlm-field-group>
-    @if (objectError(); as error) {
-    <p class="text-sm text-destructive" data-testid="address-object-error">{{ error }}</p>
-    }
-    <hlm-dialog-footer>
-        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="objectSaving()">Отмена</button>
-        <button hlmBtn type="button" data-testid="address-object-submit" [disabled]="objectSaving()"
-            (click)="saveObject(dialog)">
-            @if (objectSaving()) { <ng-icon name="lucideLoaderCircle" class="animate-spin" /> }
-            Сохранить
-        </button>
-    </hlm-dialog-footer>
-</ng-template>
-
-<ng-template #buildingForm let-dialog>
-    <hlm-dialog-header>
-        <h3 hlmDialogTitle>{{ editingBuilding() ? 'Изменение здания' : 'Новое здание' }}</h3>
-        <p hlmDialogDescription>{{ selectedObject()?.name }}</p>
-    </hlm-dialog-header>
-    <hlm-field-group>
-        <div class="grid gap-4 sm:grid-cols-3">
-            <hlm-field><label hlmFieldLabel for="building-number">Номер</label>
-                <input hlmInput id="building-number" maxlength="50" data-testid="building-number"
-                    [ngModel]="buildingNumber()" (ngModelChange)="buildingNumber.set($event)" /></hlm-field>
-            <hlm-field><label hlmFieldLabel for="building-corpus">Корпус</label>
-                <input hlmInput id="building-corpus" maxlength="50" [ngModel]="buildingCorpus()"
-                    (ngModelChange)="buildingCorpus.set($event)" /></hlm-field>
-            <hlm-field><label hlmFieldLabel for="building-structure">Строение</label>
-                <input hlmInput id="building-structure" maxlength="50" [ngModel]="buildingStructure()"
-                    (ngModelChange)="buildingStructure.set($event)" /></hlm-field>
-        </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-            <hlm-field><label hlmFieldLabel for="building-latitude">Широта</label>
-                <input hlmInput id="building-latitude" inputmode="decimal" placeholder="55.1234567"
-                    [ngModel]="buildingLatitude()" (ngModelChange)="buildingLatitude.set($event)" /></hlm-field>
-            <hlm-field><label hlmFieldLabel for="building-longitude">Долгота</label>
-                <input hlmInput id="building-longitude" inputmode="decimal" placeholder="37.1234567"
-                    [ngModel]="buildingLongitude()" (ngModelChange)="buildingLongitude.set($event)" /></hlm-field>
-        </div>
-    </hlm-field-group>
-    @if (buildingError(); as error) { <p class="text-sm text-destructive">{{ error }}</p> }
-    <hlm-dialog-footer>
-        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="buildingSaving()">Отмена</button>
-        <button hlmBtn type="button" data-testid="building-submit" [disabled]="buildingSaving()"
-            (click)="saveBuilding(dialog)">Сохранить</button>
-    </hlm-dialog-footer>
-</ng-template>
-
-<ng-template #entranceForm let-dialog>
-    <hlm-dialog-header>
-        <h3 hlmDialogTitle>{{ editingEntrance() ? 'Изменение подъезда' : 'Новый подъезд' }}</h3>
-    </hlm-dialog-header>
-    <hlm-field>
-        <label hlmFieldLabel for="entrance-number">Номер</label>
-        <input hlmInput id="entrance-number" maxlength="20" data-testid="entrance-number"
-            [ngModel]="entranceNumber()" (ngModelChange)="entranceNumber.set($event)" />
-    </hlm-field>
-    @if (entranceError(); as error) { <p class="text-sm text-destructive">{{ error }}</p> }
-    <hlm-dialog-footer>
-        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="entranceSaving()">Отмена</button>
-        <button hlmBtn type="button" data-testid="entrance-submit" [disabled]="entranceSaving()"
-            (click)="saveEntrance(dialog)">Сохранить</button>
-    </hlm-dialog-footer>
-</ng-template>
-
-<ng-template #locationForm let-dialog>
-    <hlm-dialog-header>
-        <h3 hlmDialogTitle>{{ editingLocation() ? 'Изменение помещения' : 'Новое помещение' }}</h3>
-    </hlm-dialog-header>
-    <hlm-field-group>
-        <hlm-field>
-            <label hlmFieldLabel for="location-entrance">Подъезд</label>
-            <select id="location-entrance" class="h-9 rounded-md border bg-background px-3 text-sm"
-                data-testid="location-entrance" [ngModel]="locationEntranceId()"
-                (ngModelChange)="locationEntranceId.set($event === null ? null : +$event)">
-                <option [ngValue]="null">Без подъезда</option>
-                @for (entrance of entrances(); track entrance.id) {
-                <option [ngValue]="entrance.id">Подъезд {{ entrance.number }}</option>
-                }
-            </select>
-        </hlm-field>
-        <div class="grid gap-4 sm:grid-cols-[8rem_1fr]">
-            <hlm-field><label hlmFieldLabel for="location-floor">Этаж</label>
-                <input hlmInput id="location-floor" maxlength="20" data-testid="location-floor"
-                    [ngModel]="locationFloor()" (ngModelChange)="locationFloor.set($event)" /></hlm-field>
-            <hlm-field><label hlmFieldLabel for="location-name">Название</label>
-                <input hlmInput id="location-name" maxlength="255" data-testid="location-name"
-                    [ngModel]="locationName()" (ngModelChange)="locationName.set($event)" /></hlm-field>
-        </div>
-        <hlm-field>
-            <label hlmFieldLabel for="location-description">Описание</label>
-            <textarea id="location-description" class="min-h-24 rounded-md border bg-background p-3 text-sm"
-                maxlength="5000" [ngModel]="locationDescription()"
-                (ngModelChange)="locationDescription.set($event)"></textarea>
-        </hlm-field>
-    </hlm-field-group>
-    @if (locationError(); as error) { <p class="text-sm text-destructive">{{ error }}</p> }
-    <hlm-dialog-footer>
-        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="locationSaving()">Отмена</button>
-        <button hlmBtn type="button" data-testid="location-submit" [disabled]="locationSaving()"
-            (click)="saveLocation(dialog)">Сохранить</button>
-    </hlm-dialog-footer>
-</ng-template>

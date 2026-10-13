@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AddressApiService } from '../../core/addresses/address-api.service';
 import type {
@@ -191,6 +191,45 @@ describe('Addresses', () => {
     }
 
 
+    async function openDialog(triggerTestId: string): Promise<HTMLElement> {
+        const trigger = fixture.nativeElement.querySelector(
+            `[data-testid="${triggerTestId}"]`,
+        ) as HTMLElement | null;
+        expect(trigger).not.toBeNull();
+        trigger?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
+        expect(dialog).not.toBeNull();
+        return dialog as HTMLElement;
+    }
+
+
+    function enterValue(element: HTMLInputElement, value: string): void {
+        element.value = value;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        fixture.detectChanges();
+    }
+
+
+    async function closeDialog(dialog: HTMLElement, cancelTestId: string): Promise<void> {
+        const cancel = dialog.querySelector<HTMLElement>(`[data-testid="${cancelTestId}"]`);
+        expect(cancel).not.toBeNull();
+        cancel?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    }
+
+
+    afterEach(() => {
+        fixture?.destroy();
+    });
+
+
     it('should load roots and lazy children', () => {
         createComponent();
         expect(fixture.nativeElement.querySelector('[data-testid="address-object-10"]')).not.toBeNull();
@@ -207,19 +246,158 @@ describe('Addresses', () => {
     it('should render the create-root form inside the dialog overlay', async () => {
         createComponent();
 
-        const trigger = fixture.nativeElement.querySelector(
-            '[data-testid="create-root-address-action"]',
-        ) as HTMLElement | null;
-        trigger?.click();
+        const dialog = await openDialog('create-root-address-action');
+
+        expect(dialog.textContent).toContain('Новый адресный объект');
+        expect(dialog.querySelector('[data-testid="address-object-type"]')).not.toBeNull();
+        expect(dialog.querySelector('[data-testid="address-object-name"]')).not.toBeNull();
+    });
+
+
+    it('should close the dialog on cancel and open it again', async () => {
+        createComponent();
+        const firstDialog = await openDialog('create-root-address-action');
+
+        await closeDialog(firstDialog, 'address-object-cancel');
+
+        const secondDialog = await openDialog('create-root-address-action');
+        expect(secondDialog.textContent).toContain('Новый адресный объект');
+
+        secondDialog.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            bubbles: true,
+        }));
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    });
+
+
+    it('should render the create-building form inside the dialog overlay', async () => {
+        createComponent();
+        component.selectObject(street);
+        fixture.detectChanges();
+
+        const dialog = await openDialog('create-building-action');
+
+        expect(dialog.textContent).toContain('Новое здание');
+        expect(dialog.textContent).toContain(street.name);
+        expect(dialog.querySelector('[data-testid="building-number"]')).not.toBeNull();
+    });
+
+
+    it('should render child-object and edit-building forms inside the overlay', async () => {
+        createComponent();
+        component.selectObject(city);
+        fixture.detectChanges();
+
+        const childDialog = await openDialog('create-child-address-action');
+        expect(childDialog.textContent).toContain('Новый адресный объект');
+        expect(childDialog.textContent).toContain(`Родитель: ${city.name}`);
+        await closeDialog(childDialog, 'address-object-cancel');
+
+        component.selectObject(street);
+        component.selectBuilding(building);
+        fixture.detectChanges();
+        const buildingDialog = await openDialog('edit-building-action');
+        expect(buildingDialog.textContent).toContain('Изменение здания');
+        expect(buildingDialog.querySelector<HTMLInputElement>('[data-testid="building-number"]')?.value)
+            .toBe(building.number);
+        await closeDialog(buildingDialog, 'building-cancel');
+    });
+
+
+    it('should render create and edit forms for entrances and locations', async () => {
+        createComponent();
+        component.selectObject(street);
+        component.selectBuilding(building);
+        fixture.detectChanges();
+
+        const createEntranceDialog = await openDialog('create-entrance-action');
+        expect(createEntranceDialog.textContent).toContain('Новый подъезд');
+        await closeDialog(createEntranceDialog, 'entrance-cancel');
+
+        const editEntranceDialog = await openDialog(`edit-entrance-action-${entrance.id}`);
+        expect(editEntranceDialog.textContent).toContain('Изменение подъезда');
+        expect(editEntranceDialog.querySelector<HTMLInputElement>('[data-testid="entrance-number"]')?.value)
+            .toBe(entrance.number);
+        await closeDialog(editEntranceDialog, 'entrance-cancel');
+
+        const createLocationDialog = await openDialog('create-location-action');
+        expect(createLocationDialog.textContent).toContain('Новое помещение');
+        expect(createLocationDialog.querySelector('[data-testid="location-entrance"]')).not.toBeNull();
+        await closeDialog(createLocationDialog, 'location-cancel');
+
+        const editLocationDialog = await openDialog(`edit-location-action-${location.id}`);
+        expect(editLocationDialog.textContent).toContain('Изменение помещения');
+        expect(editLocationDialog.querySelector<HTMLInputElement>('[data-testid="location-name"]')?.value)
+            .toBe(location.name);
+        await closeDialog(editLocationDialog, 'location-cancel');
+    });
+
+
+    it('should render the current address name in the edit dialog', async () => {
+        createComponent();
+        component.selectObject(street);
+        fixture.detectChanges();
+
+        const dialog = await openDialog('edit-address-action');
+        const nameInput = dialog.querySelector<HTMLInputElement>(
+            '[data-testid="address-object-name"]',
+        );
+
+        expect(dialog.textContent).toContain('Изменение адресного объекта');
+        expect(nameInput?.value).toBe(street.name);
+    });
+
+
+    it('should save a root object from the rendered dialog and close it', async () => {
+        createComponent();
+        addressApi.createObject.mockReturnValue(of(city));
+        const dialog = await openDialog('create-root-address-action');
+        const nameInput = dialog.querySelector<HTMLInputElement>(
+            '[data-testid="address-object-name"]',
+        );
+        expect(nameInput).not.toBeNull();
+        enterValue(nameInput as HTMLInputElement, '  Москва  ');
+
+        (dialog.querySelector('[data-testid="address-object-submit"]') as HTMLElement).click();
         fixture.detectChanges();
         await fixture.whenStable();
         fixture.detectChanges();
 
-        const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
-        expect(dialog).not.toBeNull();
-        expect(dialog?.textContent).toContain('Новый адресный объект');
-        expect(dialog?.querySelector('[data-testid="address-object-type"]')).not.toBeNull();
-        expect(dialog?.querySelector('[data-testid="address-object-name"]')).not.toBeNull();
+        expect(addressApi.createObject).toHaveBeenCalledWith({
+            parent_id: null,
+            type_id: cityType.id,
+            name: 'Москва',
+        });
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    });
+
+
+    it('should keep the rendered dialog open when the API returns an error', async () => {
+        createComponent();
+        addressApi.createObject.mockReturnValue(throwError(() => new HttpErrorResponse({
+            status: 409,
+            error: { detail: 'An identical address record already exists' },
+        })));
+        const dialog = await openDialog('create-root-address-action');
+        const nameInput = dialog.querySelector<HTMLInputElement>(
+            '[data-testid="address-object-name"]',
+        );
+        enterValue(nameInput as HTMLInputElement, 'Москва');
+
+        (dialog.querySelector('[data-testid="address-object-submit"]') as HTMLElement).click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const openDialogElement = document.body.querySelector<HTMLElement>('[role="dialog"]');
+        expect(openDialogElement).not.toBeNull();
+        expect(openDialogElement?.querySelector('[data-testid="address-object-error"]')?.textContent)
+            .toContain('Такая запись уже существует');
     });
 
 
