@@ -1,0 +1,35 @@
+image: node:22-alpine
+
+stages:
+  - test
+  - build
+
+variables:
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm"
+  NPM_CONFIG_AUDIT: "false"
+  NPM_CONFIG_FUND: "false"
+
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+
+unit-tests:
+  stage: test
+  before_script:
+    - npm ci --prefer-offline
+  script:
+    - npm test -- --watch=false
+
+production-build:
+  stage: build
+  before_script:
+    - npm ci --prefer-offline
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week

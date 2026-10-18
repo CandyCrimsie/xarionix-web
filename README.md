@@ -44,6 +44,15 @@ To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use th
 ng test
 ```
 
+## GitLab CI
+
+The `.gitlab-ci.yml` pipeline installs the locked dependencies with `npm ci`,
+runs the unit tests once in CI mode, and creates a production build. The
+generated `dist/` directory is published as a pipeline artifact for one week.
+
+The pipeline requires a GitLab Runner with a Docker or Kubernetes executor and
+access to the `node:22-alpine` image.
+
 ## Running end-to-end tests
 
 For end-to-end (e2e) testing, run:
