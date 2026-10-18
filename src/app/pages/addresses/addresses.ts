@@ -15,6 +15,7 @@ import {
     lucideChevronDown,
     lucideChevronRight,
     lucideDoorOpen,
+    lucideEllipsis,
     lucideLoaderCircle,
     lucideMapPin,
     lucidePencil,
@@ -27,8 +28,10 @@ import {
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 import type { BrnDialog } from '@spartan-ng/brain/dialog';
 
 import { AddressApiService } from '../../core/addresses/address-api.service';
@@ -99,8 +102,10 @@ const ALLOWED_CHILD_CATEGORIES: Record<
         HlmAlertDialogImports,
         HlmBadgeImports,
         HlmButtonImports,
+        HlmButtonGroupImports,
         HlmDialogImports,
         HlmInputImports,
+        HlmSelectImports,
         AddressObjectDialogForm,
         BuildingDialogForm,
         EntranceDialogForm,
@@ -112,6 +117,7 @@ const ALLOWED_CHILD_CATEGORIES: Record<
             lucideChevronDown,
             lucideChevronRight,
             lucideDoorOpen,
+            lucideEllipsis,
             lucideLoaderCircle,
             lucideMapPin,
             lucidePencil,
@@ -146,6 +152,7 @@ export class Addresses {
     readonly buildings = signal<Building[]>([]);
     readonly buildingsState = signal<LoadState>('idle');
     readonly selectedBuilding = signal<Building | null>(null);
+    readonly objectActionSelection = signal<string | null>(null);
     readonly entrances = signal<Entrance[]>([]);
     readonly locations = signal<Location[]>([]);
     readonly detailsState = signal<LoadState>('idle');
@@ -454,6 +461,15 @@ export class Addresses {
     }
 
 
+    openCreateObjectDialog(
+        parent: AddressObject,
+        dialog: BrnDialog,
+    ): void {
+        this.startCreateObject(parent);
+        dialog.open();
+    }
+
+
     startEditObject(addressObject: AddressObject): void {
         this.objectParent.set(
             addressObject.parent_id === null
@@ -464,6 +480,36 @@ export class Addresses {
         this.objectName.set(addressObject.name);
         this.objectTypeId.set(addressObject.type_id);
         this.objectError.set(null);
+    }
+
+
+    openEditObjectDialog(
+        addressObject: AddressObject,
+        dialog: BrnDialog,
+    ): void {
+        this.startEditObject(addressObject);
+        dialog.open();
+    }
+
+
+    openDeleteObjectDialog(dialog: BrnDialog): void {
+        dialog.open();
+    }
+
+
+    selectObjectAction(
+        action: string | null | undefined,
+        addressObject: AddressObject,
+        editDialog: BrnDialog,
+        deleteDialog: BrnDialog,
+    ): void {
+        this.objectActionSelection.set(action ?? null);
+        if (action === 'edit') {
+            this.openEditObjectDialog(addressObject, editDialog);
+        } else if (action === 'delete') {
+            this.openDeleteObjectDialog(deleteDialog);
+        }
+        setTimeout(() => this.objectActionSelection.set(null));
     }
 
 

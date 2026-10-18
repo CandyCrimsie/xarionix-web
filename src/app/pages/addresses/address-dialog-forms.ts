@@ -1,7 +1,6 @@
 import {
     ChangeDetectionStrategy,
     Component,
-    computed,
     input,
     output,
 } from '@angular/core';
@@ -9,10 +8,10 @@ import { FormsModule } from '@angular/forms';
 
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 
 import type {
@@ -28,10 +27,10 @@ import type {
         FormsModule,
         HlmAlertImports,
         HlmButtonImports,
-        HlmComboboxImports,
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
+        HlmSelectImports,
         HlmSpinnerImports,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,24 +45,16 @@ export class AddressObjectDialogForm {
     readonly saving = input.required<boolean>();
     readonly error = input.required<string | null>();
 
-    readonly selectedType = computed(() =>
-        this.types().find(type => type.id === this.typeId()) ?? null,
-    );
-
-    readonly typeToString = (type: AddressType): string => type.name;
-
-    readonly isTypeEqual = (
-        type: AddressType,
-        selectedType: AddressType | null | undefined,
-    ): boolean => type.id === selectedType?.id;
+    readonly typeToString = (typeId: number): string =>
+        this.types().find(type => type.id === typeId)?.name ?? '';
 
     readonly typeIdChange = output<number>();
     readonly nameChange = output<string>();
     readonly saveRequested = output<void>();
 
-    selectType(type: AddressType | null | undefined): void {
-        if (type) {
-            this.typeIdChange.emit(type.id);
+    selectType(typeId: number | null | undefined): void {
+        if (typeId !== null && typeId !== undefined) {
+            this.typeIdChange.emit(typeId);
         }
     }
 }
@@ -71,6 +62,7 @@ export class AddressObjectDialogForm {
 
 @Component({
     selector: 'app-building-dialog-form',
+    host: { class: 'contents' },
     imports: [
         FormsModule,
         HlmButtonImports,
@@ -79,91 +71,7 @@ export class AddressObjectDialogForm {
         HlmInputImports,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-        <hlm-dialog-header>
-            <h3 hlmDialogTitle>{{ editing() ? 'Изменение здания' : 'Новое здание' }}</h3>
-            <p hlmDialogDescription>{{ addressObjectName() }}</p>
-        </hlm-dialog-header>
-
-        <hlm-field-group>
-            <div class="grid gap-4 sm:grid-cols-3">
-                <hlm-field>
-                    <label hlmFieldLabel for="building-number">Номер</label>
-                    <input
-                        hlmInput
-                        id="building-number"
-                        maxlength="50"
-                        data-testid="building-number"
-                        [ngModel]="number()"
-                        (ngModelChange)="numberChange.emit($event)" />
-                </hlm-field>
-                <hlm-field>
-                    <label hlmFieldLabel for="building-corpus">Корпус</label>
-                    <input
-                        hlmInput
-                        id="building-corpus"
-                        maxlength="50"
-                        [ngModel]="corpus()"
-                        (ngModelChange)="corpusChange.emit($event)" />
-                </hlm-field>
-                <hlm-field>
-                    <label hlmFieldLabel for="building-structure">Строение</label>
-                    <input
-                        hlmInput
-                        id="building-structure"
-                        maxlength="50"
-                        [ngModel]="structure()"
-                        (ngModelChange)="structureChange.emit($event)" />
-                </hlm-field>
-            </div>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <hlm-field>
-                    <label hlmFieldLabel for="building-latitude">Широта</label>
-                    <input
-                        hlmInput
-                        id="building-latitude"
-                        inputmode="decimal"
-                        placeholder="55.1234567"
-                        [ngModel]="latitude()"
-                        (ngModelChange)="latitudeChange.emit($event)" />
-                </hlm-field>
-                <hlm-field>
-                    <label hlmFieldLabel for="building-longitude">Долгота</label>
-                    <input
-                        hlmInput
-                        id="building-longitude"
-                        inputmode="decimal"
-                        placeholder="37.1234567"
-                        [ngModel]="longitude()"
-                        (ngModelChange)="longitudeChange.emit($event)" />
-                </hlm-field>
-            </div>
-        </hlm-field-group>
-
-        @if (error(); as message) {
-        <p class="text-sm text-destructive" data-testid="building-error">{{ message }}</p>
-        }
-
-        <hlm-dialog-footer>
-            <button
-                hlmBtn
-                variant="outline"
-                type="button"
-                hlmDialogClose
-                data-testid="building-cancel"
-                [disabled]="saving()">
-                Отмена
-            </button>
-            <button
-                hlmBtn
-                type="button"
-                data-testid="building-submit"
-                [disabled]="saving()"
-                (click)="saveRequested.emit()">
-                Сохранить
-            </button>
-        </hlm-dialog-footer>
-    `,
+    templateUrl: './building-dialog-form.html',
 })
 export class BuildingDialogForm {
     readonly editing = input.required<boolean>();

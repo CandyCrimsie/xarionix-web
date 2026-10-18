@@ -1,0 +1,87 @@
+<hlm-dialog-header class="pr-8">
+    <h3 hlmDialogTitle>{{ editing() ? 'Изменение здания' : 'Новое здание' }}</h3>
+    <p hlmDialogDescription>{{ addressObjectName() }}</p>
+</hlm-dialog-header>
+
+<hlm-field-group>
+    <div class="grid gap-4 sm:grid-cols-3">
+        <hlm-field>
+            <label hlmFieldLabel for="building-number">Номер</label>
+            <input
+                hlmInput
+                id="building-number"
+                maxlength="50"
+                data-testid="building-number"
+                [ngModel]="number()"
+                (ngModelChange)="numberChange.emit($event)" />
+        </hlm-field>
+
+        <hlm-field>
+            <label hlmFieldLabel for="building-corpus">Корпус</label>
+            <input
+                hlmInput
+                id="building-corpus"
+                maxlength="50"
+                [ngModel]="corpus()"
+                (ngModelChange)="corpusChange.emit($event)" />
+        </hlm-field>
+
+        <hlm-field>
+            <label hlmFieldLabel for="building-structure">Строение</label>
+            <input
+                hlmInput
+                id="building-structure"
+                maxlength="50"
+                [ngModel]="structure()"
+                (ngModelChange)="structureChange.emit($event)" />
+        </hlm-field>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <hlm-field>
+            <label hlmFieldLabel for="building-latitude">Широта</label>
+            <input
+                hlmInput
+                id="building-latitude"
+                inputmode="decimal"
+                placeholder="55.1234567"
+                [ngModel]="latitude()"
+                (ngModelChange)="latitudeChange.emit($event)" />
+        </hlm-field>
+
+        <hlm-field>
+            <label hlmFieldLabel for="building-longitude">Долгота</label>
+            <input
+                hlmInput
+                id="building-longitude"
+                inputmode="decimal"
+                placeholder="37.1234567"
+                [ngModel]="longitude()"
+                (ngModelChange)="longitudeChange.emit($event)" />
+        </hlm-field>
+    </div>
+</hlm-field-group>
+
+@if (error(); as message) {
+<p class="text-sm text-destructive" data-testid="building-error">{{ message }}</p>
+}
+
+<hlm-dialog-footer>
+    <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        hlmDialogClose
+        data-testid="building-cancel"
+        [disabled]="saving()">
+        Отмена
+    </button>
+    <button
+        hlmBtn
+        type="button"
+        data-testid="building-submit"
+        [disabled]="saving()"
+        (click)="saveRequested.emit()">
+        Сохранить
+    </button>
+</hlm-dialog-footer>

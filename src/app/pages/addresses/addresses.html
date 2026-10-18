@@ -139,14 +139,52 @@
                         <p class="mt-1 text-sm text-muted-foreground">{{ addressObject.type_name }}</p>
                     </div>
                     @if (canManageAddresses()) {
-                    <div class="flex flex-wrap gap-2">
-                        @if (canCreateChild(addressObject)) {
-                        <hlm-dialog #childObjectDialog>
-                            <button hlmDialogTrigger hlmBtn variant="outline" type="button"
-                                data-testid="create-child-address-action" (click)="startCreateObject(addressObject)">
+                    <div class="shrink-0">
+                        <div hlmButtonGroup
+                            [class]="canCreateChild(addressObject)
+                                ? '[&>hlm-select>hlm-select-trigger>button]:rounded-s-none [&>hlm-select>hlm-select-trigger>button]:border-s-0'
+                                : ''"
+                            aria-label="Действия с адресным объектом">
+                            @if (canCreateChild(addressObject)) {
+                            <button hlmBtn variant="outline" type="button"
+                                data-testid="create-child-address-action"
+                                (click)="openCreateObjectDialog(addressObject, childObjectDialog)">
                                 <ng-icon name="lucidePlus" />
-                                Дочерний объект
+                                Добавить
                             </button>
+                            }
+
+                            <hlm-select
+                                class="inline-block"
+                                [value]="objectActionSelection()"
+                                (valueChange)="selectObjectAction($event, addressObject, editObjectDialog, deleteObjectDialog)">
+                                <hlm-select-trigger
+                                    class="[&>ng-icon:last-child]:hidden!"
+                                    data-testid="address-object-actions">
+                                    <ng-icon name="lucideEllipsis" />
+                                    <span class="sr-only">Дополнительные действия</span>
+                                </hlm-select-trigger>
+                                <hlm-select-content *hlmSelectPortal class="bg-background">
+                                    <hlm-select-group>
+                                        <hlm-select-item value="edit" data-testid="edit-address-action">
+                                            <ng-icon name="lucidePencil" />
+                                            <span>Изменить</span>
+                                        </hlm-select-item>
+
+                                        <hlm-select-item
+                                            value="delete"
+                                            data-variant="destructive"
+                                            class="text-destructive data-highlighted:bg-destructive/10 data-highlighted:text-destructive"
+                                            data-testid="delete-address-action">
+                                            <ng-icon name="lucideTrash2" />
+                                            <span>Удалить</span>
+                                        </hlm-select-item>
+                                    </hlm-select-group>
+                                </hlm-select-content>
+                            </hlm-select>
+                        </div>
+
+                        <hlm-dialog #childObjectDialog>
                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
                                 <app-address-object-dialog-form
                                     [editing]="editingObject() !== null"
@@ -161,14 +199,8 @@
                                     (saveRequested)="saveObject(childObjectDialog)" />
                             </hlm-dialog-content>
                         </hlm-dialog>
-                        }
 
                         <hlm-dialog #editObjectDialog>
-                            <button hlmDialogTrigger hlmBtn variant="outline" type="button"
-                                data-testid="edit-address-action" (click)="startEditObject(addressObject)">
-                                <ng-icon name="lucidePencil" />
-                                Изменить
-                            </button>
                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
                                 <app-address-object-dialog-form
                                     [editing]="editingObject() !== null"
@@ -184,11 +216,7 @@
                             </hlm-dialog-content>
                         </hlm-dialog>
 
-                        <hlm-alert-dialog>
-                            <button hlmAlertDialogTrigger hlmBtn variant="outline" size="icon" type="button"
-                                aria-label="Удалить адресный объект" data-testid="delete-address-action">
-                                <ng-icon name="lucideTrash2" />
-                            </button>
+                        <hlm-alert-dialog #deleteObjectDialog>
                             <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
                                 <hlm-alert-dialog-header>
                                     <h3 hlmAlertDialogTitle>Удалить адресный объект?</h3>
@@ -219,7 +247,9 @@
                                 <ng-icon name="lucidePlus" />
                                 Добавить дом
                             </button>
-                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-xl">
+                            <hlm-dialog-content
+                                *hlmDialogPortal="let ctx"
+                                class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
                                 <app-building-dialog-form
                                     [editing]="editingBuilding() !== null"
                                     [addressObjectName]="selectedObject()?.name ?? ''"
@@ -293,7 +323,9 @@
                                     <ng-icon name="lucidePencil" />
                                     Изменить дом
                                 </button>
-                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-xl">
+                                <hlm-dialog-content
+                                    *hlmDialogPortal="let ctx"
+                                    class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
                                     <app-building-dialog-form
                                         [editing]="editingBuilding() !== null"
                                         [addressObjectName]="selectedObject()?.name ?? ''"

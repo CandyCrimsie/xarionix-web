@@ -192,11 +192,13 @@ describe('Addresses', () => {
 
 
     async function openDialog(triggerTestId: string): Promise<HTMLElement> {
-        const trigger = fixture.nativeElement.querySelector(
-            `[data-testid="${triggerTestId}"]`,
+        const selector = `[data-testid="${triggerTestId}"]`;
+        const trigger = (
+            fixture.nativeElement.querySelector(selector)
+            ?? document.body.querySelector(selector)
         ) as HTMLElement | null;
         expect(trigger).not.toBeNull();
-        trigger?.click();
+        (trigger?.querySelector('button') ?? trigger)?.click();
         fixture.detectChanges();
         await fixture.whenStable();
         fixture.detectChanges();
@@ -204,6 +206,22 @@ describe('Addresses', () => {
         const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
         expect(dialog).not.toBeNull();
         return dialog as HTMLElement;
+    }
+
+
+    async function openAddressObjectActions(): Promise<HTMLElement> {
+        const trigger = fixture.nativeElement.querySelector(
+            '[data-testid="address-object-actions"]',
+        ) as HTMLElement | null;
+        expect(trigger).not.toBeNull();
+        (trigger?.querySelector('button') ?? trigger)?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const menu = document.body.querySelector<HTMLElement>('[role="listbox"]');
+        expect(menu).not.toBeNull();
+        return menu as HTMLElement;
     }
 
 
@@ -342,6 +360,12 @@ describe('Addresses', () => {
         createComponent();
         component.selectObject(street);
         fixture.detectChanges();
+
+        const menu = await openAddressObjectActions();
+        expect(
+            menu.querySelector('[data-testid="delete-address-action"]')
+                ?.getAttribute('data-variant'),
+        ).toBe('destructive');
 
         const dialog = await openDialog('edit-address-action');
         const nameInput = dialog.querySelector<HTMLInputElement>(

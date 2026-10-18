@@ -11,30 +11,28 @@
     <hlm-field>
         <label hlmFieldLabel for="address-object-type">Тип объекта</label>
 
-        <hlm-combobox
-            class="w-full"
-            [value]="selectedType()"
+        <hlm-select
+            [value]="typeId()"
             [itemToString]="typeToString"
-            [isItemEqualToValue]="isTypeEqual"
             (valueChange)="selectType($event)">
-            <hlm-combobox-input
-                inputId="address-object-type"
-                class="w-full"
+            <hlm-select-trigger
+                buttonId="address-object-type"
                 data-testid="address-object-type"
-                placeholder="Выберите тип объекта" />
+                class="w-full">
+                <hlm-select-value placeholder="Выберите тип объекта" />
+            </hlm-select-trigger>
 
-            <hlm-combobox-content *hlmComboboxPortal>
-                <hlm-combobox-empty>Подходящие типы не найдены</hlm-combobox-empty>
-
-                <div hlmComboboxList>
+            <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                    <hlm-select-label>Тип объекта</hlm-select-label>
                     @for (type of types(); track type.id) {
-                    <hlm-combobox-item [value]="type">
+                    <hlm-select-item [value]="type.id">
                         {{ type.name }}
-                    </hlm-combobox-item>
+                    </hlm-select-item>
                     }
-                </div>
-            </hlm-combobox-content>
-        </hlm-combobox>
+                </hlm-select-group>
+            </hlm-select-content>
+        </hlm-select>
     </hlm-field>
 
     <hlm-field>
