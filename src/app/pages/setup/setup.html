@@ -189,10 +189,6 @@
         ) {
         <section class="rounded-xl border bg-card text-card-foreground p-6 shadow-sm sm:p-8" data-testid="setup-form">
             <div class="mb-8 flex items-start gap-4">
-                <div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <ng-icon name="lucideSettings" class="size-5" />
-                </div>
-
                 <div>
                     <h1 class="text-2xl font-semibold tracking-tight">
                         Первоначальная настройка
@@ -209,13 +205,9 @@
             <form [formGroup]="form" (ngSubmit)="submit()">
                 <div hlmFieldGroup>
                     <div>
-                        <h2 class="mb-4 text-sm font-semibold">
-                            Компания
-                        </h2>
-
                         <div hlmFieldGroup>
                             <div hlmField>
-                                <label hlmFieldLabel for="companyName">
+                                <label hlmFieldLabel for="companyName" class="after:content-['*'] after:text-red-500">
                                     Название компании
                                 </label>
 
@@ -239,10 +231,6 @@
 
                                 <input hlmInput id="companyShortName" type="text" formControlName="companyShortName"
                                     placeholder="Xarionix" />
-
-                                <p class="text-xs text-muted-foreground">
-                                    Необязательно.
-                                </p>
 
                                 <hlm-field-error validator="maxlength">
                                     Максимум 100 символов.

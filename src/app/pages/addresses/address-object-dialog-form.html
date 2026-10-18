@@ -1,0 +1,80 @@
+<hlm-dialog-header class="pr-8">
+    <h3 hlmDialogTitle>
+        {{ editing() ? 'Изменение адресного объекта' : 'Новый адресный объект' }}
+    </h3>
+    <p hlmDialogDescription>
+        {{ parentName() ? 'Родитель: ' + parentName() : 'Корневой уровень каталога' }}
+    </p>
+</hlm-dialog-header>
+
+<hlm-field-group>
+    <hlm-field>
+        <label hlmFieldLabel for="address-object-type">Тип объекта</label>
+
+        <hlm-combobox
+            class="w-full"
+            [value]="selectedType()"
+            [itemToString]="typeToString"
+            [isItemEqualToValue]="isTypeEqual"
+            (valueChange)="selectType($event)">
+            <hlm-combobox-input
+                inputId="address-object-type"
+                class="w-full"
+                data-testid="address-object-type"
+                placeholder="Выберите тип объекта" />
+
+            <hlm-combobox-content *hlmComboboxPortal>
+                <hlm-combobox-empty>Подходящие типы не найдены</hlm-combobox-empty>
+
+                <div hlmComboboxList>
+                    @for (type of types(); track type.id) {
+                    <hlm-combobox-item [value]="type">
+                        {{ type.name }}
+                    </hlm-combobox-item>
+                    }
+                </div>
+            </hlm-combobox-content>
+        </hlm-combobox>
+    </hlm-field>
+
+    <hlm-field>
+        <label hlmFieldLabel for="address-object-name">Название</label>
+        <input
+            hlmInput
+            id="address-object-name"
+            maxlength="255"
+            autocomplete="off"
+            data-testid="address-object-name"
+            [ngModel]="name()"
+            (ngModelChange)="nameChange.emit($event)" />
+    </hlm-field>
+</hlm-field-group>
+
+@if (error(); as message) {
+<hlm-alert variant="destructive" data-testid="address-object-error">
+    <p hlmAlertDescription>{{ message }}</p>
+</hlm-alert>
+}
+
+<hlm-dialog-footer>
+    <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        hlmDialogClose
+        data-testid="address-object-cancel"
+        [disabled]="saving()">
+        Отмена
+    </button>
+    <button
+        hlmBtn
+        type="button"
+        data-testid="address-object-submit"
+        [disabled]="saving()"
+        (click)="saveRequested.emit()">
+        @if (saving()) {
+        <hlm-spinner aria-label="Сохранение адресного объекта" />
+        }
+        Сохранить
+    </button>
+</hlm-dialog-footer>

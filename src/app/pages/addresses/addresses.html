@@ -12,9 +12,9 @@
             <button hlmDialogTrigger hlmBtn type="button" data-testid="create-root-address-action"
                 (click)="startCreateObject(null)">
                 <ng-icon name="lucidePlus" />
-                Добавить корневой объект
+                Добавить
             </button>
-            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
                 <app-address-object-dialog-form
                     [editing]="editingObject() !== null"
                     [parentName]="objectParent()?.name ?? null"
@@ -147,7 +147,7 @@
                                 <ng-icon name="lucidePlus" />
                                 Дочерний объект
                             </button>
-                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
                                 <app-address-object-dialog-form
                                     [editing]="editingObject() !== null"
                                     [parentName]="objectParent()?.name ?? null"
@@ -169,7 +169,7 @@
                                 <ng-icon name="lucidePencil" />
                                 Изменить
                             </button>
-                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
                                 <app-address-object-dialog-form
                                     [editing]="editingObject() !== null"
                                     [parentName]="objectParent()?.name ?? null"

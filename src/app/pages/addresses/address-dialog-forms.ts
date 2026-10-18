@@ -1,17 +1,19 @@
 import {
     ChangeDetectionStrategy,
     Component,
+    computed,
     input,
     output,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideLoaderCircle } from '@ng-icons/lucide';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 
 import type {
     AddressType,
@@ -21,83 +23,19 @@ import type {
 
 @Component({
     selector: 'app-address-object-dialog-form',
+    host: { class: 'contents' },
     imports: [
         FormsModule,
-        NgIcon,
+        HlmAlertImports,
         HlmButtonImports,
+        HlmComboboxImports,
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
+        HlmSpinnerImports,
     ],
-    providers: [provideIcons({ lucideLoaderCircle })],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-        <hlm-dialog-header>
-            <h3 hlmDialogTitle>
-                {{ editing() ? 'Изменение адресного объекта' : 'Новый адресный объект' }}
-            </h3>
-            <p hlmDialogDescription>
-                {{ parentName() ? 'Родитель: ' + parentName() : 'Корневой уровень каталога' }}
-            </p>
-        </hlm-dialog-header>
-
-        <hlm-field-group>
-            <hlm-field>
-                <label hlmFieldLabel for="address-object-type">Тип</label>
-                <select
-                    id="address-object-type"
-                    class="h-9 rounded-md border bg-background px-3 text-sm"
-                    data-testid="address-object-type"
-                    [ngModel]="typeId()"
-                    (ngModelChange)="typeIdChange.emit(+$event)">
-                    @for (type of types(); track type.id) {
-                    <option [ngValue]="type.id">{{ type.name }}</option>
-                    }
-                </select>
-            </hlm-field>
-
-            <hlm-field>
-                <label hlmFieldLabel for="address-object-name">Название</label>
-                <input
-                    hlmInput
-                    id="address-object-name"
-                    maxlength="255"
-                    autocomplete="off"
-                    data-testid="address-object-name"
-                    [ngModel]="name()"
-                    (ngModelChange)="nameChange.emit($event)" />
-            </hlm-field>
-        </hlm-field-group>
-
-        @if (error(); as message) {
-        <p class="text-sm text-destructive" data-testid="address-object-error">
-            {{ message }}
-        </p>
-        }
-
-        <hlm-dialog-footer>
-            <button
-                hlmBtn
-                variant="outline"
-                type="button"
-                hlmDialogClose
-                data-testid="address-object-cancel"
-                [disabled]="saving()">
-                Отмена
-            </button>
-            <button
-                hlmBtn
-                type="button"
-                data-testid="address-object-submit"
-                [disabled]="saving()"
-                (click)="saveRequested.emit()">
-                @if (saving()) {
-                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-                }
-                Сохранить
-            </button>
-        </hlm-dialog-footer>
-    `,
+    templateUrl: './address-object-dialog-form.html',
 })
 export class AddressObjectDialogForm {
     readonly editing = input.required<boolean>();
@@ -108,9 +46,26 @@ export class AddressObjectDialogForm {
     readonly saving = input.required<boolean>();
     readonly error = input.required<string | null>();
 
+    readonly selectedType = computed(() =>
+        this.types().find(type => type.id === this.typeId()) ?? null,
+    );
+
+    readonly typeToString = (type: AddressType): string => type.name;
+
+    readonly isTypeEqual = (
+        type: AddressType,
+        selectedType: AddressType | null | undefined,
+    ): boolean => type.id === selectedType?.id;
+
     readonly typeIdChange = output<number>();
     readonly nameChange = output<string>();
     readonly saveRequested = output<void>();
+
+    selectType(type: AddressType | null | undefined): void {
+        if (type) {
+            this.typeIdChange.emit(type.id);
+        }
+    }
 }
 
 

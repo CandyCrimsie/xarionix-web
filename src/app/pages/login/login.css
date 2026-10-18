@@ -1,21 +1,5 @@
 @reference "../../../styles.css";
 
 :host {
-    @apply block w-full max-w-72;
-}
-
-div[hlmFieldGroup] {
-    @apply w-full;
-}
-
-input[hlmInput] {
-    @apply w-full;
-}
-
-button[hlmBtn] {
-    @apply w-full;
-}
-
-.login__error {
-    @apply text-red-400 text-sm;
+  @apply block w-full max-w-md;
 }
