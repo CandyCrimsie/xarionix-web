@@ -31,44 +31,87 @@
         }
     </header>
 
-    <form class="flex gap-2" (ngSubmit)="search()">
-        <div class="relative min-w-0 flex-1">
-            <ng-icon name="lucideSearch"
-                class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input hlmInput class="w-full pl-9" autocomplete="off" data-testid="address-search-input"
-                placeholder="Москва Ленина 15 или Раменское Гагарина 34 корпус 2"
-                [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" name="addressSearch" />
-        </div>
-        <button hlmBtn type="submit" data-testid="address-search-submit">Найти</button>
-    </form>
+    <hlm-autocomplete
+        class="w-full"
+        autoHighlight
+        [state]="searchOverlayState()"
+        [value]="selectedSearchResult()"
+        [search]="searchQuery()"
+        [itemToString]="searchResultToString"
+        (stateChanged)="onSearchOverlayStateChanged($event)"
+        (searchChange)="onSearchQueryChange($event)"
+        (valueChange)="selectSearchResult($event)">
+        <hlm-autocomplete-input
+            class="w-full"
+            data-testid="address-search-input"
+            placeholder="Москва Ленина 15 или Раменское Гагарина 34 корпус 2"
+            (keydown.enter)="onSearchEnter()"
+            showClear />
 
-    @if (searchState() !== 'idle') {
-    <section class="rounded-lg border bg-card p-3" data-testid="address-search-results">
-        @if (searchState() === 'loading') {
-        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-            Ищем адреса...
-        </div>
-        } @else if (searchState() === 'error') {
-        <p class="text-sm text-destructive">Не удалось выполнить поиск</p>
-        } @else {
-        <div class="flex flex-col gap-1">
-            @for (building of searchResults(); track building.id) {
-            <button hlmBtn variant="ghost" type="button" class="h-auto justify-start py-2 text-left"
-                [attr.data-testid]="'address-search-result-' + building.id"
-                (click)="openSearchResult(building)">
-                <ng-icon name="lucideBuilding2" />
-                {{ building.full_address }}
-            </button>
-            } @empty {
-            <p class="py-2 text-sm text-muted-foreground" data-testid="address-search-empty">
-                Подходящие адреса не найдены
+        <hlm-autocomplete-content
+            *hlmAutocompletePortal
+            data-testid="address-search-results">
+            @if (searchState() === 'loading') {
+            <hlm-autocomplete-status data-testid="address-search-loading">
+                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                Ищем адреса...
+            </hlm-autocomplete-status>
+            } @else if (searchState() === 'error') {
+            <div class="flex items-center justify-between gap-3 p-2">
+                <p class="text-sm text-destructive">Не удалось выполнить поиск</p>
+                <button hlmBtn variant="outline" size="sm" type="button"
+                    data-testid="address-search-retry" (click)="retrySearch()">
+                    <ng-icon name="lucideRefreshCw" />
+                    Повторить
+                </button>
+            </div>
+            } @else if (searchState() === 'ready') {
+            @if (searchResults().length === 0) {
+            <hlm-autocomplete-empty data-testid="address-search-empty">
+                <span>
+                    Адреса не найдены<br />
+                    <span class="text-muted-foreground">Попробуйте указать город, улицу или номер дома</span>
+                </span>
+            </hlm-autocomplete-empty>
+            } @else {
+            <p class="px-2.5 pt-2 text-sm text-muted-foreground" data-testid="address-search-total">
+                Найдено: {{ searchTotal() }} адресов
             </p>
+            <div hlmAutocompleteList aria-label="Найденные адреса">
+                @for (building of searchResults(); track building.id) {
+                <hlm-autocomplete-item
+                    [value]="building"
+                    [attr.data-testid]="'address-search-result-' + building.id">
+                    <ng-icon name="lucideBuilding2" />
+                    <span class="min-w-0 truncate">{{ building.full_address }}</span>
+                </hlm-autocomplete-item>
+                }
+            </div>
+
+            @if (searchPageError()) {
+            <div class="flex items-center justify-between gap-3 border-t p-2">
+                <p class="text-sm text-destructive">Не удалось загрузить следующую страницу</p>
+                <button hlmBtn variant="outline" size="sm" type="button"
+                    data-testid="address-search-page-retry" (click)="retrySearch()">
+                    Повторить
+                </button>
+            </div>
+            } @else if (hasMoreSearchResults()) {
+            <div class="border-t p-2">
+                <button hlmBtn variant="outline" size="sm" type="button" class="w-full"
+                    data-testid="address-search-load-more" [disabled]="searchLoadingMore()"
+                    (click)="loadMoreSearchResults()">
+                    @if (searchLoadingMore()) {
+                    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                    }
+                    Показать ещё
+                </button>
+            </div>
             }
-        </div>
-        }
-    </section>
-    }
+            }
+            }
+        </hlm-autocomplete-content>
+    </hlm-autocomplete>
 
     @if (actionError(); as error) {
     <div class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"

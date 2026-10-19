@@ -1,11 +1,11 @@
 import {
     Component,
     computed,
+    DestroyRef,
     effect,
     inject,
     signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { forkJoin } from 'rxjs';
 
@@ -21,16 +21,15 @@ import {
     lucidePencil,
     lucidePlus,
     lucideRefreshCw,
-    lucideSearch,
     lucideTrash2,
     lucideWarehouse,
 } from '@ng-icons/lucide';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
+import { HlmAutocompleteImports } from '@spartan-ng/helm/autocomplete';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
-import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import type { BrnDialog } from '@spartan-ng/brain/dialog';
 
@@ -94,17 +93,20 @@ const ALLOWED_CHILD_CATEGORIES: Record<
 };
 
 
+const SEARCH_PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
+
+
 @Component({
     selector: 'app-addresses',
     imports: [
-        FormsModule,
         NgIcon,
         HlmAlertDialogImports,
+        HlmAutocompleteImports,
         HlmBadgeImports,
         HlmButtonImports,
         HlmButtonGroupImports,
         HlmDialogImports,
-        HlmInputImports,
         HlmSelectImports,
         AddressObjectDialogForm,
         BuildingDialogForm,
@@ -123,7 +125,6 @@ const ALLOWED_CHILD_CATEGORIES: Record<
             lucidePencil,
             lucidePlus,
             lucideRefreshCw,
-            lucideSearch,
             lucideTrash2,
             lucideWarehouse,
         }),
@@ -135,6 +136,7 @@ export class Addresses {
     private readonly addressApi = inject(AddressApiService);
     private readonly companyContext = inject(CompanyContextService);
     private readonly permissions = inject(PermissionService);
+    private readonly destroyRef = inject(DestroyRef);
 
     readonly canReadAddresses = this.permissions.canSignal(
         PermissionCode.AddressesRead,
@@ -161,6 +163,17 @@ export class Addresses {
     readonly searchQuery = signal('');
     readonly searchState = signal<SearchState>('idle');
     readonly searchResults = signal<Building[]>([]);
+    readonly searchTotal = signal(0);
+    readonly searchLoadingMore = signal(false);
+    readonly searchPageError = signal(false);
+    readonly selectedSearchResult = signal<Building | null>(null);
+    readonly searchOverlayState = signal<'open' | 'closed'>('closed');
+    readonly hasMoreSearchResults = computed(
+        () => this.searchResults().length < this.searchTotal(),
+    );
+    readonly searchResultToString = (building: Building): string => (
+        building.full_address
+    );
 
     readonly objectParent = signal<AddressObject | null>(null);
     readonly editingObject = signal<AddressObject | null>(null);
@@ -198,6 +211,9 @@ export class Addresses {
     private buildingDetailsRequestGeneration = 0;
     private searchRequestGeneration = 0;
     private searchResultRequestGeneration = 0;
+    private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private searchEnterReopenTimer: ReturnType<typeof setTimeout> | null = null;
+    private searchNextOffset = 0;
     private readonly childRequestGenerations = new Map<number, number>();
 
     readonly treeRows = computed(() => {
@@ -237,6 +253,10 @@ export class Addresses {
 
 
     constructor() {
+        this.destroyRef.onDestroy(() => {
+            this.clearSearchDebounce();
+            this.clearSearchEnterReopen();
+        });
         effect(onCleanup => {
             this.reloadVersion();
             const contextGeneration = ++this.contextGeneration;
@@ -384,16 +404,119 @@ export class Addresses {
 
 
     search(): void {
+        this.clearSearchDebounce();
         const query = this.searchQuery().trim();
+        if (query) {
+            this.searchOverlayState.set('open');
+        }
+        this.executeSearch(query, false);
+    }
+
+
+    onSearchQueryChange(value: string): void {
+        this.searchQuery.set(value);
+        this.selectedSearchResult.set(null);
+        this.clearSearchDebounce();
+        this.clearSearchEnterReopen();
+        this.searchRequestGeneration += 1;
+        this.searchResults.set([]);
+        this.searchTotal.set(0);
+        this.searchNextOffset = 0;
+        this.searchLoadingMore.set(false);
+        this.searchPageError.set(false);
+
+        const query = value.trim();
+        if (!query) {
+            this.searchState.set('idle');
+            this.searchOverlayState.set('closed');
+            return;
+        }
+
+        this.searchOverlayState.set('open');
+        this.searchState.set('loading');
+        this.searchDebounceTimer = setTimeout(
+            () => {
+                this.searchDebounceTimer = null;
+                this.executeSearch(query, false);
+            },
+            SEARCH_DEBOUNCE_MS,
+        );
+    }
+
+
+    onSearchEnter(): void {
+        if (this.selectedSearchResult() !== null) {
+            return;
+        }
+        this.search();
+        this.searchOverlayState.set('closed');
+        this.searchEnterReopenTimer = setTimeout(() => {
+            this.searchEnterReopenTimer = null;
+            if (
+                this.selectedSearchResult() === null
+                && this.searchQuery().trim()
+            ) {
+                this.searchOverlayState.set('open');
+            }
+        });
+    }
+
+
+    onSearchOverlayStateChanged(state: 'open' | 'closed'): void {
+        this.searchOverlayState.set(state);
+    }
+
+
+    selectSearchResult(building: Building | null | undefined): void {
+        this.selectedSearchResult.set(building ?? null);
+        if (building) {
+            this.openSearchResult(building);
+        }
+    }
+
+
+    loadMoreSearchResults(): void {
+        if (
+            this.searchLoadingMore()
+            || !this.hasMoreSearchResults()
+        ) {
+            return;
+        }
+        this.executeSearch(this.searchQuery().trim(), true);
+    }
+
+
+    retrySearch(): void {
+        if (this.searchResults().length > 0) {
+            this.loadMoreSearchResults();
+            return;
+        }
+        this.search();
+    }
+
+
+    private executeSearch(query: string, append: boolean): void {
         const contextGeneration = this.contextGeneration;
         const requestGeneration = ++this.searchRequestGeneration;
         if (!query) {
             this.searchResults.set([]);
+            this.searchTotal.set(0);
             this.searchState.set('idle');
             return;
         }
-        this.searchState.set('loading');
-        this.addressApi.search(query).subscribe({
+        const offset = append ? this.searchNextOffset : 0;
+        if (append) {
+            this.searchLoadingMore.set(true);
+            this.searchPageError.set(false);
+        } else {
+            this.searchResults.set([]);
+            this.searchTotal.set(0);
+            this.searchNextOffset = 0;
+            this.searchLoadingMore.set(false);
+            this.searchPageError.set(false);
+            this.searchState.set('loading');
+        }
+        this.addressApi.search(query, SEARCH_PAGE_SIZE, offset).subscribe({
             next: result => {
                 if (
                     contextGeneration !== this.contextGeneration
@@ -401,7 +524,14 @@ export class Addresses {
                 ) {
                     return;
                 }
-                this.searchResults.set(result.items);
+                const items = append
+                    ? this.mergeSearchResults(this.searchResults(), result.items)
+                    : this.mergeSearchResults([], result.items);
+                this.searchResults.set(items);
+                this.searchTotal.set(result.total);
+                this.searchNextOffset = result.offset + result.items.length;
+                this.searchLoadingMore.set(false);
+                this.searchPageError.set(false);
                 this.searchState.set('ready');
             },
             error: () => {
@@ -411,7 +541,12 @@ export class Addresses {
                 ) {
                     return;
                 }
-                this.searchState.set('error');
+                this.searchLoadingMore.set(false);
+                if (append) {
+                    this.searchPageError.set(true);
+                } else {
+                    this.searchState.set('error');
+                }
             },
         });
     }
@@ -428,12 +563,13 @@ export class Addresses {
                 ) {
                     return;
                 }
-                this.buildingsRequestGeneration += 1;
-                this.buildingDetailsRequestGeneration += 1;
-                this.selectedObject.set(addressObject);
-                this.buildings.set([building]);
-                this.buildingsState.set('ready');
-                this.selectBuilding(building);
+                this.loadSearchResultPath(
+                    addressObject,
+                    building,
+                    contextGeneration,
+                    requestGeneration,
+                    [],
+                );
             },
             error: () => {
                 if (
@@ -771,7 +907,11 @@ export class Addresses {
     }
 
 
-    private loadBuildings(addressObjectId: number, selectId?: number): void {
+    private loadBuildings(
+        addressObjectId: number,
+        selectId?: number,
+        missingSelectionMessage?: string,
+    ): void {
         const contextGeneration = this.contextGeneration;
         const requestGeneration = ++this.buildingsRequestGeneration;
         this.buildingDetailsRequestGeneration += 1;
@@ -793,6 +933,8 @@ export class Addresses {
                 this.selectedBuilding.set(selected);
                 if (selected) {
                     this.selectBuilding(selected);
+                } else if (selectId !== undefined && missingSelectionMessage) {
+                    this.actionError.set(missingSelectionMessage);
                 }
             },
             error: () => {
@@ -810,6 +952,7 @@ export class Addresses {
 
 
     private invalidatePendingRequests(): void {
+        this.clearSearchDebounce();
         this.buildingsRequestGeneration += 1;
         this.buildingDetailsRequestGeneration += 1;
         this.searchRequestGeneration += 1;
@@ -825,7 +968,13 @@ export class Addresses {
         this.entrances.set([]);
         this.locations.set([]);
         this.searchResults.set([]);
+        this.searchTotal.set(0);
+        this.searchNextOffset = 0;
+        this.searchLoadingMore.set(false);
+        this.searchPageError.set(false);
         this.searchState.set('idle');
+        this.selectedSearchResult.set(null);
+        this.searchOverlayState.set('closed');
         this.actionError.set(null);
     }
 
@@ -864,6 +1013,136 @@ export class Addresses {
             stack.push(...node.children);
         }
         return null;
+    }
+
+
+    private clearSearchDebounce(): void {
+        if (this.searchDebounceTimer !== null) {
+            clearTimeout(this.searchDebounceTimer);
+            this.searchDebounceTimer = null;
+        }
+    }
+
+
+    private clearSearchEnterReopen(): void {
+        if (this.searchEnterReopenTimer === null) {
+            return;
+        }
+        clearTimeout(this.searchEnterReopenTimer);
+        this.searchEnterReopenTimer = null;
+    }
+
+
+    private mergeSearchResults(
+        current: Building[],
+        incoming: Building[],
+    ): Building[] {
+        const seen = new Set(current.map(item => item.id));
+        return [
+            ...current,
+            ...incoming.filter(item => {
+                if (seen.has(item.id)) {
+                    return false;
+                }
+                seen.add(item.id);
+                return true;
+            }),
+        ];
+    }
+
+
+    private loadSearchResultPath(
+        addressObject: AddressObject,
+        building: Building,
+        contextGeneration: number,
+        requestGeneration: number,
+        descendants: AddressObject[],
+    ): void {
+        if (
+            contextGeneration !== this.contextGeneration
+            || requestGeneration !== this.searchResultRequestGeneration
+        ) {
+            return;
+        }
+
+        const path = [addressObject, ...descendants];
+        if (addressObject.parent_id === null) {
+            this.revealAddressPath(path);
+            const selectedObject = path[path.length - 1];
+            this.selectedObject.set(selectedObject);
+            this.selectedBuilding.set(null);
+            this.entrances.set([]);
+            this.locations.set([]);
+            this.actionError.set(null);
+            this.loadBuildings(
+                selectedObject.id,
+                building.id,
+                'Выбранный дом больше недоступен',
+            );
+            return;
+        }
+
+        const knownParent = this.findTreeNode(addressObject.parent_id);
+        if (knownParent) {
+            this.loadSearchResultPath(
+                knownParent,
+                building,
+                contextGeneration,
+                requestGeneration,
+                path,
+            );
+            return;
+        }
+
+        this.addressApi.getObject(addressObject.parent_id).subscribe({
+            next: parent => this.loadSearchResultPath(
+                parent,
+                building,
+                contextGeneration,
+                requestGeneration,
+                path,
+            ),
+            error: () => {
+                if (
+                    contextGeneration === this.contextGeneration
+                    && requestGeneration === this.searchResultRequestGeneration
+                ) {
+                    this.actionError.set('Адресный объект больше недоступен');
+                }
+            },
+        });
+    }
+
+
+    private revealAddressPath(path: AddressObject[]): void {
+        const mergeLevel = (
+            nodes: AddressTreeNode[],
+            depth: number,
+        ): AddressTreeNode[] => {
+            const item = path[depth];
+            const existingIndex = nodes.findIndex(node => node.id === item.id);
+            const existing = existingIndex >= 0
+                ? nodes[existingIndex]
+                : this.toTreeNode(item);
+            const isLeaf = depth === path.length - 1;
+            const updated: AddressTreeNode = isLeaf
+                ? { ...existing, ...item }
+                : {
+                    ...existing,
+                    ...item,
+                    expanded: true,
+                    children: mergeLevel(existing.children, depth + 1),
+                };
+
+            if (existingIndex < 0) {
+                return [...nodes, updated];
+            }
+            return nodes.map((node, index) => index === existingIndex ? updated : node);
+        };
+
+        if (path.length > 0) {
+            this.roots.update(nodes => mergeLevel(nodes, 0));
+        }
     }
 
 

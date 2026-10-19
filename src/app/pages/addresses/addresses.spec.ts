@@ -232,6 +232,15 @@ describe('Addresses', () => {
     }
 
 
+    function addressSearchInput(): HTMLInputElement {
+        const input = fixture.nativeElement.querySelector(
+            '[data-testid="address-search-input"] input',
+        ) as HTMLInputElement | null;
+        expect(input).not.toBeNull();
+        return input as HTMLInputElement;
+    }
+
+
     async function closeDialog(dialog: HTMLElement, cancelTestId: string): Promise<void> {
         const cancel = dialog.querySelector<HTMLElement>(`[data-testid="${cancelTestId}"]`);
         expect(cancel).not.toBeNull();
@@ -245,6 +254,7 @@ describe('Addresses', () => {
 
     afterEach(() => {
         fixture?.destroy();
+        vi.useRealTimers();
     });
 
 
@@ -590,6 +600,9 @@ describe('Addresses', () => {
         addressApi.getObject.mockImplementation((addressObjectId: number) => (
             addressObjectId === street.id ? firstObject : secondObject
         ));
+        addressApi.listBuildings.mockImplementation((addressObjectId: number) => of(
+            addressObjectId === otherStreet.id ? [otherBuilding] : [building],
+        ));
         createComponent();
 
         component.openSearchResult(building);
@@ -691,13 +704,262 @@ describe('Addresses', () => {
     });
 
 
-    it('should search on backend and render an empty state', () => {
+    it('should render search results in the autocomplete overlay, not in the page', async () => {
+        createComponent();
+        enterValue(addressSearchInput(), 'Ленина 15');
+        component.search();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(addressApi.search).toHaveBeenCalledWith('Ленина 15', 20, 0);
+        expect(
+            fixture.nativeElement.querySelector('[data-testid="address-search-results"]'),
+        ).toBeNull();
+        expect(
+            document.body.querySelector('[data-testid="address-search-results"]'),
+        ).not.toBeNull();
+        expect(
+            document.body.querySelector('[data-testid="address-search-empty"]'),
+        ).not.toBeNull();
+    });
+
+
+    it('should debounce search input and search immediately on Enter', async () => {
+        vi.useFakeTimers();
+        createComponent();
+
+        component.onSearchQueryChange('р');
+        component.onSearchQueryChange('рам');
+        component.onSearchQueryChange('рам гагар 53');
+        await vi.advanceTimersByTimeAsync(299);
+        expect(addressApi.search).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(addressApi.search).toHaveBeenCalledTimes(1);
+        expect(addressApi.search).toHaveBeenLastCalledWith('рам гагар 53', 20, 0);
+
+        addressApi.search.mockClear();
+        enterValue(addressSearchInput(), 'Москва Ленина 15');
+        addressSearchInput().dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Enter',
+            bubbles: true,
+        }));
+        await vi.advanceTimersByTimeAsync(300);
+        expect(addressApi.search).toHaveBeenCalledTimes(1);
+        expect(addressApi.search).toHaveBeenCalledWith('Москва Ленина 15', 20, 0);
+        expect(component.searchOverlayState()).toBe('open');
+    });
+
+
+    it('should clear results immediately for an empty query', () => {
+        addressApi.search.mockReturnValue(of({
+            items: [building], total: 1, limit: 20, offset: 0,
+        }));
         createComponent();
         component.searchQuery.set('Ленина 15');
         component.search();
+        expect(component.searchResults()).toEqual([building]);
+
+        component.onSearchQueryChange('   ');
+
+        expect(component.searchState()).toBe('idle');
+        expect(component.searchResults()).toEqual([]);
+        expect(component.searchTotal()).toBe(0);
+    });
+
+
+    it('should show loading, API error and retry the search', async () => {
+        const pending = new Subject<{
+            items: Building[];
+            total: number;
+            limit: number;
+            offset: number;
+        }>();
+        addressApi.search
+            .mockReturnValueOnce(pending)
+            .mockReturnValueOnce(of({ items: [building], total: 1, limit: 20, offset: 0 }));
+        createComponent();
+        enterValue(addressSearchInput(), 'Ленина 15');
+        component.search();
         fixture.detectChanges();
-        expect(addressApi.search).toHaveBeenCalledWith('Ленина 15');
-        expect(fixture.nativeElement.querySelector('[data-testid="address-search-empty"]')).not.toBeNull();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(component.searchState()).toBe('loading');
+        expect(document.body.textContent).toContain('Ищем адреса...');
+
+        pending.error(new Error('failed'));
+        fixture.detectChanges();
+        expect(component.searchState()).toBe('error');
+        expect(document.body.textContent).toContain('Не удалось выполнить поиск');
+
+        component.retrySearch();
+        expect(component.searchState()).toBe('ready');
+        expect(component.searchResults()).toEqual([building]);
+    });
+
+
+    it('should open an address selected from the autocomplete overlay', async () => {
+        addressApi.search.mockReturnValue(of({
+            items: [building], total: 1, limit: 20, offset: 0,
+        }));
+        addressApi.getObject.mockReturnValue(of(street));
+        createComponent();
+        enterValue(addressSearchInput(), 'Москва Ульянова 15');
+        component.search();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const result = document.body.querySelector<HTMLElement>(
+            `[data-testid="address-search-result-${building.id}"]`,
+        );
+        expect(result).not.toBeNull();
+        result?.click();
+
+        expect(addressApi.getObject).toHaveBeenCalledWith(street.id);
+    });
+
+
+    it('should append search pages without duplicate buildings', () => {
+        const secondBuilding: Building = {
+            ...building,
+            id: 21,
+            number: '17',
+            full_address: 'Москва, ул. Дмитрия Ульянова, д. 17',
+        };
+        const thirdBuilding: Building = {
+            ...building,
+            id: 22,
+            number: '19',
+            full_address: 'Москва, ул. Дмитрия Ульянова, д. 19',
+        };
+        addressApi.search.mockImplementation((query: string, limit: number, offset: number) => (
+            offset === 0
+                ? of({ items: [building, secondBuilding], total: 3, limit, offset })
+                : of({ items: [secondBuilding, thirdBuilding], total: 3, limit, offset })
+        ));
+        createComponent();
+        component.searchQuery.set('Москва Ульянова');
+        component.search();
+
+        expect(component.hasMoreSearchResults()).toBe(true);
+        component.loadMoreSearchResults();
+
+        expect(addressApi.search).toHaveBeenLastCalledWith('Москва Ульянова', 20, 2);
+        expect(component.searchResults().map(item => item.id)).toEqual([20, 21, 22]);
+        expect(component.hasMoreSearchResults()).toBe(false);
+    });
+
+
+    it('should reset pagination when the query changes', () => {
+        const otherBuilding: Building = {
+            ...building,
+            id: 21,
+            number: '53',
+            full_address: 'Раменское, ул. Гагарина, д. 53',
+        };
+        addressApi.search.mockImplementation((query: string, limit: number, offset: number) => of({
+            items: query === 'новый запрос' ? [otherBuilding] : [building],
+            total: query === 'новый запрос' ? 1 : 2,
+            limit,
+            offset,
+        }));
+        createComponent();
+        component.searchQuery.set('старый запрос');
+        component.search();
+        component.loadMoreSearchResults();
+
+        component.searchQuery.set('новый запрос');
+        component.search();
+
+        expect(addressApi.search).toHaveBeenLastCalledWith('новый запрос', 20, 0);
+        expect(component.searchResults()).toEqual([otherBuilding]);
+        expect(component.searchTotal()).toBe(1);
+    });
+
+
+    it('should ignore a late response from a previous search page', () => {
+        const latePage = new Subject<{
+            items: Building[];
+            total: number;
+            limit: number;
+            offset: number;
+        }>();
+        const otherBuilding: Building = {
+            ...building,
+            id: 21,
+            number: '53',
+            full_address: 'Раменское, ул. Гагарина, д. 53',
+        };
+        addressApi.search.mockImplementation((query: string, limit: number, offset: number) => {
+            if (query === 'старый' && offset > 0) {
+                return latePage;
+            }
+            return of({
+                items: query === 'новый' ? [otherBuilding] : [building],
+                total: query === 'старый' ? 2 : 1,
+                limit,
+                offset,
+            });
+        });
+        createComponent();
+        component.searchQuery.set('старый');
+        component.search();
+        component.loadMoreSearchResults();
+        component.searchQuery.set('новый');
+        component.search();
+
+        latePage.next({ items: [building], total: 2, limit: 20, offset: 1 });
+        latePage.complete();
+
+        expect(component.searchResults()).toEqual([otherBuilding]);
+        expect(component.searchTotal()).toBe(1);
+        expect(component.searchPageError()).toBe(false);
+    });
+
+
+    it('should invalidate an active search when the company changes', () => {
+        const pending = new Subject<{
+            items: Building[];
+            total: number;
+            limit: number;
+            offset: number;
+        }>();
+        addressApi.search.mockReturnValue(pending);
+        createComponent();
+        component.searchQuery.set('Ленина 15');
+        component.search();
+
+        activeCompanyId.set(2);
+        fixture.detectChanges();
+        pending.next({ items: [building], total: 1, limit: 20, offset: 0 });
+        pending.complete();
+
+        expect(component.searchResults()).toEqual([]);
+        expect(component.searchState()).toBe('idle');
+    });
+
+
+    it('should open a search result with the complete building list and reveal its path', () => {
+        const neighbour: Building = {
+            ...building,
+            id: 21,
+            number: '17',
+            full_address: 'Москва, ул. Дмитрия Ульянова, д. 17',
+        };
+        addressApi.getObject.mockReturnValue(of(street));
+        addressApi.listBuildings.mockReturnValue(of([building, neighbour]));
+        createComponent();
+
+        component.openSearchResult(building);
+
+        expect(addressApi.listBuildings).toHaveBeenCalledWith(street.id);
+        expect(component.buildings()).toEqual([building, neighbour]);
+        expect(component.selectedBuilding()).toEqual(building);
+        expect(component.entrances()).toEqual([entrance]);
+        expect(component.locations()).toEqual([location]);
+        expect(component.treeRows().map(row => row.node.id)).toContain(street.id);
     });
 
 
