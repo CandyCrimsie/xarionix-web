@@ -1,7 +1,6 @@
 import {
     ChangeDetectionStrategy,
     Component,
-    computed,
     input,
     output,
 } from '@angular/core';
@@ -50,11 +49,6 @@ export class AddressObjectDialogForm {
     readonly name = input.required<string>();
     readonly saving = input.required<boolean>();
     readonly error = input.required<string | null>();
-    readonly nameLabel = computed(() => {
-        const selected = this.types().find(type => type.id === this.typeId());
-        return selected ? `Название (${selected.name})` : 'Название';
-    });
-
     readonly typeToString = (typeId: number): string =>
         this.types().find(type => type.id === typeId)?.name ?? '';
 

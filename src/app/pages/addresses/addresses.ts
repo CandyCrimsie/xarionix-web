@@ -7,17 +7,28 @@ import {
     signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { forkJoin } from 'rxjs';
+import { forkJoin, Observable, of } from 'rxjs';
+
+import {
+    CdkDrag,
+    CdkDragDrop,
+    CdkDropList,
+    DragDropModule,
+} from '@angular/cdk/drag-drop';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
     lucideBuilding2,
+    lucideArrowLeft,
     lucideChevronDown,
     lucideChevronRight,
     lucideDoorOpen,
     lucideEllipsis,
+    lucideGripVertical,
     lucideLoaderCircle,
     lucideMapPin,
+    lucideMove,
     lucidePencil,
     lucidePlus,
     lucideRefreshCw,
@@ -47,6 +58,7 @@ import {
     addressObjectDisplayName,
     allowedChildCategories,
     filterAllowedAddressTypes,
+    ROOT_ADDRESS_TYPE_CATEGORIES,
 } from '../../core/addresses/address-hierarchy';
 import type { CoordinatePair } from '../../core/addresses/coordinate-input';
 import { CompanyContextService } from '../../core/company/company-context.service';
@@ -62,6 +74,10 @@ import {
     LocationDialogForm,
 } from './address-dialog-forms';
 import { AddressTypeManager } from './address-type-manager';
+import {
+    AddressMoveDialogForm,
+    type AddressMoveTarget,
+} from './address-move-dialog-form';
 
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -70,16 +86,42 @@ type SearchState = 'idle' | 'loading' | 'ready' | 'error';
 
 interface AddressTreeNode extends AddressObject {
     children: AddressTreeNode[];
+    buildings: Building[];
     expanded: boolean;
     loaded: boolean;
     loading: boolean;
+    loadError: boolean;
 }
 
 
-interface AddressTreeRow {
+interface AddressObjectTreeRow {
+    kind: 'address';
+    key: `address:${number}`;
     node: AddressTreeNode;
     depth: number;
 }
+
+
+interface BuildingTreeRow {
+    kind: 'building';
+    key: `building:${number}`;
+    building: Building;
+    parent: AddressTreeNode;
+    depth: number;
+}
+
+
+type AddressTreeRow = AddressObjectTreeRow | BuildingTreeRow;
+
+
+type TreeDragData =
+    | { kind: 'address'; node: AddressTreeNode }
+    | { kind: 'building'; building: Building; parent: AddressTreeNode };
+
+
+type TreeDropTarget =
+    | { kind: 'address'; node: AddressTreeNode }
+    | { kind: 'building'; parent: AddressTreeNode };
 
 
 const SEARCH_PAGE_SIZE = 20;
@@ -90,6 +132,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     selector: 'app-addresses',
     imports: [
         NgIcon,
+        DragDropModule,
         HlmAlertDialogImports,
         HlmAutocompleteImports,
         HlmBadgeImports,
@@ -102,16 +145,20 @@ const SEARCH_DEBOUNCE_MS = 300;
         EntranceDialogForm,
         LocationDialogForm,
         AddressTypeManager,
+        AddressMoveDialogForm,
     ],
     providers: [
         provideIcons({
+            lucideArrowLeft,
             lucideBuilding2,
             lucideChevronDown,
             lucideChevronRight,
             lucideDoorOpen,
             lucideEllipsis,
+            lucideGripVertical,
             lucideLoaderCircle,
             lucideMapPin,
+            lucideMove,
             lucidePencil,
             lucidePlus,
             lucideRefreshCw,
@@ -204,6 +251,12 @@ export class Addresses {
     readonly locationSaving = signal(false);
     readonly locationError = signal<string | null>(null);
 
+    readonly movingObject = signal<AddressObject | null>(null);
+    readonly movingBuilding = signal<Building | null>(null);
+    readonly moveTargetId = signal<number | null>(null);
+    readonly moveSaving = signal(false);
+    readonly moveError = signal<string | null>(null);
+
     readonly reloadVersion = signal(0);
 
     private contextGeneration = 0;
@@ -220,15 +273,93 @@ export class Addresses {
         const rows: AddressTreeRow[] = [];
         const append = (nodes: AddressTreeNode[], depth: number): void => {
             for (const node of nodes) {
-                rows.push({ node, depth });
+                rows.push({
+                    kind: 'address',
+                    key: `address:${node.id}`,
+                    node,
+                    depth,
+                });
                 if (node.expanded) {
                     append(node.children, depth + 1);
+                    for (const building of node.buildings) {
+                        rows.push({
+                            kind: 'building',
+                            key: `building:${building.id}`,
+                            building,
+                            parent: node,
+                            depth: depth + 1,
+                        });
+                    }
                 }
             }
         };
         append(this.roots(), 0);
         return rows;
     });
+
+    readonly knownMoveTargets = computed<AddressMoveTarget[]>(() => {
+        const targets: AddressMoveTarget[] = [];
+        const append = (nodes: AddressTreeNode[], depth: number): void => {
+            for (const node of nodes) {
+                targets.push({
+                    id: node.id,
+                    label: this.objectDisplayName(node),
+                    depth,
+                });
+                append(node.children, depth + 1);
+            }
+        };
+        append(this.roots(), 0);
+        return targets;
+    });
+
+    readonly availableMoveTargets = computed<AddressMoveTarget[]>(() => {
+        const movingObject = this.movingObject();
+        const movingBuilding = this.movingBuilding();
+        const candidates = this.knownMoveTargets();
+        if (movingObject) {
+            const allowRoot = ROOT_ADDRESS_TYPE_CATEGORIES.includes(
+                movingObject.type_category,
+            );
+            const targets = candidates.filter(target => {
+                if (target.id === null) {
+                    return allowRoot;
+                }
+                const node = this.findTreeNode(target.id);
+                return node !== null && this.canMoveAddressTo(movingObject, node);
+            });
+            return allowRoot && movingObject.parent_id !== null
+                ? [{ id: null, label: 'Корневой уровень', depth: 0 }, ...targets]
+                : targets;
+        }
+        if (movingBuilding) {
+            return candidates.filter(target => {
+                const node = target.id === null ? null : this.findTreeNode(target.id);
+                return node !== null
+                    && node.id !== movingBuilding.address_object_id
+                    && addressObjectAllowsBuildings(node);
+            });
+        }
+        return [];
+    });
+    readonly moveDialogTitle = computed(() => (
+        this.movingBuilding() ? 'Переместить здание' : 'Переместить адресный объект'
+    ));
+    readonly moveDialogDescription = computed(() => {
+        const building = this.movingBuilding();
+        if (building) {
+            return `Дом ${building.number} сохранит подъезды и места размещения.`;
+        }
+        const addressObject = this.movingObject();
+        return addressObject
+            ? `${this.objectDisplayName(addressObject)} сохранит ID и всю дочернюю структуру.`
+            : '';
+    });
+
+    readonly treeDropPredicate = (
+        drag: CdkDrag<TreeDragData>,
+        drop: CdkDropList<TreeDropTarget>,
+    ): boolean => this.canDropTreeItem(drag.data, drop.data);
 
     readonly availableObjectTypes = computed(() => {
         const parent = this.objectParent();
@@ -320,12 +451,52 @@ export class Addresses {
     }
 
 
-    toggleNode(node: AddressTreeNode): void {
-        if (node.expanded) {
-            this.updateTreeNode(node.id, current => ({ ...current, expanded: false }));
+    treeDragData(row: AddressTreeRow): TreeDragData {
+        return row.kind === 'address'
+            ? { kind: 'address', node: row.node }
+            : { kind: 'building', building: row.building, parent: row.parent };
+    }
+
+
+    treeDropTarget(row: AddressTreeRow): TreeDropTarget {
+        return row.kind === 'address'
+            ? { kind: 'address', node: row.node }
+            : { kind: 'building', parent: row.parent };
+    }
+
+
+    canDropTreeItem(data: TreeDragData, target: TreeDropTarget): boolean {
+        if (!this.canManageAddresses() || target.kind !== 'address') {
+            return false;
+        }
+        return data.kind === 'address'
+            ? this.canMoveAddressTo(data.node, target.node)
+            : data.building.address_object_id !== target.node.id
+                && addressObjectAllowsBuildings(target.node);
+    }
+
+
+    handleTreeDrop(event: CdkDragDrop<TreeDropTarget>): void {
+        const data = event.item.data as TreeDragData;
+        const target = event.container.data;
+        if (!this.canDropTreeItem(data, target) || target.kind !== 'address') {
+            this.restoreTreeRender();
             return;
         }
+        if (data.kind === 'address') {
+            this.moveAddressObject(data.node, target.node.id);
+        } else {
+            this.moveBuilding(data.building, target.node.id);
+        }
+    }
+
+
+    toggleNode(node: AddressTreeNode): void {
         if (node.loading) {
+            return;
+        }
+        if (node.expanded) {
+            this.updateTreeNode(node.id, current => ({ ...current, expanded: false }));
             return;
         }
         if (node.loaded) {
@@ -333,35 +504,84 @@ export class Addresses {
             return;
         }
 
+        this.loadTreeNode(node.id);
+    }
+
+
+    activateAddressNode(node: AddressTreeNode): void {
+        const collapse = this.selectedObject()?.id === node.id && node.expanded;
+        this.selectObjectFromTree(node);
+        if (collapse) {
+            this.updateTreeNode(node.id, current => ({ ...current, expanded: false }));
+        } else if (!node.expanded) {
+            this.toggleNode(node);
+        }
+    }
+
+
+    retryTreeNode(node: AddressTreeNode, event: Event): void {
+        event.stopPropagation();
+        this.loadTreeNode(node.id, true);
+    }
+
+
+    private loadTreeNode(nodeId: number, force = false): void {
+        const node = this.findTreeNode(nodeId);
+        if (!node || (!force && (node.loading || node.loaded))) {
+            return;
+        }
+
         const contextGeneration = this.contextGeneration;
-        const requestGeneration = (this.childRequestGenerations.get(node.id) ?? 0) + 1;
-        this.childRequestGenerations.set(node.id, requestGeneration);
-        this.updateTreeNode(node.id, current => ({ ...current, loading: true }));
-        this.addressApi.listObjects(node.id).subscribe({
-            next: children => {
+        const requestGeneration = (this.childRequestGenerations.get(nodeId) ?? 0) + 1;
+        this.childRequestGenerations.set(nodeId, requestGeneration);
+        this.updateTreeNode(nodeId, current => ({
+            ...current,
+            expanded: true,
+            loading: true,
+            loadError: false,
+        }));
+        forkJoin({
+            children: this.addressApi.listObjects(nodeId),
+            buildings: addressObjectAllowsBuildings(node)
+                ? this.addressApi.listBuildings(nodeId)
+                : of([] as Building[]),
+        }).subscribe({
+            next: result => {
                 if (
                     contextGeneration !== this.contextGeneration
-                    || this.childRequestGenerations.get(node.id) !== requestGeneration
+                    || this.childRequestGenerations.get(nodeId) !== requestGeneration
                 ) {
                     return;
                 }
-                this.updateTreeNode(node.id, current => ({
+                this.updateTreeNode(nodeId, current => ({
                     ...current,
-                    children: children.map(item => this.toTreeNode(item)),
+                    children: this.mergeTreeChildren(current.children, result.children),
+                    buildings: result.buildings,
                     expanded: true,
                     loaded: true,
                     loading: false,
+                    loadError: false,
                 }));
+                if (this.selectedObject()?.id === nodeId && !this.selectedBuilding()) {
+                    this.buildings.set(result.buildings);
+                    this.buildingsState.set('ready');
+                }
             },
             error: () => {
                 if (
                     contextGeneration !== this.contextGeneration
-                    || this.childRequestGenerations.get(node.id) !== requestGeneration
+                    || this.childRequestGenerations.get(nodeId) !== requestGeneration
                 ) {
                     return;
                 }
-                this.updateTreeNode(node.id, current => ({ ...current, loading: false }));
-                this.actionError.set('Не удалось загрузить дочерние адресные объекты');
+                this.updateTreeNode(nodeId, current => ({
+                    ...current,
+                    loading: false,
+                    loadError: true,
+                }));
+                if (this.selectedObject()?.id === nodeId) {
+                    this.buildingsState.set('error');
+                }
             },
         });
     }
@@ -375,6 +595,23 @@ export class Addresses {
         this.locations.set([]);
         this.actionError.set(null);
         this.loadBuildings(addressObject.id);
+    }
+
+
+    selectTreeBuilding(building: Building, parent: AddressObject): void {
+        this.selectedObject.set(parent);
+        this.buildings.set(this.findTreeNode(parent.id)?.buildings ?? []);
+        this.buildingsState.set('ready');
+        this.selectBuilding(building);
+    }
+
+
+    backToAddressObject(): void {
+        this.buildingDetailsRequestGeneration += 1;
+        this.selectedBuilding.set(null);
+        this.entrances.set([]);
+        this.locations.set([]);
+        this.detailsState.set('idle');
     }
 
 
@@ -641,15 +878,174 @@ export class Addresses {
     }
 
 
+    openMoveObjectDialog(addressObject: AddressObject, dialog: BrnDialog): void {
+        this.movingBuilding.set(null);
+        this.movingObject.set(addressObject);
+        this.moveError.set(null);
+        const firstTarget = this.availableMoveTargets()[0];
+        this.moveTargetId.set(firstTarget?.id ?? null);
+        dialog.open();
+    }
+
+
+    openMoveBuildingDialog(building: Building, dialog: BrnDialog): void {
+        this.movingObject.set(null);
+        this.movingBuilding.set(building);
+        this.moveError.set(null);
+        const firstTarget = this.availableMoveTargets()[0];
+        this.moveTargetId.set(firstTarget?.id ?? null);
+        dialog.open();
+    }
+
+
+    saveMove(dialog: BrnDialog): void {
+        if (this.moveSaving()) {
+            return;
+        }
+        const targetId = this.moveTargetId();
+        if (!this.availableMoveTargets().some(target => target.id === targetId)) {
+            this.moveError.set('Выберите допустимое новое расположение');
+            return;
+        }
+        const addressObject = this.movingObject();
+        const building = this.movingBuilding();
+        if (!addressObject && !building) {
+            this.moveError.set('Объект для перемещения больше недоступен');
+            return;
+        }
+        this.moveSaving.set(true);
+        this.moveError.set(null);
+        const contextGeneration = this.contextGeneration;
+        const request: Observable<AddressObject | Building> = addressObject
+            ? this.addressApi.updateObject(addressObject.id, { parent_id: targetId })
+            : this.addressApi.updateBuilding(building!.id, {
+                address_object_id: targetId!,
+            });
+        request.subscribe({
+            next: saved => {
+                if (contextGeneration !== this.contextGeneration) {
+                    return;
+                }
+                this.moveSaving.set(false);
+                dialog.close({});
+                if (addressObject) {
+                    this.applyAddressMove(
+                        saved as AddressObject,
+                        targetId,
+                        addressObject.parent_id,
+                    );
+                } else {
+                    this.applyBuildingMove(
+                        saved as Building,
+                        targetId!,
+                        building!.address_object_id,
+                    );
+                }
+                this.movingObject.set(null);
+                this.movingBuilding.set(null);
+            },
+            error: error => {
+                if (contextGeneration !== this.contextGeneration) {
+                    return;
+                }
+                this.moveSaving.set(false);
+                const message = this.apiError(error, 'Не удалось переместить объект');
+                this.moveError.set(message);
+                toast.error('Перемещение не выполнено', { description: message });
+                this.restoreTreeRender();
+            },
+        });
+    }
+
+
+    moveAddressObject(addressObject: AddressObject, targetId: number | null): void {
+        if (this.moveSaving()) {
+            return;
+        }
+        const target = targetId === null ? null : this.findTreeNode(targetId);
+        if (
+            (target === null && !ROOT_ADDRESS_TYPE_CATEGORIES.includes(addressObject.type_category))
+            || (target !== null && !this.canMoveAddressTo(addressObject, target))
+        ) {
+            this.actionError.set('Недопустимое расположение адресного объекта');
+            this.restoreTreeRender();
+            return;
+        }
+        this.moveSaving.set(true);
+        this.actionError.set(null);
+        const contextGeneration = this.contextGeneration;
+        this.addressApi.updateObject(addressObject.id, { parent_id: targetId }).subscribe({
+            next: saved => {
+                if (contextGeneration !== this.contextGeneration) {
+                    return;
+                }
+                this.moveSaving.set(false);
+                this.applyAddressMove(saved, targetId, addressObject.parent_id);
+            },
+            error: error => {
+                if (contextGeneration !== this.contextGeneration) {
+                    return;
+                }
+                this.moveSaving.set(false);
+                const message = this.apiError(error, 'Не удалось переместить адресный объект');
+                this.actionError.set(message);
+                toast.error('Адресный объект не перемещён', { description: message });
+                this.restoreTreeRender();
+            },
+        });
+    }
+
+
+    moveBuilding(building: Building, targetId: number): void {
+        const target = this.findTreeNode(targetId);
+        if (
+            this.moveSaving()
+            || target === null
+            || building.address_object_id === targetId
+            || !addressObjectAllowsBuildings(target)
+        ) {
+            this.restoreTreeRender();
+            return;
+        }
+        this.moveSaving.set(true);
+        this.actionError.set(null);
+        const contextGeneration = this.contextGeneration;
+        this.addressApi.updateBuilding(building.id, {
+            address_object_id: targetId,
+        }).subscribe({
+            next: saved => {
+                if (contextGeneration !== this.contextGeneration) {
+                    return;
+                }
+                this.moveSaving.set(false);
+                this.applyBuildingMove(saved, targetId, building.address_object_id);
+            },
+            error: error => {
+                if (contextGeneration !== this.contextGeneration) {
+                    return;
+                }
+                this.moveSaving.set(false);
+                const message = this.apiError(error, 'Не удалось переместить здание');
+                this.actionError.set(message);
+                toast.error('Здание не перемещено', { description: message });
+                this.restoreTreeRender();
+            },
+        });
+    }
+
+
     selectObjectAction(
         action: string | null | undefined,
         addressObject: AddressObject,
         editDialog: BrnDialog,
+        moveDialog: BrnDialog,
         deleteDialog: BrnDialog,
     ): void {
         this.objectActionSelection.set(action ?? null);
         if (action === 'edit') {
             this.openEditObjectDialog(addressObject, editDialog);
+        } else if (action === 'move') {
+            this.openMoveObjectDialog(addressObject, moveDialog);
         } else if (action === 'delete') {
             this.openDeleteObjectDialog(deleteDialog);
         }
@@ -685,9 +1081,17 @@ export class Addresses {
             next: saved => {
                 this.objectSaving.set(false);
                 dialog.close({});
-                this.retry();
                 if (editing) {
                     this.selectedObject.set(saved);
+                    this.replaceTreeAddress(saved);
+                    toast.success('Адресный объект изменён', {
+                        description: this.objectDisplayName(saved),
+                    });
+                } else {
+                    this.addAddressToTree(saved);
+                    toast.success('Адресный объект создан', {
+                        description: `${saved.type_name} ${saved.name} добавлен`,
+                    });
                 }
             },
             error: error => {
@@ -704,10 +1108,30 @@ export class Addresses {
             return;
         }
         this.addressApi.deleteObject(selected.id).subscribe({
-            next: () => this.retry(),
-            error: error => this.actionError.set(
-                this.apiError(error, 'Не удалось удалить адресный объект'),
-            ),
+            next: () => {
+                const parent = selected.parent_id === null
+                    ? null
+                    : this.findTreeNode(selected.parent_id);
+                this.removeAddressFromTree(selected.id);
+                if (parent) {
+                    this.selectObjectFromTree(
+                        this.findTreeNode(parent.id) ?? parent,
+                    );
+                } else {
+                    this.selectedObject.set(null);
+                    this.buildings.set([]);
+                    this.buildingsState.set('idle');
+                    this.backToAddressObject();
+                }
+                toast.success('Адресный объект удалён', {
+                    description: this.objectDisplayName(selected),
+                });
+            },
+            error: error => {
+                const message = this.apiError(error, 'Не удалось удалить адресный объект');
+                this.actionError.set(message);
+                toast.error('Адресный объект не удалён', { description: message });
+            },
         });
     }
 
@@ -767,6 +1191,9 @@ export class Addresses {
                 dialog.close({});
                 this.selectedObject.set(addressObject);
                 this.loadBuildings(addressObject.id, saved.id);
+                toast.success(editing ? 'Здание изменено' : 'Здание добавлено', {
+                    description: `Дом ${saved.number} сохранён`,
+                });
             },
             error: error => {
                 this.buildingSaving.set(false);
@@ -783,10 +1210,18 @@ export class Addresses {
             return;
         }
         this.addressApi.deleteBuilding(building.id).subscribe({
-            next: () => this.loadBuildings(addressObject.id),
-            error: error => this.actionError.set(
-                this.apiError(error, 'Не удалось удалить здание'),
-            ),
+            next: () => {
+                this.backToAddressObject();
+                this.loadBuildings(addressObject.id);
+                toast.success('Здание удалено', {
+                    description: `Дом ${building.number}`,
+                });
+            },
+            error: error => {
+                const message = this.apiError(error, 'Не удалось удалить здание');
+                this.actionError.set(message);
+                toast.error('Здание не удалено', { description: message });
+            },
         });
     }
 
@@ -822,10 +1257,13 @@ export class Addresses {
             ? this.addressApi.updateEntrance(editing.id, number)
             : this.addressApi.createEntrance(building.id, number);
         request.subscribe({
-            next: () => {
+            next: saved => {
                 this.entranceSaving.set(false);
                 dialog.close({});
                 this.selectBuilding(building);
+                toast.success(editing ? 'Подъезд изменён' : 'Подъезд добавлен', {
+                    description: `Подъезд ${saved.number}`,
+                });
             },
             error: error => {
                 this.entranceSaving.set(false);
@@ -841,10 +1279,17 @@ export class Addresses {
             return;
         }
         this.addressApi.deleteEntrance(entrance.id).subscribe({
-            next: () => this.selectBuilding(building),
-            error: error => this.actionError.set(
-                this.apiError(error, 'Не удалось удалить подъезд'),
-            ),
+            next: () => {
+                this.selectBuilding(building);
+                toast.success('Подъезд удалён', {
+                    description: `Подъезд ${entrance.number}`,
+                });
+            },
+            error: error => {
+                const message = this.apiError(error, 'Не удалось удалить подъезд');
+                this.actionError.set(message);
+                toast.error('Подъезд не удалён', { description: message });
+            },
         });
     }
 
@@ -893,10 +1338,13 @@ export class Addresses {
             ? this.addressApi.updateLocation(editing.id, data)
             : this.addressApi.createLocation(data);
         request.subscribe({
-            next: () => {
+            next: saved => {
                 this.locationSaving.set(false);
                 dialog.close({});
                 this.selectBuilding(building);
+                toast.success(editing ? 'Место размещения изменено' : 'Место размещения добавлено', {
+                    description: saved.name,
+                });
             },
             error: error => {
                 this.locationSaving.set(false);
@@ -936,10 +1384,17 @@ export class Addresses {
             return;
         }
         this.addressApi.deleteLocation(location.id).subscribe({
-            next: () => this.selectBuilding(building),
-            error: error => this.actionError.set(
-                this.apiError(error, 'Не удалось удалить помещение'),
-            ),
+            next: () => {
+                this.selectBuilding(building);
+                toast.success('Место размещения удалено', {
+                    description: location.name,
+                });
+            },
+            error: error => {
+                const message = this.apiError(error, 'Не удалось удалить место размещения');
+                this.actionError.set(message);
+                toast.error('Место размещения не удалено', { description: message });
+            },
         });
     }
 
@@ -978,6 +1433,10 @@ export class Addresses {
                 }
                 this.buildings.set(buildings);
                 this.buildingsState.set('ready');
+                this.updateTreeNode(addressObjectId, current => ({
+                    ...current,
+                    buildings,
+                }));
                 const selected = selectId === undefined
                     ? null
                     : buildings.find(item => item.id === selectId) ?? null;
@@ -1028,6 +1487,10 @@ export class Addresses {
         this.selectedSearchResult.set(null);
         this.searchOverlayState.set('closed');
         this.actionError.set(null);
+        this.movingObject.set(null);
+        this.movingBuilding.set(null);
+        this.moveError.set(null);
+        this.moveSaving.set(false);
     }
 
 
@@ -1035,9 +1498,11 @@ export class Addresses {
         return {
             ...item,
             children: [],
+            buildings: [],
             expanded: false,
             loaded: false,
             loading: false,
+            loadError: false,
         };
     }
 
@@ -1065,6 +1530,196 @@ export class Addresses {
             stack.push(...node.children);
         }
         return null;
+    }
+
+
+    private selectObjectFromTree(node: AddressTreeNode): void {
+        this.searchResultRequestGeneration += 1;
+        this.buildingDetailsRequestGeneration += 1;
+        this.selectedObject.set(node);
+        this.selectedBuilding.set(null);
+        this.entrances.set([]);
+        this.locations.set([]);
+        this.actionError.set(null);
+        this.buildings.set(node.buildings);
+        this.buildingsState.set(node.loaded ? 'ready' : 'loading');
+    }
+
+
+    private mergeTreeChildren(
+        existing: AddressTreeNode[],
+        incoming: AddressObject[],
+    ): AddressTreeNode[] {
+        return incoming.map(item => {
+            const current = existing.find(node => node.id === item.id);
+            return current
+                ? { ...current, ...item }
+                : this.toTreeNode(item);
+        });
+    }
+
+
+    private replaceTreeAddress(addressObject: AddressObject): void {
+        this.updateTreeNode(addressObject.id, current => ({
+            ...current,
+            ...addressObject,
+        }));
+    }
+
+
+    private addAddressToTree(addressObject: AddressObject): void {
+        const added = this.toTreeNode(addressObject);
+        if (addressObject.parent_id === null) {
+            this.roots.update(nodes => [...nodes, added]);
+            return;
+        }
+        this.updateTreeNode(addressObject.parent_id, parent => ({
+            ...parent,
+            children: [...parent.children, added],
+            expanded: true,
+        }));
+    }
+
+
+    private removeAddressFromTree(addressObjectId: number): void {
+        const remove = (nodes: AddressTreeNode[]): AddressTreeNode[] => nodes
+            .filter(node => node.id !== addressObjectId)
+            .map(node => ({ ...node, children: remove(node.children) }));
+        this.roots.update(remove);
+    }
+
+
+    private canMoveAddressTo(
+        moving: AddressObject,
+        target: AddressTreeNode,
+    ): boolean {
+        if (
+            moving.id === target.id
+            || moving.parent_id === target.id
+            || !allowedChildCategories(target).includes(moving.type_category)
+        ) {
+            return false;
+        }
+        let current: AddressTreeNode | null = target;
+        while (current) {
+            if (current.id === moving.id) {
+                return false;
+            }
+            current = current.parent_id === null
+                ? null
+                : this.findTreeNode(current.parent_id);
+        }
+        return true;
+    }
+
+
+    private applyAddressMove(
+        saved: AddressObject,
+        targetId: number | null,
+        sourceId: number | null,
+    ): void {
+        let detached: AddressTreeNode | null = null;
+        const detach = (nodes: AddressTreeNode[]): AddressTreeNode[] => nodes
+            .filter(node => {
+                if (node.id === saved.id) {
+                    detached = node;
+                    return false;
+                }
+                return true;
+            })
+            .map(node => ({ ...node, children: detach(node.children) }));
+        this.roots.update(detach);
+
+        const detachedNode = detached as AddressTreeNode | null;
+        const moved: AddressTreeNode = detachedNode
+            ? { ...detachedNode, ...saved }
+            : this.toTreeNode(saved);
+        if (targetId === null) {
+            this.roots.update(nodes => [...nodes, moved]);
+        } else {
+            this.updateTreeNode(targetId, target => ({
+                ...target,
+                children: [
+                    ...target.children.filter(child => child.id !== moved.id),
+                    moved,
+                ],
+                expanded: true,
+            }));
+            this.loadTreeNode(targetId, true);
+        }
+        if (sourceId !== null && sourceId !== targetId && this.findTreeNode(sourceId)) {
+            this.loadTreeNode(sourceId, true);
+        }
+        if (this.selectedObject()?.id === saved.id) {
+            this.selectedObject.set(saved);
+        }
+        const selectedBuilding = this.selectedBuilding();
+        if (selectedBuilding) {
+            const contextGeneration = this.contextGeneration;
+            this.addressApi.getBuilding(selectedBuilding.id).subscribe({
+                next: refreshed => {
+                    if (
+                        contextGeneration === this.contextGeneration
+                        && this.selectedBuilding()?.id === refreshed.id
+                    ) {
+                        this.selectedBuilding.set(refreshed);
+                    }
+                },
+            });
+        }
+        toast.success('Адресный объект перемещён', {
+            description: targetId === null
+                ? `${this.objectDisplayName(saved)} перенесён на корневой уровень`
+                : `${this.objectDisplayName(saved)} перенесён в ${this.objectDisplayName(this.findTreeNode(targetId)!)}`,
+        });
+    }
+
+
+    private applyBuildingMove(
+        saved: Building,
+        targetId: number,
+        sourceId: number,
+    ): void {
+        const updateBuildings = (nodes: AddressTreeNode[]): AddressTreeNode[] => nodes.map(
+            node => ({
+                ...node,
+                buildings: node.id === targetId
+                    ? [
+                        ...node.buildings.filter(item => item.id !== saved.id),
+                        saved,
+                    ]
+                    : node.buildings.filter(item => item.id !== saved.id),
+                children: updateBuildings(node.children),
+                expanded: node.id === targetId ? true : node.expanded,
+            }),
+        );
+        this.roots.update(updateBuildings);
+        if (this.selectedBuilding()?.id === saved.id) {
+            const target = this.findTreeNode(targetId);
+            if (target) {
+                this.selectedObject.set(target);
+                this.buildings.set(target.buildings);
+                this.buildingsState.set('ready');
+            }
+            this.selectBuilding(saved);
+        } else if (
+            this.selectedObject()?.id === sourceId
+            || this.selectedObject()?.id === targetId
+        ) {
+            this.buildings.set(this.findTreeNode(this.selectedObject()!.id)?.buildings ?? []);
+        }
+        this.loadTreeNode(targetId, true);
+        if (sourceId !== targetId && this.findTreeNode(sourceId)) {
+            this.loadTreeNode(sourceId, true);
+        }
+        toast.success('Здание перемещено', {
+            description: `Дом ${saved.number}: ${saved.full_address}`,
+        });
+    }
+
+
+    private restoreTreeRender(): void {
+        this.roots.update(nodes => [...nodes]);
     }
 
 

@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import { AddressApiService } from '../../core/addresses/address-api.service';
 import type {
@@ -198,8 +199,13 @@ describe('Addresses', () => {
             streetType,
         ]));
         addressApi.listObjects.mockImplementation((parentId?: number) => of(
-            parentId === city.id ? [district, territory, street] : [city],
+            parentId === undefined || parentId === null
+                ? [city]
+                : parentId === city.id
+                    ? [district, territory, street]
+                    : [],
         ));
+        addressApi.getBuilding.mockReturnValue(of(building));
         addressApi.listBuildings.mockReturnValue(of([building]));
         addressApi.listEntrances.mockReturnValue(of([entrance]));
         addressApi.listLocations.mockReturnValue(of([location]));
@@ -272,7 +278,7 @@ describe('Addresses', () => {
     function submitForm(dialog: HTMLElement, testId: string): void {
         const form = dialog.querySelector<HTMLFormElement>(`[data-testid="${testId}"]`);
         expect(form).not.toBeNull();
-        form?.requestSubmit();
+        form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         fixture.detectChanges();
     }
 
@@ -312,6 +318,7 @@ describe('Addresses', () => {
     afterEach(() => {
         fixture?.destroy();
         vi.useRealTimers();
+        vi.restoreAllMocks();
     });
 
 
@@ -397,7 +404,8 @@ describe('Addresses', () => {
         districtOption?.click();
         fixture.detectChanges();
         expect(addressApi.createObject).not.toHaveBeenCalled();
-        expect(dialog.textContent).toContain('Название (Район)');
+        expect(dialog.textContent).toContain('Название');
+        expect(dialog.textContent).not.toContain('Название (Район)');
         const name = dialog.querySelector<HTMLInputElement>('[data-testid="address-object-name"]');
         enterValue(name as HTMLInputElement, 'Центральный');
         submitForm(dialog, 'address-object-form');
@@ -611,6 +619,7 @@ describe('Addresses', () => {
 
 
     it('should create a custom address type and keep system types protected in the UI', async () => {
+        const successToast = vi.spyOn(toast, 'success');
         const customType: AddressType = {
             ...sntType,
             id: 99,
@@ -623,7 +632,7 @@ describe('Addresses', () => {
         createComponent();
 
         const dialog = await openDialog('manage-address-types-action');
-        expect(dialog.textContent).toContain('Изменения пользовательских типов видны всем компаниям');
+        expect(dialog.textContent).toContain('Настройка способов обозначения адресов');
         expect(dialog.querySelector(`[data-testid="edit-address-type-${cityType.id}"]`)).toBeNull();
         expect(dialog.querySelector(`[data-testid="delete-address-type-${cityType.id}"]`)).toBeNull();
 
@@ -639,8 +648,7 @@ describe('Addresses', () => {
         );
         await fixture.whenStable();
         fixture.detectChanges();
-        (dialog.querySelector('[data-testid="address-type-submit"]') as HTMLElement).click();
-        fixture.detectChanges();
+        submitForm(dialog, 'address-type-form');
 
         expect(dialog.querySelector('[data-testid="address-type-error"]')?.textContent ?? '')
             .toBe('');
@@ -648,9 +656,13 @@ describe('Addresses', () => {
             name: 'Гаражный кооператив',
             short_name: 'тер. ГСК',
             category: 'territory',
-            sort_order: 75,
+            sort_order: 74,
         });
         expect(component.types()).toContainEqual(customType);
+        expect(successToast).toHaveBeenCalledWith(
+            'Тип адресного объекта создан',
+            { description: customType.name },
+        );
     });
 
 
@@ -1320,7 +1332,12 @@ describe('Addresses', () => {
         expect(component.selectedBuilding()).toEqual(building);
         expect(component.entrances()).toEqual([entrance]);
         expect(component.locations()).toEqual([location]);
-        expect(component.treeRows().map(row => row.node.id)).toContain(street.id);
+        expect(component.treeRows()
+            .filter(row => row.kind === 'address')
+            .map(row => row.node.id)).toContain(street.id);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-details"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-list"]')).toBeNull();
     });
 
 
@@ -1333,6 +1350,8 @@ describe('Addresses', () => {
         expect(fixture.nativeElement.querySelector('[data-testid="manage-address-types-action"]')).toBeNull();
         expect(fixture.nativeElement.querySelector(`[data-testid="row-add-object-${city.id}"]`)).toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="create-building-action"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector(`[data-testid="drag-address-${city.id}"]`)).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="address-object-actions"]')).toBeNull();
     });
 
 
@@ -1362,5 +1381,398 @@ describe('Addresses', () => {
         component.saveBuilding({ close: vi.fn() } as never);
         expect(component.buildingError()).toBe('Такая запись уже существует');
         expect(addressApi.createBuilding).toHaveBeenCalledTimes(1);
+    });
+
+
+    it('should switch the type manager between grouped list, info and create modes', async () => {
+        createComponent();
+        await openDialog('manage-address-types-action');
+        let dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+
+        expect(dialog.querySelector('[data-testid="address-type-group-locality"]')).not.toBeNull();
+        expect(dialog.querySelector('[data-testid="address-type-group-territory"]')).not.toBeNull();
+        expect(dialog.textContent).not.toContain('Порядок');
+        expect(dialog.textContent).not.toContain(cityType.code);
+
+        dialog.querySelector<HTMLElement>('[data-testid="address-type-info-action"]')?.click();
+        fixture.detectChanges();
+        dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+        expect(dialog.querySelector('[data-testid="address-type-info"]')).not.toBeNull();
+        expect(dialog.textContent).toContain('г. Раменское');
+        expect(dialog.textContent).toContain('влияют на все компании');
+
+        dialog.querySelector<HTMLElement>('[data-testid="address-type-info-back"]')?.click();
+        fixture.detectChanges();
+        dialog.querySelector<HTMLElement>('[data-testid="create-address-type-action"]')?.click();
+        fixture.detectChanges();
+        dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+        expect(dialog.querySelector('[data-testid="address-type-list"]')).toBeNull();
+        expect(dialog.querySelector('[data-testid="address-type-form"]')).not.toBeNull();
+        expect(dialog.textContent).not.toContain('Порядок');
+
+        enterValue(
+            dialog.querySelector<HTMLInputElement>('[data-testid="address-type-short-name"]')!,
+            'тер. ГСК',
+        );
+        expect(dialog.querySelector('[data-testid="address-type-preview"]')?.textContent)
+            .toContain('тер. ГСК Берёзка');
+    });
+
+
+    it('should open a custom address type in a dedicated edit mode', async () => {
+        const customType: AddressType = {
+            ...sntType,
+            id: 99,
+            code: 'custom_territory_garazhnyi_kooperativ',
+            name: 'Гаражный кооператив',
+            short_name: 'тер. ГСК',
+            is_system: false,
+        };
+        addressApi.listTypes.mockReturnValue(of([
+            cityType,
+            districtType,
+            sntType,
+            customType,
+            streetType,
+        ]));
+        createComponent();
+        await openDialog('manage-address-types-action');
+        let dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+
+        dialog.querySelector<HTMLElement>(
+            `[data-testid="edit-address-type-${customType.id}"]`,
+        )?.click();
+        fixture.detectChanges();
+        dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+
+        expect(dialog.textContent).toContain('Изменить тип');
+        expect(dialog.querySelector<HTMLInputElement>('[data-testid="address-type-name"]')?.value)
+            .toBe(customType.name);
+        expect(dialog.querySelector<HTMLInputElement>('[data-testid="address-type-short-name"]')?.value)
+            .toBe(customType.short_name);
+        expect(dialog.querySelector('[data-testid="address-type-list"]')).toBeNull();
+    });
+
+
+    it('should select and expand a tree row while loading its buildings only once', () => {
+        createComponent();
+        (fixture.nativeElement.querySelector(
+            `[data-testid="address-object-${city.id}"]`,
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector(
+            `[data-testid="address-object-${street.id}"]`,
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+
+        expect(component.selectedObject()?.id).toBe(street.id);
+        expect(addressApi.listBuildings).toHaveBeenCalledTimes(1);
+        expect(fixture.nativeElement.querySelector(`[data-testid="tree-building-${building.id}"]`))
+            .not.toBeNull();
+
+        (fixture.nativeElement.querySelector(
+            `[data-testid="address-object-${street.id}"]`,
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector(`[data-testid="tree-building-${building.id}"]`))
+            .toBeNull();
+
+        (fixture.nativeElement.querySelector(
+            `[data-testid="address-object-${street.id}"]`,
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+        expect(addressApi.listBuildings).toHaveBeenCalledTimes(1);
+        expect(fixture.nativeElement.querySelector(`[data-testid="tree-building-${building.id}"]`))
+            .not.toBeNull();
+    });
+
+
+    it('should replace the right panel with building details and return without collapsing the tree', () => {
+        createComponent();
+        (fixture.nativeElement.querySelector(
+            `[data-testid="address-object-${city.id}"]`,
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+        (fixture.nativeElement.querySelector(
+            `[data-testid="address-object-${street.id}"]`,
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+        (fixture.nativeElement.querySelector(
+            `[data-testid="tree-building-${building.id}"]`,
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[data-testid="building-details"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-list"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="selected-address-name"]')).toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('Технический шкаф');
+
+        (fixture.nativeElement.querySelector(
+            '[data-testid="building-back-action"]',
+        ) as HTMLElement | null)?.click();
+        fixture.detectChanges();
+        expect(component.selectedBuilding()).toBeNull();
+        expect(component.selectedObject()?.id).toBe(street.id);
+        expect(component.roots()[0].expanded).toBe(true);
+        const streetRow = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === street.id,
+        );
+        expect(streetRow?.kind === 'address' && streetRow.node.expanded).toBe(true);
+        expect(fixture.nativeElement.querySelector('[data-testid="building-list"]')).not.toBeNull();
+    });
+
+
+    it('should move an address through the keyboard-accessible dialog and keep its id', async () => {
+        const targetCity: AddressObject = { ...city, id: 14, name: 'Жуковский' };
+        const movedStreet: AddressObject = { ...street, parent_id: targetCity.id };
+        const successToast = vi.spyOn(toast, 'success');
+        addressApi.updateObject.mockReturnValue(of(movedStreet));
+        createComponent();
+        component.roots.update(nodes => [...nodes, {
+            ...targetCity,
+            children: [],
+            buildings: [],
+            expanded: false,
+            loaded: false,
+            loading: false,
+            loadError: false,
+        }]);
+        addressApi.listObjects.mockImplementation((parentId?: number) => of(
+            parentId === targetCity.id ? [movedStreet] : [],
+        ));
+        component.toggleNode(component.roots()[0]);
+        component.selectObject(street);
+        fixture.detectChanges();
+
+        const menu = await openAddressObjectActions();
+        menu.querySelector<HTMLElement>('[data-testid="move-address-action"]')?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+        expect(dialog.querySelector('[data-testid="address-move-form"]')).not.toBeNull();
+
+        component.moveTargetId.set(targetCity.id);
+        fixture.detectChanges();
+        submitForm(dialog, 'address-move-form');
+
+        expect(addressApi.updateObject).toHaveBeenCalledWith(street.id, {
+            parent_id: targetCity.id,
+        });
+        expect(component.treeRows().some(
+            row => row.kind === 'address'
+                && row.node.id === street.id
+                && row.node.parent_id === targetCity.id,
+        )).toBe(true);
+        expect(successToast).toHaveBeenCalledWith(
+            'Адресный объект перемещён',
+            expect.objectContaining({ description: expect.stringContaining('Жуковский') }),
+        );
+    });
+
+
+    it('should route a valid CDK drop through the address move API and reject an invalid target', () => {
+        const targetCity: AddressObject = { ...city, id: 14, name: 'Жуковский' };
+        const targetStreet: AddressObject = {
+            ...street,
+            id: 15,
+            parent_id: targetCity.id,
+            name: 'Центральная',
+        };
+        const movedStreet: AddressObject = { ...street, parent_id: targetCity.id };
+        addressApi.updateObject.mockReturnValue(of(movedStreet));
+        createComponent();
+        component.roots.update(nodes => [...nodes, {
+            ...targetCity,
+            children: [{
+                ...targetStreet,
+                children: [],
+                buildings: [],
+                expanded: false,
+                loaded: false,
+                loading: false,
+                loadError: false,
+            }],
+            buildings: [],
+            expanded: false,
+            loaded: true,
+            loading: false,
+            loadError: false,
+        }]);
+        component.toggleNode(component.roots()[0]);
+        const source = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === street.id,
+        );
+        const target = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === targetCity.id,
+        );
+        if (
+            !source || source.kind !== 'address'
+            || !target || target.kind !== 'address'
+        ) {
+            throw new Error('Drag-and-drop rows are unavailable');
+        }
+        addressApi.listObjects.mockImplementation((parentId?: number) => of(
+            parentId === targetCity.id ? [targetStreet, movedStreet] : [],
+        ));
+
+        component.handleTreeDrop({
+            item: { data: { kind: 'address', node: source.node } },
+            container: { data: { kind: 'address', node: source.node } },
+        } as never);
+        expect(addressApi.updateObject).not.toHaveBeenCalled();
+
+        component.handleTreeDrop({
+            item: { data: { kind: 'address', node: source.node } },
+            container: { data: { kind: 'address', node: target.node } },
+        } as never);
+        expect(addressApi.updateObject).toHaveBeenCalledWith(street.id, {
+            parent_id: targetCity.id,
+        });
+    });
+
+
+    it('should move a building with its details to another eligible tree node', () => {
+        const targetStreet: AddressObject = {
+            ...street,
+            id: 15,
+            name: 'Гагарина',
+        };
+        const movedBuilding: Building = {
+            ...building,
+            address_object_id: targetStreet.id,
+            full_address: 'Москва, ул. Гагарина, д. 15, корп. 2',
+        };
+        const successToast = vi.spyOn(toast, 'success');
+        addressApi.updateBuilding.mockReturnValue(of(movedBuilding));
+        addressApi.listObjects.mockReturnValue(of([]));
+        addressApi.listBuildings.mockImplementation((addressObjectId: number) => of(
+            addressObjectId === targetStreet.id ? [movedBuilding] : [],
+        ));
+        createComponent();
+        component.roots.set([{
+            ...city,
+            children: [
+                {
+                    ...street,
+                    children: [],
+                    buildings: [building],
+                    expanded: true,
+                    loaded: true,
+                    loading: false,
+                    loadError: false,
+                },
+                {
+                    ...targetStreet,
+                    children: [],
+                    buildings: [],
+                    expanded: true,
+                    loaded: true,
+                    loading: false,
+                    loadError: false,
+                },
+            ],
+            buildings: [],
+            expanded: true,
+            loaded: true,
+            loading: false,
+            loadError: false,
+        }]);
+        component.selectTreeBuilding(building, street);
+        component.moveBuilding(building, targetStreet.id);
+        fixture.detectChanges();
+
+        expect(addressApi.updateBuilding).toHaveBeenCalledWith(building.id, {
+            address_object_id: targetStreet.id,
+        });
+        expect(component.selectedObject()?.id).toBe(targetStreet.id);
+        expect(component.selectedBuilding()).toEqual(movedBuilding);
+        expect(component.entrances()).toEqual([entrance]);
+        expect(component.locations()).toEqual([location]);
+        expect(component.treeRows().filter(
+            row => row.kind === 'building' && row.building.id === building.id,
+        )).toHaveLength(1);
+        component.backToAddressObject();
+        expect(component.buildings()).toEqual([movedBuilding]);
+        expect(successToast).toHaveBeenCalledWith(
+            'Здание перемещено',
+            expect.any(Object),
+        );
+    });
+
+
+    it('should keep the tree unchanged when a move conflicts in the backend', () => {
+        const targetCity: AddressObject = { ...city, id: 14, name: 'Жуковский' };
+        const errorToast = vi.spyOn(toast, 'error');
+        const successToast = vi.spyOn(toast, 'success');
+        addressApi.updateObject.mockReturnValue(throwError(() => new HttpErrorResponse({
+            status: 409,
+            error: { detail: 'Invalid address hierarchy transition' },
+        })));
+        createComponent();
+        component.roots.update(nodes => [...nodes, {
+            ...targetCity,
+            children: [],
+            buildings: [],
+            expanded: false,
+            loaded: false,
+            loading: false,
+            loadError: false,
+        }]);
+        component.toggleNode(component.roots()[0]);
+        const source = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === street.id,
+        );
+        expect(source?.kind).toBe('address');
+        if (!source || source.kind !== 'address') {
+            throw new Error('Street row is unavailable');
+        }
+
+        component.moveAddressObject(source.node, targetCity.id);
+
+        expect(component.treeRows().some(
+            row => row.kind === 'address'
+                && row.node.id === street.id
+                && row.node.parent_id === city.id,
+        )).toBe(true);
+        expect(component.actionError()).toBe('Недопустимая структура адресной иерархии');
+        expect(errorToast).toHaveBeenCalledTimes(1);
+        expect(successToast).not.toHaveBeenCalled();
+    });
+
+
+    it('should ignore a late move response after the company changes', () => {
+        const pending = new Subject<AddressObject>();
+        const targetCity: AddressObject = { ...city, id: 14, name: 'Жуковский' };
+        const successToast = vi.spyOn(toast, 'success');
+        addressApi.updateObject.mockReturnValue(pending);
+        createComponent();
+        component.roots.update(nodes => [...nodes, {
+            ...targetCity,
+            children: [],
+            buildings: [],
+            expanded: false,
+            loaded: false,
+            loading: false,
+            loadError: false,
+        }]);
+        component.toggleNode(component.roots()[0]);
+        const source = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === street.id,
+        );
+        if (!source || source.kind !== 'address') {
+            throw new Error('Street row is unavailable');
+        }
+        component.moveAddressObject(source.node, targetCity.id);
+
+        activeCompanyId.set(2);
+        fixture.detectChanges();
+        pending.next({ ...street, parent_id: targetCity.id });
+        pending.complete();
+
+        expect(component.selectedObject()).toBeNull();
+        expect(component.moveSaving()).toBe(false);
+        expect(successToast).not.toHaveBeenCalled();
     });
 });

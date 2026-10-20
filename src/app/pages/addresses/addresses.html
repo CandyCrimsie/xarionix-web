@@ -159,85 +159,128 @@
                 </div>
                 }
             </div>
-            <div class="p-2">
-                @for (row of treeRows(); track row.node.id) {
-                <div class="group flex items-center gap-1" [style.padding-left.px]="row.depth * 18">
-                    <button hlmBtn variant="ghost" size="icon" type="button" class="size-8 shrink-0"
-                        [attr.aria-label]="row.node.expanded ? 'Свернуть' : 'Развернуть'"
-                        [attr.data-testid]="'toggle-address-' + row.node.id" (click)="toggleNode(row.node)">
-                        @if (row.node.loading) {
-                        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-                        } @else if (row.node.expanded) {
-                        <ng-icon name="lucideChevronDown" />
-                        } @else {
-                        <ng-icon name="lucideChevronRight" />
+            <div class="p-2" cdkDropListGroup>
+                @for (row of treeRows(); track row.key) {
+                <div cdkDropList cdkDropListSortingDisabled [cdkDropListAutoScrollStep]="16"
+                    [cdkDropListData]="treeDropTarget(row)"
+                    [cdkDropListEnterPredicate]="treeDropPredicate"
+                    [class.address-drop-target]="row.kind === 'address'"
+                    (cdkDropListDropped)="handleTreeDrop($event)">
+                    @if (row.kind === 'address') {
+                    <div cdkDrag class="group flex items-center gap-1 rounded-md"
+                        [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
+                        [style.padding-left.px]="row.depth * 18">
+                        @if (canManageAddresses()) {
+                        <button cdkDragHandle hlmBtn variant="ghost" size="icon" type="button"
+                            class="size-7 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
+                            [attr.aria-label]="'Перетащить ' + objectDisplayName(row.node)"
+                            [attr.data-testid]="'drag-address-' + row.node.id"
+                            (click)="$event.stopPropagation()">
+                            <ng-icon name="lucideGripVertical" />
+                        </button>
                         }
-                    </button>
-                    <button hlmBtn variant="ghost" type="button"
-                        class="h-auto min-w-0 flex-1 justify-start px-2 py-2 text-left"
-                        [class.bg-muted]="selectedObject()?.id === row.node.id"
-                        [attr.data-testid]="'address-object-' + row.node.id" (click)="selectObject(row.node)">
-                        <span class="truncate">{{ objectDisplayName(row.node) }}</span>
-                    </button>
+                        <button hlmBtn variant="ghost" type="button"
+                            class="address-tree-row h-auto min-w-0 flex-1 justify-start gap-2 px-2 py-2 text-left"
+                            [class.bg-muted]="selectedObject()?.id === row.node.id && !selectedBuilding()"
+                            [attr.data-testid]="'address-object-' + row.node.id"
+                            (click)="activateAddressNode(row.node)">
+                            <span class="flex size-4 shrink-0 items-center justify-center"
+                                [attr.data-testid]="'toggle-address-' + row.node.id">
+                                @if (row.node.loading) {
+                                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                                } @else if (row.node.expanded) {
+                                <ng-icon name="lucideChevronDown" />
+                                } @else {
+                                <ng-icon name="lucideChevronRight" />
+                                }
+                            </span>
+                            <span class="truncate">{{ objectDisplayName(row.node) }}</span>
+                        </button>
 
-                    @if (canManageAddresses() && (canCreateBuilding(row.node) || canCreateChild(row.node))) {
-                    @if (canCreateBuilding(row.node)) {
-                    <hlm-dialog #rowBuildingDialog>
-                        <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                            class="size-8 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-                            [disabled]="row.node.loading"
-                            [attr.aria-label]="rowCreateLabel(row.node)"
-                            [attr.data-testid]="'row-add-building-' + row.node.id"
-                            (click)="$event.stopPropagation(); startCreateBuilding(row.node)">
-                            <ng-icon name="lucidePlus" />
-                        </button>
-                        <hlm-dialog-content *hlmDialogPortal="let ctx"
-                            class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
-                            <app-building-dialog-form
-                                [editing]="editingBuilding() !== null"
-                                [addressObjectName]="buildingParentName()"
-                                [number]="buildingNumber()"
-                                [corpus]="buildingCorpus()"
-                                [structure]="buildingStructure()"
-                                [latitude]="buildingLatitude()"
-                                [longitude]="buildingLongitude()"
-                                [saving]="buildingSaving()"
-                                [error]="buildingError()"
-                                (numberChange)="buildingNumber.set($event)"
-                                (corpusChange)="buildingCorpus.set($event)"
-                                (structureChange)="buildingStructure.set($event)"
-                                (latitudeChange)="buildingLatitude.set($event)"
-                                (longitudeChange)="buildingLongitude.set($event)"
-                                (coordinatePairChange)="applyCoordinatePair($event)"
-                                (coordinateInputError)="buildingError.set($event)"
-                                (saveRequested)="saveBuilding(rowBuildingDialog)" />
-                        </hlm-dialog-content>
-                    </hlm-dialog>
-                    } @else {
-                    <hlm-dialog #rowObjectDialog>
-                        <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                            class="size-8 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-                            [disabled]="row.node.loading"
-                            [attr.aria-label]="rowCreateLabel(row.node)"
-                            [attr.data-testid]="'row-add-object-' + row.node.id"
-                            (click)="$event.stopPropagation(); startCreateObject(row.node)">
-                            <ng-icon name="lucidePlus" />
-                        </button>
-                        <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
-                            <app-address-object-dialog-form
-                                [editing]="editingObject() !== null"
-                                [parentName]="objectParentName()"
-                                [types]="availableObjectTypes()"
-                                [typeId]="objectTypeId()"
-                                [name]="objectName()"
-                                [saving]="objectSaving()"
-                                [error]="objectError()"
-                                (typeIdChange)="objectTypeId.set($event)"
-                                (nameChange)="objectName.set($event)"
-                                (saveRequested)="saveObject(rowObjectDialog)" />
-                        </hlm-dialog-content>
-                    </hlm-dialog>
+                        @if (canManageAddresses() && (canCreateBuilding(row.node) || canCreateChild(row.node))) {
+                        @if (canCreateBuilding(row.node)) {
+                        <hlm-dialog #rowBuildingDialog>
+                            <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                class="size-8 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                                [disabled]="row.node.loading" [attr.aria-label]="rowCreateLabel(row.node)"
+                                [attr.data-testid]="'row-add-building-' + row.node.id"
+                                (click)="$event.stopPropagation(); startCreateBuilding(row.node)">
+                                <ng-icon name="lucidePlus" />
+                            </button>
+                            <hlm-dialog-content *hlmDialogPortal="let ctx"
+                                class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
+                                <app-building-dialog-form
+                                    [editing]="editingBuilding() !== null"
+                                    [addressObjectName]="buildingParentName()"
+                                    [number]="buildingNumber()" [corpus]="buildingCorpus()"
+                                    [structure]="buildingStructure()" [latitude]="buildingLatitude()"
+                                    [longitude]="buildingLongitude()" [saving]="buildingSaving()"
+                                    [error]="buildingError()"
+                                    (numberChange)="buildingNumber.set($event)"
+                                    (corpusChange)="buildingCorpus.set($event)"
+                                    (structureChange)="buildingStructure.set($event)"
+                                    (latitudeChange)="buildingLatitude.set($event)"
+                                    (longitudeChange)="buildingLongitude.set($event)"
+                                    (coordinatePairChange)="applyCoordinatePair($event)"
+                                    (coordinateInputError)="buildingError.set($event)"
+                                    (saveRequested)="saveBuilding(rowBuildingDialog)" />
+                            </hlm-dialog-content>
+                        </hlm-dialog>
+                        } @else {
+                        <hlm-dialog #rowObjectDialog>
+                            <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                class="size-8 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                                [disabled]="row.node.loading" [attr.aria-label]="rowCreateLabel(row.node)"
+                                [attr.data-testid]="'row-add-object-' + row.node.id"
+                                (click)="$event.stopPropagation(); startCreateObject(row.node)">
+                                <ng-icon name="lucidePlus" />
+                            </button>
+                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
+                                <app-address-object-dialog-form
+                                    [editing]="editingObject() !== null" [parentName]="objectParentName()"
+                                    [types]="availableObjectTypes()" [typeId]="objectTypeId()"
+                                    [name]="objectName()" [saving]="objectSaving()" [error]="objectError()"
+                                    (typeIdChange)="objectTypeId.set($event)"
+                                    (nameChange)="objectName.set($event)"
+                                    (saveRequested)="saveObject(rowObjectDialog)" />
+                            </hlm-dialog-content>
+                        </hlm-dialog>
+                        }
+                        }
+                    </div>
+                    @if (row.node.loadError && row.node.expanded) {
+                    <div class="flex items-center justify-between gap-2 py-1 pr-2 text-xs text-destructive"
+                        [style.padding-left.px]="(row.depth + 1) * 18">
+                        <span>Не удалось загрузить содержимое</span>
+                        <button hlmBtn variant="ghost" size="sm" type="button"
+                            [attr.data-testid]="'retry-address-node-' + row.node.id"
+                            (click)="retryTreeNode(row.node, $event)">Повторить</button>
+                    </div>
                     }
+                    } @else {
+                    <div cdkDrag class="group flex items-center gap-1 rounded-md"
+                        [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
+                        [style.padding-left.px]="row.depth * 18">
+                        @if (canManageAddresses()) {
+                        <button cdkDragHandle hlmBtn variant="ghost" size="icon" type="button"
+                            class="size-7 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
+                            [attr.aria-label]="'Перетащить дом ' + row.building.number"
+                            [attr.data-testid]="'drag-building-' + row.building.id"
+                            (click)="$event.stopPropagation()">
+                            <ng-icon name="lucideGripVertical" />
+                        </button>
+                        }
+                        <button hlmBtn variant="ghost" type="button"
+                            class="h-auto min-w-0 flex-1 justify-start gap-2 px-2 py-2 text-left"
+                            [class.bg-muted]="selectedBuilding()?.id === row.building.id"
+                            [attr.data-testid]="'tree-building-' + row.building.id"
+                            (click)="selectTreeBuilding(row.building, row.parent)">
+                            <ng-icon name="lucideBuilding2" class="shrink-0" />
+                            <span class="truncate">д. {{ row.building.number }}</span>
+                            @if (row.building.corpus) { <span class="text-xs text-muted-foreground">корп. {{ row.building.corpus }}</span> }
+                             @if (row.building.structure) { <span class="text-xs text-muted-foreground">стр. {{ row.building.structure }}</span> }
+                        </button>
+                    </div>
                     }
                 </div>
                 } @empty {
@@ -251,6 +294,7 @@
         <section class="min-h-0 overflow-auto rounded-lg border bg-card">
             @if (selectedObject(); as addressObject) {
             <div class="flex flex-col gap-5 p-4 sm:p-6">
+                @if (!selectedBuilding()) {
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div class="flex items-center gap-2">
@@ -278,7 +322,7 @@
                             <hlm-select
                                 class="inline-block"
                                 [value]="objectActionSelection()"
-                                (valueChange)="selectObjectAction($event, addressObject, editObjectDialog, deleteObjectDialog)">
+                                (valueChange)="selectObjectAction($event, addressObject, editObjectDialog, moveObjectDialog, deleteObjectDialog)">
                                 <hlm-select-trigger
                                     class="[&>ng-icon:last-child]:hidden!"
                                     data-testid="address-object-actions">
@@ -290,6 +334,11 @@
                                         <hlm-select-item value="edit" data-testid="edit-address-action">
                                             <ng-icon name="lucidePencil" />
                                             <span>Изменить</span>
+                                        </hlm-select-item>
+
+                                        <hlm-select-item value="move" data-testid="move-address-action">
+                                            <ng-icon name="lucideMove" />
+                                            <span>Переместить</span>
                                         </hlm-select-item>
 
                                         <hlm-select-item
@@ -334,6 +383,20 @@
                                     (typeIdChange)="objectTypeId.set($event)"
                                     (nameChange)="objectName.set($event)"
                                     (saveRequested)="saveObject(editObjectDialog)" />
+                            </hlm-dialog-content>
+                        </hlm-dialog>
+
+                        <hlm-dialog #moveObjectDialog>
+                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+                                <app-address-move-dialog-form
+                                    [title]="moveDialogTitle()"
+                                    [description]="moveDialogDescription()"
+                                    [targets]="availableMoveTargets()"
+                                    [targetId]="moveTargetId()"
+                                    [saving]="moveSaving()"
+                                    [error]="moveError()"
+                                    (targetIdChange)="moveTargetId.set($event)"
+                                    (saveRequested)="saveMove(moveObjectDialog)" />
                             </hlm-dialog-content>
                         </hlm-dialog>
 
@@ -425,12 +488,20 @@
                     </div>
                     }
                 </div>
+                }
 
                 @if (selectedBuilding(); as building) {
-                <article class="flex flex-col gap-5 rounded-lg border bg-background p-4" data-testid="building-details">
+                <article class="flex min-h-full flex-col gap-6" data-testid="building-details">
+                    <button hlmBtn variant="ghost" size="sm" type="button"
+                        class="w-fit px-2 text-muted-foreground"
+                        data-testid="building-back-action" (click)="backToAddressObject()">
+                        <ng-icon name="lucideArrowLeft" />
+                        {{ objectDisplayName(addressObject) }}
+                    </button>
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <h3 class="font-semibold" data-testid="building-full-address">{{ building.full_address }}</h3>
+                            <p class="text-sm font-medium text-muted-foreground">Дом {{ building.number }}</p>
+                            <h2 class="mt-1 text-xl font-semibold" data-testid="building-full-address">{{ building.full_address }}</h2>
                             <p class="mt-1 text-sm text-muted-foreground">
                                 Координаты:
                                 @if (building.latitude !== null && building.longitude !== null) {
@@ -439,7 +510,7 @@
                             </p>
                         </div>
                         @if (canManageAddresses()) {
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap gap-2">
                             <hlm-dialog #editBuildingDialog>
                                 <button hlmDialogTrigger hlmBtn variant="outline" size="sm" type="button"
                                     data-testid="edit-building-action" (click)="startEditBuilding(building)">
@@ -468,6 +539,25 @@
                                         (coordinateInputError)="buildingError.set($event)"
                                         (saveRequested)="saveBuilding(editBuildingDialog)"
                                     />
+                                </hlm-dialog-content>
+                            </hlm-dialog>
+                            <hlm-dialog #moveBuildingDialog>
+                                <button hlmBtn variant="outline" size="sm" type="button"
+                                    data-testid="move-building-action"
+                                    (click)="openMoveBuildingDialog(building, moveBuildingDialog)">
+                                    <ng-icon name="lucideMove" />
+                                    Переместить
+                                </button>
+                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+                                    <app-address-move-dialog-form
+                                        [title]="moveDialogTitle()"
+                                        [description]="moveDialogDescription()"
+                                        [targets]="availableMoveTargets()"
+                                        [targetId]="moveTargetId()"
+                                        [saving]="moveSaving()"
+                                        [error]="moveError()"
+                                        (targetIdChange)="moveTargetId.set($event)"
+                                        (saveRequested)="saveMove(moveBuildingDialog)" />
                                 </hlm-dialog-content>
                             </hlm-dialog>
                             <hlm-alert-dialog>

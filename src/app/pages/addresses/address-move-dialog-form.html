@@ -1,0 +1,43 @@
+<form class="grid gap-5" data-testid="address-move-form" (ngSubmit)="submit()">
+    <hlm-dialog-header class="pr-8">
+        <h3 hlmDialogTitle>{{ title() }}</h3>
+        <p hlmDialogDescription>{{ description() }}</p>
+    </hlm-dialog-header>
+
+    <hlm-field-group>
+        <hlm-field class="min-w-0">
+            <label hlmFieldLabel for="address-move-target">Новый родитель</label>
+            <hlm-select [value]="selectedKey()" [itemToString]="targetToString"
+                (valueChange)="selectTarget($event)">
+                <hlm-select-trigger buttonId="address-move-target" class="w-full"
+                    data-testid="address-move-target">
+                    <hlm-select-value placeholder="Выберите новое расположение" />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                    <hlm-select-group>
+                        @for (target of targets(); track targetKey(target)) {
+                        <hlm-select-item [value]="targetKey(target)">
+                            <span [style.padding-left.rem]="target.depth * 0.75">{{ target.label }}</span>
+                        </hlm-select-item>
+                        }
+                    </hlm-select-group>
+                </hlm-select-content>
+            </hlm-select>
+        </hlm-field>
+    </hlm-field-group>
+
+    @if (error(); as message) {
+    <hlm-alert variant="destructive" data-testid="address-move-error">
+        <p hlmAlertDescription>{{ message }}</p>
+    </hlm-alert>
+    }
+
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose
+            data-testid="address-move-cancel" [disabled]="saving()">Отмена</button>
+        <button hlmBtn type="submit" data-testid="address-move-submit" [disabled]="saving()">
+            @if (saving()) { <hlm-spinner aria-label="Перемещение" /> }
+            Переместить
+        </button>
+    </hlm-dialog-footer>
+</form>

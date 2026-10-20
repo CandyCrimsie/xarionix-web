@@ -2,3 +2,22 @@
     display: block;
     height: 100%;
 }
+
+.address-drop-target.cdk-drop-list-receiving .address-tree-row {
+    background: var(--accent);
+    color: var(--accent-foreground);
+    outline: 1px solid var(--ring);
+    outline-offset: -1px;
+}
+
+.cdk-drag-preview {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow: var(--shadow-md);
+}
+
+.cdk-drag-placeholder {
+    opacity: 0.35;
+}

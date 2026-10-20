@@ -1,53 +1,143 @@
+@if (mode() === 'list') {
 <hlm-dialog-header class="pr-8">
     <h3 hlmDialogTitle>Типы адресных объектов</h3>
-    <p hlmDialogDescription>
-        Настройка общего физического каталога установки.
-    </p>
+    <p hlmDialogDescription>Настройка способов обозначения адресов</p>
 </hlm-dialog-header>
 
-<hlm-alert>
-    <p hlmAlertDescription>
-        Изменения пользовательских типов видны всем компаниям. Системные типы защищены,
-        а используемый пользовательский тип нельзя удалить.
-    </p>
-</hlm-alert>
-
 <div class="flex items-center justify-between gap-3">
-    <h4 class="font-medium">Справочник типов</h4>
-    <button hlmBtn size="sm" type="button" data-testid="create-address-type-action"
+    <button hlmBtn variant="outline" size="icon" type="button"
+        aria-label="Что такое тип адресного объекта"
+        data-testid="address-type-info-action" (click)="showInfo()">
+        <ng-icon name="lucideInfo" />
+    </button>
+    <button hlmBtn type="button" data-testid="create-address-type-action"
         (click)="startCreate()">
         <ng-icon name="lucidePlus" />
-        Новый тип
+        Создать тип
     </button>
 </div>
 
-@if (formVisible()) {
-<form class="grid gap-5 rounded-lg border bg-muted/30 p-4" data-testid="address-type-form"
-    (ngSubmit)="save()">
-    <div class="grid min-w-0 gap-4 sm:grid-cols-2">
+@if (error(); as message) {
+<hlm-alert variant="destructive" data-testid="address-type-error">
+    <p hlmAlertDescription>{{ message }}</p>
+</hlm-alert>
+}
+
+<div class="max-h-[55vh] space-y-5 overflow-auto pr-1" data-testid="address-type-list">
+    @for (group of groups(); track group.category) {
+    <section [attr.data-testid]="'address-type-group-' + group.category">
+        <h4 class="mb-2 text-sm font-semibold text-muted-foreground">{{ group.label }}</h4>
+        <div class="overflow-hidden rounded-lg border">
+            @for (addressType of group.types; track addressType.id) {
+            <div class="flex items-center justify-between gap-3 border-b px-3 py-2.5 last:border-b-0">
+                <div class="min-w-0">
+                    <p class="truncate font-medium">{{ addressType.name }}</p>
+                    @if (addressType.short_name) {
+                    <p class="truncate text-xs text-muted-foreground">
+                        {{ addressType.short_name }} Берёзка
+                    </p>
+                    }
+                </div>
+                @if (addressType.is_system) {
+                <span hlmBadge variant="secondary">Системный</span>
+                } @else {
+                <div class="flex shrink-0 gap-1">
+                    <button hlmBtn variant="ghost" size="icon" type="button"
+                        [attr.data-testid]="'edit-address-type-' + addressType.id"
+                        [attr.aria-label]="'Изменить тип ' + addressType.name"
+                        (click)="startEdit(addressType)">
+                        <ng-icon name="lucidePencil" />
+                    </button>
+                    <hlm-alert-dialog>
+                        <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                            [attr.data-testid]="'delete-address-type-' + addressType.id"
+                            [attr.aria-label]="'Удалить тип ' + addressType.name">
+                            <ng-icon name="lucideTrash2" />
+                        </button>
+                        <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+                            <hlm-alert-dialog-header>
+                                <h3 hlmAlertDialogTitle>Удалить тип «{{ addressType.name }}»?</h3>
+                                <p hlmAlertDialogDescription>Используемый в адресном каталоге тип удалить нельзя.</p>
+                            </hlm-alert-dialog-header>
+                            <hlm-alert-dialog-footer>
+                                <button hlmAlertDialogCancel type="button">Отмена</button>
+                                <button hlmAlertDialogAction variant="destructive" type="button"
+                                    [disabled]="deletingId() !== null" (click)="deleteType(addressType)">Удалить</button>
+                            </hlm-alert-dialog-footer>
+                        </hlm-alert-dialog-content>
+                    </hlm-alert-dialog>
+                </div>
+                }
+            </div>
+            }
+        </div>
+    </section>
+    }
+</div>
+} @else if (mode() === 'info') {
+<hlm-dialog-header class="pr-8">
+    <div class="flex items-center gap-2">
+        <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Назад к типам"
+            data-testid="address-type-info-back" (click)="showList()">
+            <ng-icon name="lucideArrowLeft" />
+        </button>
+        <h3 hlmDialogTitle>Что такое тип адресного объекта?</h3>
+    </div>
+    <p hlmDialogDescription>Тип определяет обозначение и допустимое место объекта в адресной иерархии.</p>
+</hlm-dialog-header>
+
+<div class="max-h-[60vh] space-y-4 overflow-auto text-sm" data-testid="address-type-info">
+    <div class="rounded-lg border bg-muted/30 p-4">
+        <p><span class="font-medium">Тип:</span> Город</p>
+        <p><span class="font-medium">Краткое обозначение:</span> г.</p>
+        <p><span class="font-medium">Название объекта:</span> Раменское</p>
+        <p class="mt-2 font-medium">Результат: г. Раменское</p>
+    </div>
+    <div class="rounded-lg border bg-muted/30 p-4">
+        <p><span class="font-medium">Тип:</span> Территория СНТ</p>
+        <p><span class="font-medium">Краткое обозначение:</span> тер. СНТ</p>
+        <p><span class="font-medium">Название объекта:</span> Облепиха</p>
+        <p class="mt-2 font-medium">Результат: тер. СНТ Облепиха</p>
+    </div>
+    <ul class="list-disc space-y-2 pl-5 text-muted-foreground">
+        <li><span class="text-foreground">Название</span>: имя самого типа.</li>
+        <li><span class="text-foreground">Краткое обозначение</span> отображается перед названием объекта.</li>
+        <li><span class="text-foreground">Категория</span> определяет допустимое место в иерархии.</li>
+        <li>Создание типа не создаёт город, улицу или территорию.</li>
+        <li>Изменения общего каталога влияют на все компании.</li>
+        <li>Системные типы защищены, а используемый пользовательский тип нельзя удалить.</li>
+    </ul>
+</div>
+} @else {
+<hlm-dialog-header class="pr-8">
+    <div class="flex items-center gap-2">
+        <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Назад к типам"
+            data-testid="address-type-form-back" [disabled]="saving()" (click)="showList()">
+            <ng-icon name="lucideArrowLeft" />
+        </button>
+        <h3 hlmDialogTitle>{{ mode() === 'edit' ? 'Изменить тип' : 'Создать тип' }}</h3>
+    </div>
+    <p hlmDialogDescription>Типы общего адресного каталога доступны всем компаниям.</p>
+</hlm-dialog-header>
+
+<form class="grid gap-5" data-testid="address-type-form" (ngSubmit)="save()">
+    <hlm-field-group class="gap-5">
         <hlm-field class="min-w-0">
             <label hlmFieldLabel for="address-type-name">Название</label>
             <input hlmInput id="address-type-name" maxlength="100" autocomplete="off"
-                data-testid="address-type-name" [value]="name()"
-                (input)="updateName($event)" />
+                data-testid="address-type-name" [value]="name()" (input)="updateName($event)" />
         </hlm-field>
         <hlm-field class="min-w-0">
             <label hlmFieldLabel for="address-type-short-name">Краткое обозначение</label>
             <input hlmInput id="address-type-short-name" maxlength="30" autocomplete="off"
-                data-testid="address-type-short-name" [value]="shortName()"
-                (input)="updateShortName($event)" />
+                data-testid="address-type-short-name" [value]="shortName()" (input)="updateShortName($event)" />
         </hlm-field>
-    </div>
-
-    <div class="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
         <hlm-field class="min-w-0">
             <label hlmFieldLabel for="address-type-category">Категория</label>
             <hlm-select [value]="category()" [itemToString]="categoryToString"
-                [disabled]="editing() !== null" (valueChange)="selectCategory($event)">
+                [disabled]="mode() === 'edit'" (valueChange)="selectCategory($event)">
                 <hlm-select-trigger buttonId="address-type-category" class="w-full"
-                    data-testid="address-type-category">
-                    <hlm-select-value />
-                </hlm-select-trigger>
+                    data-testid="address-type-category"><hlm-select-value /></hlm-select-trigger>
                 <hlm-select-content *hlmSelectPortal>
                     <hlm-select-group>
                         @for (item of categories; track item) {
@@ -57,89 +147,29 @@
                 </hlm-select-content>
             </hlm-select>
         </hlm-field>
-        <hlm-field class="min-w-0">
-            <label hlmFieldLabel for="address-type-sort-order">Порядок</label>
-            <input hlmInput id="address-type-sort-order" type="number" min="0" max="10000"
-                data-testid="address-type-sort-order" [value]="sortOrder()"
-                (input)="updateSortOrder($event)" />
-        </hlm-field>
+    </hlm-field-group>
+
+    <div class="rounded-lg border bg-muted/30 p-4" data-testid="address-type-preview">
+        <p class="text-xs text-muted-foreground">Как будет выглядеть в адресе</p>
+        <p class="mt-1 font-medium">{{ preview() }}</p>
     </div>
 
-    @if (editing()) {
-    <p class="text-xs text-muted-foreground">
-        Категория и стабильный код существующего типа не изменяются.
-    </p>
+    @if (mode() === 'edit') {
+    <p class="text-xs text-muted-foreground">Категория и стабильный код существующего типа не изменяются.</p>
     }
-
     @if (error(); as message) {
     <hlm-alert variant="destructive" data-testid="address-type-error">
         <p hlmAlertDescription>{{ message }}</p>
     </hlm-alert>
     }
 
-    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <hlm-dialog-footer>
         <button hlmBtn variant="outline" type="button" [disabled]="saving()"
-            data-testid="address-type-form-cancel" (click)="cancelForm()">
-            Отмена
-        </button>
+            data-testid="address-type-form-cancel" (click)="showList()">Отмена</button>
         <button hlmBtn type="submit" [disabled]="saving()" data-testid="address-type-submit">
             @if (saving()) { <hlm-spinner aria-label="Сохранение типа" /> }
-            Сохранить
+            {{ mode() === 'edit' ? 'Сохранить' : 'Создать' }}
         </button>
-    </div>
+    </hlm-dialog-footer>
 </form>
-} @else if (error(); as message) {
-<hlm-alert variant="destructive" data-testid="address-type-error">
-    <p hlmAlertDescription>{{ message }}</p>
-</hlm-alert>
 }
-
-<div class="max-h-[45vh] overflow-auto rounded-lg border" data-testid="address-type-list">
-    @for (addressType of types(); track addressType.id) {
-    <div class="flex items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
-        <div class="min-w-0">
-            <p class="truncate font-medium">
-                @if (addressType.short_name) { {{ addressType.short_name }} · }
-                {{ addressType.name }}
-            </p>
-            <p class="truncate text-xs text-muted-foreground">
-                {{ categoryLabel(addressType.category) }} · {{ addressType.code }} · порядок {{ addressType.sort_order }}
-            </p>
-        </div>
-        @if (addressType.is_system) {
-        <span hlmBadge variant="secondary">Системный</span>
-        } @else {
-        <div class="flex shrink-0 gap-1">
-            <button hlmBtn variant="ghost" size="icon" type="button"
-                [attr.data-testid]="'edit-address-type-' + addressType.id"
-                [attr.aria-label]="'Изменить тип ' + addressType.name"
-                (click)="startEdit(addressType)">
-                <ng-icon name="lucidePencil" />
-            </button>
-            <hlm-alert-dialog>
-                <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                    [attr.data-testid]="'delete-address-type-' + addressType.id"
-                    [attr.aria-label]="'Удалить тип ' + addressType.name">
-                    <ng-icon name="lucideTrash2" />
-                </button>
-                <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
-                    <hlm-alert-dialog-header>
-                        <h3 hlmAlertDialogTitle>Удалить тип «{{ addressType.name }}»?</h3>
-                        <p hlmAlertDialogDescription>
-                            Удаление невозможно, если этот тип уже используется в адресном каталоге.
-                        </p>
-                    </hlm-alert-dialog-header>
-                    <hlm-alert-dialog-footer>
-                        <button hlmAlertDialogCancel type="button">Отмена</button>
-                        <button hlmAlertDialogAction variant="destructive" type="button"
-                            [disabled]="deletingId() !== null" (click)="deleteType(addressType)">
-                            Удалить
-                        </button>
-                    </hlm-alert-dialog-footer>
-                </hlm-alert-dialog-content>
-            </hlm-alert-dialog>
-        </div>
-        }
-    </div>
-    }
-</div>
