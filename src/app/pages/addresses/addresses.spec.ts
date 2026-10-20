@@ -252,9 +252,10 @@ describe('Addresses', () => {
     }
 
 
-    async function openAddressObjectActions(): Promise<HTMLElement> {
-        const trigger = fixture.nativeElement.querySelector(
-            '[data-testid="address-object-actions"]',
+    async function openActionMenu(triggerTestId: string): Promise<HTMLElement> {
+        const trigger = (
+            fixture.nativeElement.querySelector(`[data-testid="${triggerTestId}"]`)
+            ?? document.body.querySelector(`[data-testid="${triggerTestId}"]`)
         ) as HTMLElement | null;
         expect(trigger).not.toBeNull();
         (trigger?.querySelector('button') ?? trigger)?.click();
@@ -265,6 +266,42 @@ describe('Addresses', () => {
         const menu = document.body.querySelector<HTMLElement>('[role="listbox"]');
         expect(menu).not.toBeNull();
         return menu as HTMLElement;
+    }
+
+
+    async function openAddressObjectActions(): Promise<HTMLElement> {
+        return openActionMenu('address-object-actions');
+    }
+
+
+    async function openActionDialog(
+        triggerTestId: string,
+        actionTestId: string,
+    ): Promise<HTMLElement> {
+        const menu = await openActionMenu(triggerTestId);
+        const action = menu.querySelector<HTMLElement>(`[data-testid="${actionTestId}"]`);
+        expect(action).not.toBeNull();
+        action?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const dialogs = document.body.querySelectorAll<HTMLElement>('[role="dialog"]');
+        const dialog = dialogs.item(dialogs.length - 1);
+        expect(dialog).not.toBeNull();
+        return dialog;
+    }
+
+
+    async function closeActionMenu(menu: HTMLElement): Promise<void> {
+        menu.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            bubbles: true,
+        }));
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
     }
 
 
@@ -512,7 +549,10 @@ describe('Addresses', () => {
         component.selectObject(street);
         component.selectBuilding(building);
         fixture.detectChanges();
-        const buildingDialog = await openDialog('edit-building-action');
+        const buildingDialog = await openActionDialog(
+            'building-actions',
+            'edit-building-action',
+        );
         expect(buildingDialog.textContent).toContain('Изменение здания');
         expect(buildingDialog.querySelector<HTMLInputElement>('[data-testid="building-number"]')?.value)
             .toBe(building.number);
@@ -530,7 +570,10 @@ describe('Addresses', () => {
         expect(createEntranceDialog.textContent).toContain('Новый подъезд');
         await closeDialog(createEntranceDialog, 'entrance-cancel');
 
-        const editEntranceDialog = await openDialog(`edit-entrance-action-${entrance.id}`);
+        const editEntranceDialog = await openActionDialog(
+            `entrance-actions-${entrance.id}`,
+            `edit-entrance-action-${entrance.id}`,
+        );
         expect(editEntranceDialog.textContent).toContain('Изменение подъезда');
         expect(editEntranceDialog.querySelector<HTMLInputElement>('[data-testid="entrance-number"]')?.value)
             .toBe(entrance.number);
@@ -541,7 +584,10 @@ describe('Addresses', () => {
         expect(createLocationDialog.querySelector('[data-testid="location-entrance"]')).not.toBeNull();
         await closeDialog(createLocationDialog, 'location-cancel');
 
-        const editLocationDialog = await openDialog(`edit-location-action-${location.id}`);
+        const editLocationDialog = await openActionDialog(
+            `location-actions-${location.id}`,
+            `edit-location-action-${location.id}`,
+        );
         expect(editLocationDialog.textContent).toContain('Изменение места размещения');
         expect(editLocationDialog.querySelector<HTMLInputElement>('[data-testid="location-name"]')?.value)
             .toBe(location.name);
@@ -663,6 +709,10 @@ describe('Addresses', () => {
             'Тип адресного объекта создан',
             { description: customType.name },
         );
+        expect(dialog.querySelector(`[data-testid="address-type-actions-${cityType.id}"]`))
+            .toBeNull();
+        expect(dialog.querySelector(`[data-testid="address-type-actions-${customType.id}"]`))
+            .not.toBeNull();
     });
 
 
@@ -775,7 +825,10 @@ describe('Addresses', () => {
         await fixture.whenStable();
         fixture.detectChanges();
 
-        const locationDialog = await openDialog(`edit-location-action-${location.id}`);
+        const locationDialog = await openActionDialog(
+            `location-actions-${location.id}`,
+            `edit-location-action-${location.id}`,
+        );
         enterValue(
             locationDialog.querySelector<HTMLInputElement>('[data-testid="location-name"]')!,
             'Кроссовая',
@@ -1352,6 +1405,14 @@ describe('Addresses', () => {
         expect(fixture.nativeElement.querySelector('[data-testid="create-building-action"]')).toBeNull();
         expect(fixture.nativeElement.querySelector(`[data-testid="drag-address-${city.id}"]`)).toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="address-object-actions"]')).toBeNull();
+
+        component.selectBuilding(building);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-actions"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector(`[data-testid="entrance-actions-${entrance.id}"]`))
+            .toBeNull();
+        expect(fixture.nativeElement.querySelector(`[data-testid="location-actions-${location.id}"]`))
+            .toBeNull();
     });
 
 
@@ -1439,9 +1500,14 @@ describe('Addresses', () => {
         await openDialog('manage-address-types-action');
         let dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
 
-        dialog.querySelector<HTMLElement>(
+        const menu = await openActionMenu(`address-type-actions-${customType.id}`);
+        expect(menu.querySelector(`[data-testid="delete-address-type-${customType.id}"]`))
+            .not.toBeNull();
+        menu.querySelector<HTMLElement>(
             `[data-testid="edit-address-type-${customType.id}"]`,
         )?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
         fixture.detectChanges();
         dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
 
@@ -1451,6 +1517,49 @@ describe('Addresses', () => {
         expect(dialog.querySelector<HTMLInputElement>('[data-testid="address-type-short-name"]')?.value)
             .toBe(customType.short_name);
         expect(dialog.querySelector('[data-testid="address-type-list"]')).toBeNull();
+    });
+
+
+    it('should expose compact action menus without manual move actions', async () => {
+        createComponent();
+        component.selectObject(street);
+        fixture.detectChanges();
+
+        const objectMenu = await openAddressObjectActions();
+        expect(objectMenu.querySelector('[data-testid="edit-address-action"]')).not.toBeNull();
+        expect(objectMenu.querySelector('[data-testid="delete-address-action"]')).not.toBeNull();
+        expect(objectMenu.querySelector('[data-testid="move-address-action"]')).toBeNull();
+        await closeActionMenu(objectMenu);
+
+        component.selectBuilding(building);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[data-testid="building-actions"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector(`[data-testid="entrance-actions-${entrance.id}"]`))
+            .not.toBeNull();
+        expect(fixture.nativeElement.querySelector(`[data-testid="location-actions-${location.id}"]`))
+            .not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="move-building-action"]')).toBeNull();
+
+        const buildingMenu = await openActionMenu('building-actions');
+        expect(buildingMenu.querySelector('[data-testid="edit-building-action"]')).not.toBeNull();
+        expect(buildingMenu.querySelector('[data-testid="delete-building-action"]')).not.toBeNull();
+        expect(buildingMenu.textContent).not.toContain('Переместить');
+        await closeActionMenu(buildingMenu);
+
+        const entranceMenu = await openActionMenu(`entrance-actions-${entrance.id}`);
+        expect(entranceMenu.querySelector(`[data-testid="edit-entrance-action-${entrance.id}"]`))
+            .not.toBeNull();
+        expect(entranceMenu.querySelector(`[data-testid="delete-entrance-action-${entrance.id}"]`))
+            .not.toBeNull();
+        await closeActionMenu(entranceMenu);
+
+        const locationMenu = await openActionMenu(`location-actions-${location.id}`);
+        expect(locationMenu.querySelector(`[data-testid="edit-location-action-${location.id}"]`))
+            .not.toBeNull();
+        expect(locationMenu.querySelector(`[data-testid="delete-location-action-${location.id}"]`))
+            .not.toBeNull();
+        await closeActionMenu(locationMenu);
     });
 
 
@@ -1520,96 +1629,6 @@ describe('Addresses', () => {
         );
         expect(streetRow?.kind === 'address' && streetRow.node.expanded).toBe(true);
         expect(fixture.nativeElement.querySelector('[data-testid="building-list"]')).not.toBeNull();
-    });
-
-
-    it('should move an address through the keyboard-accessible dialog and keep its id', async () => {
-        const targetCity: AddressObject = { ...city, id: 14, name: 'Жуковский' };
-        const movedStreet: AddressObject = { ...street, parent_id: targetCity.id };
-        const successToast = vi.spyOn(toast, 'success');
-        addressApi.updateObject.mockReturnValue(of(movedStreet));
-        createComponent();
-        component.roots.update(nodes => [...nodes, {
-            ...targetCity,
-            children: [],
-            buildings: [],
-            expanded: false,
-            loaded: false,
-            loading: false,
-            loadError: false,
-        }]);
-        addressApi.listObjects.mockImplementation((parentId?: number) => of(
-            parentId === targetCity.id ? [movedStreet] : [],
-        ));
-        component.toggleNode(component.roots()[0]);
-        component.selectObject(street);
-        fixture.detectChanges();
-
-        const menu = await openAddressObjectActions();
-        menu.querySelector<HTMLElement>('[data-testid="move-address-action"]')?.click();
-        fixture.detectChanges();
-        await fixture.whenStable();
-        fixture.detectChanges();
-        const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
-        expect(dialog.querySelector('[data-testid="address-move-form"]')).not.toBeNull();
-        expect(component.moveTargetId()).toBeUndefined();
-        expect((dialog.querySelector('[data-testid="address-move-submit"]') as HTMLButtonElement).disabled)
-            .toBe(true);
-
-        component.moveTargetId.set(targetCity.id);
-        fixture.detectChanges();
-        submitForm(dialog, 'address-move-form');
-
-        expect(addressApi.updateObject).toHaveBeenCalledWith(street.id, {
-            parent_id: targetCity.id,
-        });
-        expect(component.treeRows().some(
-            row => row.kind === 'address'
-                && row.node.id === street.id
-                && row.node.parent_id === targetCity.id,
-        )).toBe(true);
-        expect(successToast).toHaveBeenCalledWith(
-            'Адресный объект перемещён',
-            expect.objectContaining({ description: expect.stringContaining('Жуковский') }),
-        );
-    });
-
-
-    it('should require an explicit move target and allow an explicit root selection', () => {
-        const nestedCity: AddressObject = {
-            ...city,
-            id: 18,
-            parent_id: city.id,
-            name: 'Зеленоград',
-        };
-        const movedCity: AddressObject = { ...nestedCity, parent_id: null };
-        const dialog = { open: vi.fn(), close: vi.fn() };
-        addressApi.updateObject.mockReturnValue(of(movedCity));
-        createComponent();
-
-        component.openMoveBuildingDialog(building, dialog as never);
-        expect(component.moveTargetId()).toBeUndefined();
-
-        component.openMoveObjectDialog(nestedCity, dialog as never);
-
-        expect(dialog.open).toHaveBeenCalledTimes(2);
-        expect(component.availableMoveTargets()).toContainEqual({
-            id: null,
-            label: 'Корневой уровень',
-            depth: 0,
-        });
-        expect(component.moveTargetId()).toBeUndefined();
-
-        component.saveMove(dialog as never);
-        expect(addressApi.updateObject).not.toHaveBeenCalled();
-        expect(component.moveError()).toBe('Выберите допустимое новое расположение');
-
-        component.moveTargetId.set(null);
-        component.saveMove(dialog as never);
-
-        expect(addressApi.updateObject).toHaveBeenCalledWith(nestedCity.id, {
-            parent_id: null,
-        });
     });
 
 

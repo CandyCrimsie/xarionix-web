@@ -43,19 +43,32 @@
                 @if (addressType.is_system) {
                 <span hlmBadge variant="secondary">Системный</span>
                 } @else {
-                <div class="flex shrink-0 gap-1">
-                    <button hlmBtn variant="ghost" size="icon" type="button"
-                        [attr.data-testid]="'edit-address-type-' + addressType.id"
-                        [attr.aria-label]="'Изменить тип ' + addressType.name"
-                        (click)="startEdit(addressType)">
-                        <ng-icon name="lucidePencil" />
-                    </button>
-                    <hlm-alert-dialog>
-                        <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                            [attr.data-testid]="'delete-address-type-' + addressType.id"
-                            [attr.aria-label]="'Удалить тип ' + addressType.name">
-                            <ng-icon name="lucideTrash2" />
-                        </button>
+                <div class="shrink-0">
+                    <hlm-select class="inline-block" [value]="actionSelection()"
+                        (valueChange)="selectAction($event, addressType, deleteTypeDialog)">
+                        <hlm-select-trigger size="sm"
+                            class="size-8 justify-center p-0 [&>ng-icon:last-child]:hidden!"
+                            [attr.data-testid]="'address-type-actions-' + addressType.id">
+                            <ng-icon name="lucideEllipsis" />
+                            <span class="sr-only">Действия с типом {{ addressType.name }}</span>
+                        </hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal class="bg-background">
+                            <hlm-select-group>
+                                <hlm-select-item value="edit"
+                                    [attr.data-testid]="'edit-address-type-' + addressType.id">
+                                    <ng-icon name="lucidePencil" />
+                                    <span>Изменить</span>
+                                </hlm-select-item>
+                                <hlm-select-item value="delete" data-variant="destructive"
+                                    class="text-destructive data-highlighted:bg-destructive/10 data-highlighted:text-destructive"
+                                    [attr.data-testid]="'delete-address-type-' + addressType.id">
+                                    <ng-icon name="lucideTrash2" />
+                                    <span>Удалить</span>
+                                </hlm-select-item>
+                            </hlm-select-group>
+                        </hlm-select-content>
+                    </hlm-select>
+                    <hlm-alert-dialog #deleteTypeDialog>
                         <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
                             <hlm-alert-dialog-header>
                                 <h3 hlmAlertDialogTitle>Удалить тип «{{ addressType.name }}»?</h3>

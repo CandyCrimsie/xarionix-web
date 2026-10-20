@@ -356,9 +356,9 @@
                             <hlm-select
                                 class="inline-block"
                                 [value]="objectActionSelection()"
-                                (valueChange)="selectObjectAction($event, addressObject, editObjectDialog, moveObjectDialog, deleteObjectDialog)">
-                                <hlm-select-trigger
-                                    class="[&>ng-icon:last-child]:hidden!"
+                                (valueChange)="selectObjectAction($event, addressObject, editObjectDialog, deleteObjectDialog)">
+                                <hlm-select-trigger size="sm"
+                                    class="size-9 justify-center p-0 [&>ng-icon:last-child]:hidden!"
                                     data-testid="address-object-actions">
                                     <ng-icon name="lucideEllipsis" />
                                     <span class="sr-only">Дополнительные действия</span>
@@ -368,11 +368,6 @@
                                         <hlm-select-item value="edit" data-testid="edit-address-action">
                                             <ng-icon name="lucidePencil" />
                                             <span>Изменить</span>
-                                        </hlm-select-item>
-
-                                        <hlm-select-item value="move" data-testid="move-address-action">
-                                            <ng-icon name="lucideMove" />
-                                            <span>Переместить</span>
                                         </hlm-select-item>
 
                                         <hlm-select-item
@@ -417,20 +412,6 @@
                                     (typeIdChange)="objectTypeId.set($event)"
                                     (nameChange)="objectName.set($event)"
                                     (saveRequested)="saveObject(editObjectDialog)" />
-                            </hlm-dialog-content>
-                        </hlm-dialog>
-
-                        <hlm-dialog #moveObjectDialog>
-                            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
-                                <app-address-move-dialog-form
-                                    [title]="moveDialogTitle()"
-                                    [description]="moveDialogDescription()"
-                                    [targets]="availableMoveTargets()"
-                                    [targetId]="moveTargetId()"
-                                    [saving]="moveSaving()"
-                                    [error]="moveError()"
-                                    (targetIdChange)="moveTargetId.set($event)"
-                                    (saveRequested)="saveMove(moveObjectDialog)" />
                             </hlm-dialog-content>
                         </hlm-dialog>
 
@@ -544,13 +525,34 @@
                             </p>
                         </div>
                         @if (canManageAddresses()) {
-                        <div class="flex flex-wrap gap-2">
+                        <div class="shrink-0">
+                            <hlm-select
+                                class="inline-block"
+                                [value]="buildingActionSelection()"
+                                (valueChange)="selectBuildingAction($event, building, editBuildingDialog, deleteBuildingDialog)">
+                                <hlm-select-trigger size="sm"
+                                    class="size-8 justify-center p-0 [&>ng-icon:last-child]:hidden!"
+                                    data-testid="building-actions">
+                                    <ng-icon name="lucideEllipsis" />
+                                    <span class="sr-only">Действия с домом {{ building.number }}</span>
+                                </hlm-select-trigger>
+                                <hlm-select-content *hlmSelectPortal class="bg-background">
+                                    <hlm-select-group>
+                                        <hlm-select-item value="edit" data-testid="edit-building-action">
+                                            <ng-icon name="lucidePencil" />
+                                            <span>Изменить</span>
+                                        </hlm-select-item>
+                                        <hlm-select-item value="delete" data-variant="destructive"
+                                            class="text-destructive data-highlighted:bg-destructive/10 data-highlighted:text-destructive"
+                                            data-testid="delete-building-action">
+                                            <ng-icon name="lucideTrash2" />
+                                            <span>Удалить</span>
+                                        </hlm-select-item>
+                                    </hlm-select-group>
+                                </hlm-select-content>
+                            </hlm-select>
+
                             <hlm-dialog #editBuildingDialog>
-                                <button hlmDialogTrigger hlmBtn variant="outline" size="sm" type="button"
-                                    data-testid="edit-building-action" (click)="startEditBuilding(building)">
-                                    <ng-icon name="lucidePencil" />
-                                    Изменить дом
-                                </button>
                                 <hlm-dialog-content
                                     *hlmDialogPortal="let ctx"
                                     class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
@@ -575,28 +577,7 @@
                                     />
                                 </hlm-dialog-content>
                             </hlm-dialog>
-                            <hlm-dialog #moveBuildingDialog>
-                                <button hlmBtn variant="outline" size="sm" type="button"
-                                    data-testid="move-building-action"
-                                    (click)="openMoveBuildingDialog(building, moveBuildingDialog)">
-                                    <ng-icon name="lucideMove" />
-                                    Переместить
-                                </button>
-                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
-                                    <app-address-move-dialog-form
-                                        [title]="moveDialogTitle()"
-                                        [description]="moveDialogDescription()"
-                                        [targets]="availableMoveTargets()"
-                                        [targetId]="moveTargetId()"
-                                        [saving]="moveSaving()"
-                                        [error]="moveError()"
-                                        (targetIdChange)="moveTargetId.set($event)"
-                                        (saveRequested)="saveMove(moveBuildingDialog)" />
-                                </hlm-dialog-content>
-                            </hlm-dialog>
-                            <hlm-alert-dialog>
-                                <button hlmAlertDialogTrigger hlmBtn variant="outline" size="icon" type="button"
-                                    aria-label="Удалить здание"><ng-icon name="lucideTrash2" /></button>
+                            <hlm-alert-dialog #deleteBuildingDialog>
                                 <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
                                     <hlm-alert-dialog-header>
                                         <h3 hlmAlertDialogTitle>Удалить здание?</h3>
@@ -651,11 +632,35 @@
                                 <div class="flex items-center justify-between rounded-md border px-3 py-2">
                                     <span class="flex items-center gap-2"><ng-icon name="lucideDoorOpen" /> Подъезд {{ entrance.number }}</span>
                                     @if (canManageAddresses()) {
-                                    <div class="flex gap-1">
+                                    <div class="shrink-0">
+                                        <hlm-select
+                                            class="inline-block"
+                                            [value]="entranceActionSelection()"
+                                            (valueChange)="selectEntranceAction($event, entrance, editEntranceDialog, deleteEntranceDialog)">
+                                            <hlm-select-trigger size="sm"
+                                                class="size-8 justify-center p-0 [&>ng-icon:last-child]:hidden!"
+                                                [attr.data-testid]="'entrance-actions-' + entrance.id">
+                                                <ng-icon name="lucideEllipsis" />
+                                                <span class="sr-only">Действия с подъездом {{ entrance.number }}</span>
+                                            </hlm-select-trigger>
+                                            <hlm-select-content *hlmSelectPortal class="bg-background">
+                                                <hlm-select-group>
+                                                    <hlm-select-item value="edit"
+                                                        [attr.data-testid]="'edit-entrance-action-' + entrance.id">
+                                                        <ng-icon name="lucidePencil" />
+                                                        <span>Изменить</span>
+                                                    </hlm-select-item>
+                                                    <hlm-select-item value="delete" data-variant="destructive"
+                                                        class="text-destructive data-highlighted:bg-destructive/10 data-highlighted:text-destructive"
+                                                        [attr.data-testid]="'delete-entrance-action-' + entrance.id">
+                                                        <ng-icon name="lucideTrash2" />
+                                                        <span>Удалить</span>
+                                                    </hlm-select-item>
+                                                </hlm-select-group>
+                                            </hlm-select-content>
+                                        </hlm-select>
+
                                         <hlm-dialog #editEntranceDialog>
-                                            <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                                                [attr.data-testid]="'edit-entrance-action-' + entrance.id"
-                                                (click)="startEditEntrance(entrance)"><ng-icon name="lucidePencil" /></button>
                                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
                                                 <app-entrance-dialog-form
                                                     [editing]="editingEntrance() !== null"
@@ -667,11 +672,7 @@
                                                 />
                                             </hlm-dialog-content>
                                         </hlm-dialog>
-                                        <hlm-alert-dialog>
-                                            <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon"
-                                                type="button" aria-label="Удалить подъезд">
-                                                <ng-icon name="lucideTrash2" />
-                                            </button>
+                                        <hlm-alert-dialog #deleteEntranceDialog>
                                             <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
                                                 <hlm-alert-dialog-header>
                                                     <h3 hlmAlertDialogTitle>Удалить подъезд {{ entrance.number }}?</h3>
@@ -736,11 +737,35 @@
                                             </p>
                                         </div>
                                         @if (canManageAddresses()) {
-                                        <div class="flex gap-1">
+                                        <div class="shrink-0">
+                                            <hlm-select
+                                                class="inline-block"
+                                                [value]="locationActionSelection()"
+                                                (valueChange)="selectLocationAction($event, location, editLocationDialog, deleteLocationDialog)">
+                                                <hlm-select-trigger size="sm"
+                                                    class="size-8 justify-center p-0 [&>ng-icon:last-child]:hidden!"
+                                                    [attr.data-testid]="'location-actions-' + location.id">
+                                                    <ng-icon name="lucideEllipsis" />
+                                                    <span class="sr-only">Действия с местом {{ location.name }}</span>
+                                                </hlm-select-trigger>
+                                                <hlm-select-content *hlmSelectPortal class="bg-background">
+                                                    <hlm-select-group>
+                                                        <hlm-select-item value="edit"
+                                                            [attr.data-testid]="'edit-location-action-' + location.id">
+                                                            <ng-icon name="lucidePencil" />
+                                                            <span>Изменить</span>
+                                                        </hlm-select-item>
+                                                        <hlm-select-item value="delete" data-variant="destructive"
+                                                            class="text-destructive data-highlighted:bg-destructive/10 data-highlighted:text-destructive"
+                                                            [attr.data-testid]="'delete-location-action-' + location.id">
+                                                            <ng-icon name="lucideTrash2" />
+                                                            <span>Удалить</span>
+                                                        </hlm-select-item>
+                                                    </hlm-select-group>
+                                                </hlm-select-content>
+                                            </hlm-select>
+
                                             <hlm-dialog #editLocationDialog>
-                                                <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                                                    [attr.data-testid]="'edit-location-action-' + location.id"
-                                                    (click)="startEditLocation(location)"><ng-icon name="lucidePencil" /></button>
                                                 <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
                                                     <app-location-dialog-form
                                                         [editing]="editingLocation() !== null"
@@ -759,11 +784,7 @@
                                                     />
                                                 </hlm-dialog-content>
                                             </hlm-dialog>
-                                            <hlm-alert-dialog>
-                                                <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon"
-                                                    type="button" aria-label="Удалить место размещения">
-                                                    <ng-icon name="lucideTrash2" />
-                                                </button>
+                                            <hlm-alert-dialog #deleteLocationDialog>
                                                 <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
                                                     <hlm-alert-dialog-header>
                                                         <h3 hlmAlertDialogTitle>Удалить место размещения?</h3>

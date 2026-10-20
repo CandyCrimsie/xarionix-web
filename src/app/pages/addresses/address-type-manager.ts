@@ -10,10 +10,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 
 import { toast } from '@spartan-ng/brain/sonner';
+import type { BrnDialog } from '@spartan-ng/brain/dialog';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
     lucideArrowLeft,
     lucideCircleAlert,
+    lucideEllipsis,
     lucideInfo,
     lucidePencil,
     lucidePlus,
@@ -89,6 +91,7 @@ const CATEGORY_SORT_BASE: Readonly<Record<AddressTypeCategory, number>> = {
     providers: [provideIcons({
         lucideArrowLeft,
         lucideCircleAlert,
+        lucideEllipsis,
         lucideInfo,
         lucidePencil,
         lucidePlus,
@@ -113,6 +116,7 @@ export class AddressTypeManager {
     readonly saving = signal(false);
     readonly deletingId = signal<number | null>(null);
     readonly error = signal<string | null>(null);
+    readonly actionSelection = signal<string | null>(null);
 
     readonly categories = ADDRESS_TYPE_CATEGORIES;
     readonly categoryToString = (category: AddressTypeCategory): string => (
@@ -185,6 +189,21 @@ export class AddressTypeManager {
         this.mode.set('list');
         this.editing.set(null);
         this.error.set(null);
+    }
+
+
+    selectAction(
+        action: string | null | undefined,
+        addressType: AddressType,
+        deleteDialog: BrnDialog,
+    ): void {
+        this.actionSelection.set(action ?? null);
+        if (action === 'edit') {
+            this.startEdit(addressType);
+        } else if (action === 'delete') {
+            deleteDialog.open();
+        }
+        setTimeout(() => this.actionSelection.set(null));
     }
 
 

@@ -7,7 +7,7 @@ import {
     signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { forkJoin, Observable, of } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 
 import {
     CdkDrag,
@@ -76,10 +76,6 @@ import {
     LocationDialogForm,
 } from './address-dialog-forms';
 import { AddressTypeManager } from './address-type-manager';
-import {
-    AddressMoveDialogForm,
-    type AddressMoveTarget,
-} from './address-move-dialog-form';
 
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -148,7 +144,6 @@ const SEARCH_DEBOUNCE_MS = 300;
         EntranceDialogForm,
         LocationDialogForm,
         AddressTypeManager,
-        AddressMoveDialogForm,
     ],
     providers: [
         provideIcons({
@@ -197,6 +192,9 @@ export class Addresses {
     readonly buildingsState = signal<LoadState>('idle');
     readonly selectedBuilding = signal<Building | null>(null);
     readonly objectActionSelection = signal<string | null>(null);
+    readonly buildingActionSelection = signal<string | null>(null);
+    readonly entranceActionSelection = signal<string | null>(null);
+    readonly locationActionSelection = signal<string | null>(null);
     readonly entrances = signal<Entrance[]>([]);
     readonly locations = signal<Location[]>([]);
     readonly detailsState = signal<LoadState>('idle');
@@ -255,11 +253,7 @@ export class Addresses {
     readonly locationSaving = signal(false);
     readonly locationError = signal<string | null>(null);
 
-    readonly movingObject = signal<AddressObject | null>(null);
-    readonly movingBuilding = signal<Building | null>(null);
-    readonly moveTargetId = signal<number | null | undefined>(undefined);
     readonly moveSaving = signal(false);
-    readonly moveError = signal<string | null>(null);
     readonly activeDropTargetKey = signal<string | null>(null);
 
     readonly reloadVersion = signal(0);
@@ -300,65 +294,6 @@ export class Addresses {
         };
         append(this.roots(), 0);
         return rows;
-    });
-
-    readonly knownMoveTargets = computed<AddressMoveTarget[]>(() => {
-        const targets: AddressMoveTarget[] = [];
-        const append = (nodes: AddressTreeNode[], depth: number): void => {
-            for (const node of nodes) {
-                targets.push({
-                    id: node.id,
-                    label: this.objectDisplayName(node),
-                    depth,
-                });
-                append(node.children, depth + 1);
-            }
-        };
-        append(this.roots(), 0);
-        return targets;
-    });
-
-    readonly availableMoveTargets = computed<AddressMoveTarget[]>(() => {
-        const movingObject = this.movingObject();
-        const movingBuilding = this.movingBuilding();
-        const candidates = this.knownMoveTargets();
-        if (movingObject) {
-            const allowRoot = ROOT_ADDRESS_TYPE_CATEGORIES.includes(
-                movingObject.type_category,
-            );
-            const targets = candidates.filter(target => {
-                if (target.id === null) {
-                    return allowRoot;
-                }
-                const node = this.findTreeNode(target.id);
-                return node !== null && this.canMoveAddressTo(movingObject, node);
-            });
-            return allowRoot && movingObject.parent_id !== null
-                ? [{ id: null, label: 'Корневой уровень', depth: 0 }, ...targets]
-                : targets;
-        }
-        if (movingBuilding) {
-            return candidates.filter(target => {
-                const node = target.id === null ? null : this.findTreeNode(target.id);
-                return node !== null
-                    && node.id !== movingBuilding.address_object_id
-                    && addressObjectAllowsBuildings(node);
-            });
-        }
-        return [];
-    });
-    readonly moveDialogTitle = computed(() => (
-        this.movingBuilding() ? 'Переместить здание' : 'Переместить адресный объект'
-    ));
-    readonly moveDialogDescription = computed(() => {
-        const building = this.movingBuilding();
-        if (building) {
-            return `Дом ${building.number} сохранит подъезды и места размещения.`;
-        }
-        const addressObject = this.movingObject();
-        return addressObject
-            ? `${this.objectDisplayName(addressObject)} сохранит ID и всю дочернюю структуру.`
-            : '';
     });
 
     readonly treeDropPredicate = (
@@ -902,88 +837,6 @@ export class Addresses {
     }
 
 
-    openMoveObjectDialog(addressObject: AddressObject, dialog: BrnDialog): void {
-        this.movingBuilding.set(null);
-        this.movingObject.set(addressObject);
-        this.moveError.set(null);
-        this.moveTargetId.set(undefined);
-        dialog.open();
-    }
-
-
-    openMoveBuildingDialog(building: Building, dialog: BrnDialog): void {
-        this.movingObject.set(null);
-        this.movingBuilding.set(building);
-        this.moveError.set(null);
-        this.moveTargetId.set(undefined);
-        dialog.open();
-    }
-
-
-    saveMove(dialog: BrnDialog): void {
-        if (this.moveSaving()) {
-            return;
-        }
-        const targetId = this.moveTargetId();
-        if (
-            targetId === undefined
-            || !this.availableMoveTargets().some(target => target.id === targetId)
-        ) {
-            this.moveError.set('Выберите допустимое новое расположение');
-            return;
-        }
-        const addressObject = this.movingObject();
-        const building = this.movingBuilding();
-        if (!addressObject && !building) {
-            this.moveError.set('Объект для перемещения больше недоступен');
-            return;
-        }
-        this.moveSaving.set(true);
-        this.moveError.set(null);
-        const contextGeneration = this.contextGeneration;
-        const request: Observable<AddressObject | Building> = addressObject
-            ? this.addressApi.updateObject(addressObject.id, { parent_id: targetId })
-            : this.addressApi.updateBuilding(building!.id, {
-                address_object_id: targetId!,
-            });
-        request.subscribe({
-            next: saved => {
-                if (contextGeneration !== this.contextGeneration) {
-                    return;
-                }
-                this.moveSaving.set(false);
-                dialog.close({});
-                if (addressObject) {
-                    this.applyAddressMove(
-                        saved as AddressObject,
-                        targetId,
-                        addressObject.parent_id,
-                    );
-                } else {
-                    this.applyBuildingMove(
-                        saved as Building,
-                        targetId!,
-                        building!.address_object_id,
-                    );
-                }
-                this.movingObject.set(null);
-                this.movingBuilding.set(null);
-                this.moveTargetId.set(undefined);
-            },
-            error: error => {
-                if (contextGeneration !== this.contextGeneration) {
-                    return;
-                }
-                this.moveSaving.set(false);
-                const message = this.apiError(error, 'Не удалось переместить объект');
-                this.moveError.set(message);
-                toast.error('Перемещение не выполнено', { description: message });
-                this.restoreTreeRender();
-            },
-        });
-    }
-
-
     moveAddressObject(addressObject: AddressObject, targetId: number | null): void {
         if (this.moveSaving()) {
             return;
@@ -1064,18 +917,66 @@ export class Addresses {
         action: string | null | undefined,
         addressObject: AddressObject,
         editDialog: BrnDialog,
-        moveDialog: BrnDialog,
         deleteDialog: BrnDialog,
     ): void {
         this.objectActionSelection.set(action ?? null);
         if (action === 'edit') {
             this.openEditObjectDialog(addressObject, editDialog);
-        } else if (action === 'move') {
-            this.openMoveObjectDialog(addressObject, moveDialog);
         } else if (action === 'delete') {
             this.openDeleteObjectDialog(deleteDialog);
         }
         setTimeout(() => this.objectActionSelection.set(null));
+    }
+
+
+    selectBuildingAction(
+        action: string | null | undefined,
+        building: Building,
+        editDialog: BrnDialog,
+        deleteDialog: BrnDialog,
+    ): void {
+        this.buildingActionSelection.set(action ?? null);
+        if (action === 'edit') {
+            this.startEditBuilding(building);
+            editDialog.open();
+        } else if (action === 'delete') {
+            deleteDialog.open();
+        }
+        setTimeout(() => this.buildingActionSelection.set(null));
+    }
+
+
+    selectEntranceAction(
+        action: string | null | undefined,
+        entrance: Entrance,
+        editDialog: BrnDialog,
+        deleteDialog: BrnDialog,
+    ): void {
+        this.entranceActionSelection.set(action ?? null);
+        if (action === 'edit') {
+            this.startEditEntrance(entrance);
+            editDialog.open();
+        } else if (action === 'delete') {
+            deleteDialog.open();
+        }
+        setTimeout(() => this.entranceActionSelection.set(null));
+    }
+
+
+    selectLocationAction(
+        action: string | null | undefined,
+        location: Location,
+        editDialog: BrnDialog,
+        deleteDialog: BrnDialog,
+    ): void {
+        this.locationActionSelection.set(action ?? null);
+        if (action === 'edit') {
+            this.startEditLocation(location);
+            editDialog.open();
+        } else if (action === 'delete') {
+            deleteDialog.open();
+        }
+        setTimeout(() => this.locationActionSelection.set(null));
     }
 
 
@@ -1513,10 +1414,10 @@ export class Addresses {
         this.selectedSearchResult.set(null);
         this.searchOverlayState.set('closed');
         this.actionError.set(null);
-        this.movingObject.set(null);
-        this.movingBuilding.set(null);
-        this.moveTargetId.set(undefined);
-        this.moveError.set(null);
+        this.objectActionSelection.set(null);
+        this.buildingActionSelection.set(null);
+        this.entranceActionSelection.set(null);
+        this.locationActionSelection.set(null);
         this.moveSaving.set(false);
         this.activeDropTargetKey.set(null);
     }
