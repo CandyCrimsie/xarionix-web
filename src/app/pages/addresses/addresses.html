@@ -171,7 +171,7 @@
                     (cdkDropListExited)="clearTreeDropTarget(row.key)"
                     (cdkDropListDropped)="handleTreeDrop($event)">
                     @if (row.kind === 'address') {
-                    <div cdkDrag class="group flex items-center gap-1 rounded-md"
+                    <div cdkDrag class="address-tree-drag-row group flex items-center gap-1 rounded-md"
                         [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
                         (cdkDragEnded)="clearTreeDropTarget()"
                         [style.padding-left.px]="row.depth * 18">
@@ -183,7 +183,7 @@
                             </div>
                         </ng-template>
                         <ng-template cdkDragPlaceholder>
-                            <span class="block h-0 overflow-hidden"></span>
+                            <div class="address-tree-drag-placeholder" aria-hidden="true"></div>
                         </ng-template>
                         @if (canManageAddresses()) {
                         <button cdkDragHandle hlmBtn variant="ghost" size="icon" type="button"
@@ -263,14 +263,6 @@
                         }
                         }
                     </div>
-                    @if (activeDropTargetKey() === row.key) {
-                    <div class="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-md border border-primary bg-primary/10 px-3 text-sm font-medium text-primary"
-                        [style.padding-left.px]="row.depth * 18 + 40"
-                        [attr.data-testid]="'drop-ghost-' + row.node.id">
-                        <ng-icon name="lucideMove" class="shrink-0" />
-                        <span class="truncate">Переместить в {{ objectDisplayName(row.node) }}</span>
-                    </div>
-                    }
                     @if (row.node.loadError && row.node.expanded) {
                     <div class="flex items-center justify-between gap-2 py-1 pr-2 text-xs text-destructive"
                         [style.padding-left.px]="(row.depth + 1) * 18">
@@ -281,7 +273,7 @@
                     </div>
                     }
                     } @else {
-                    <div cdkDrag class="group flex items-center gap-1 rounded-md"
+                    <div cdkDrag class="address-tree-drag-row group flex items-center gap-1 rounded-md"
                         [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
                         (cdkDragEnded)="clearTreeDropTarget()"
                         [style.padding-left.px]="row.depth * 18">
@@ -293,7 +285,7 @@
                             </div>
                         </ng-template>
                         <ng-template cdkDragPlaceholder>
-                            <span class="block h-0 overflow-hidden"></span>
+                            <div class="address-tree-drag-placeholder" aria-hidden="true"></div>
                         </ng-template>
                         @if (canManageAddresses()) {
                         <button cdkDragHandle hlmBtn variant="ghost" size="icon" type="button"

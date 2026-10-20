@@ -1702,7 +1702,7 @@ describe('Addresses', () => {
     });
 
 
-    it('should show a ghost only for the active drop target and reveal drag handles on hover', () => {
+    it('should highlight only the active drop target without an overlapping ghost and reveal drag handles on hover', () => {
         const targetStreet: AddressObject = {
             ...street,
             id: 15,
@@ -1748,10 +1748,16 @@ describe('Addresses', () => {
         component.showTreeDropTarget(target);
         fixture.detectChanges();
 
-        const ghosts = fixture.nativeElement.querySelectorAll('[data-testid^="drop-ghost-"]');
-        expect(ghosts).toHaveLength(1);
-        expect(ghosts[0].getAttribute('data-testid')).toBe(`drop-ghost-${targetStreet.id}`);
-        expect(ghosts[0].textContent).toContain('Переместить в ул. Гагарина');
+        const activeTargets = fixture.nativeElement.querySelectorAll(
+            '.address-drop-zone.address-drop-target-active',
+        );
+        expect(activeTargets).toHaveLength(1);
+        expect(activeTargets[0].querySelector(
+            `[data-testid="address-object-${targetStreet.id}"]`,
+        )).not.toBeNull();
+        expect(fixture.nativeElement.querySelector(
+            '[data-testid^="drop-ghost-"]',
+        )).toBeNull();
 
         const handle = fixture.nativeElement.querySelector(
             `[data-testid="drag-building-${building.id}"]`,
@@ -1761,7 +1767,9 @@ describe('Addresses', () => {
 
         component.clearTreeDropTarget(target.key);
         fixture.detectChanges();
-        expect(fixture.nativeElement.querySelector('[data-testid^="drop-ghost-"]')).toBeNull();
+        expect(fixture.nativeElement.querySelectorAll(
+            '.address-drop-zone.address-drop-target-active',
+        )).toHaveLength(0);
     });
 
 

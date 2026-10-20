@@ -1,0 +1,16 @@
+:host {
+    display: block;
+    height: 100%;
+}
+
+.cdk-drag-preview {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow: var(--shadow-md);
+}
+
+.cdk-drag-placeholder {
+    opacity: 0.35;
+}

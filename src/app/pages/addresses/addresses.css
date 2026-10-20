@@ -14,3 +14,36 @@
 .cdk-drag-placeholder {
     opacity: 0.35;
 }
+
+/* Stage 25.13 DnD: highlight only the actual destination row.
+   No absolute-position overlay and no duplicated text over the target. */
+.address-drop-zone.address-drop-target-active > .address-tree-drag-row > .address-tree-row {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+    box-shadow: inset 0 0 0 2px var(--ring);
+    border-radius: var(--radius-md);
+}
+
+/* Keep the source row's space reserved while dragging; the previous h-0
+   placeholder made the surrounding rows jump underneath each other. */
+.address-tree-drag-placeholder {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    height: 2.25rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--muted);
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.address-tree-drag-row .address-tree-row {
+    transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .address-tree-drag-row .address-tree-row {
+        transition: none;
+    }
+}
