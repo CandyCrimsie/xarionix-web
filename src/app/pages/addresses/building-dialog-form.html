@@ -1,87 +1,66 @@
-<hlm-dialog-header class="pr-8">
-    <h3 hlmDialogTitle>{{ editing() ? 'Изменение здания' : 'Новое здание' }}</h3>
-    <p hlmDialogDescription>{{ addressObjectName() }}</p>
-</hlm-dialog-header>
+<form class="grid gap-5" data-testid="building-form" (ngSubmit)="submit()">
+    <hlm-dialog-header class="pr-8">
+        <h3 hlmDialogTitle>{{ editing() ? 'Изменение здания' : 'Новое здание' }}</h3>
+        <p hlmDialogDescription>{{ addressObjectName() }}</p>
+    </hlm-dialog-header>
 
-<hlm-field-group>
-    <div class="grid gap-4 sm:grid-cols-3">
-        <hlm-field>
-            <label hlmFieldLabel for="building-number">Номер</label>
-            <input
-                hlmInput
-                id="building-number"
-                maxlength="50"
-                data-testid="building-number"
-                [ngModel]="number()"
-                (ngModelChange)="numberChange.emit($event)" />
-        </hlm-field>
+    <hlm-field-group class="gap-5">
+        <div class="grid min-w-0 gap-4 sm:grid-cols-3">
+            <hlm-field class="min-w-0">
+                <label hlmFieldLabel for="building-number">Номер</label>
+                <input hlmInput id="building-number" name="buildingNumber" maxlength="50"
+                    data-testid="building-number" [ngModel]="number()"
+                    (ngModelChange)="numberChange.emit($event)" />
+            </hlm-field>
 
-        <hlm-field>
-            <label hlmFieldLabel for="building-corpus">Корпус</label>
-            <input
-                hlmInput
-                id="building-corpus"
-                maxlength="50"
-                [ngModel]="corpus()"
-                (ngModelChange)="corpusChange.emit($event)" />
-        </hlm-field>
+            <hlm-field class="min-w-0">
+                <label hlmFieldLabel for="building-corpus">Корпус</label>
+                <input hlmInput id="building-corpus" name="buildingCorpus" maxlength="50"
+                    data-testid="building-corpus" [ngModel]="corpus()"
+                    (ngModelChange)="corpusChange.emit($event)" />
+            </hlm-field>
 
-        <hlm-field>
-            <label hlmFieldLabel for="building-structure">Строение</label>
-            <input
-                hlmInput
-                id="building-structure"
-                maxlength="50"
-                [ngModel]="structure()"
-                (ngModelChange)="structureChange.emit($event)" />
-        </hlm-field>
-    </div>
+            <hlm-field class="min-w-0">
+                <label hlmFieldLabel for="building-structure">Строение</label>
+                <input hlmInput id="building-structure" name="buildingStructure" maxlength="50"
+                    data-testid="building-structure" [ngModel]="structure()"
+                    (ngModelChange)="structureChange.emit($event)" />
+            </hlm-field>
+        </div>
 
-    <div class="grid gap-4 sm:grid-cols-2">
-        <hlm-field>
-            <label hlmFieldLabel for="building-latitude">Широта</label>
-            <input
-                hlmInput
-                id="building-latitude"
-                inputmode="decimal"
-                placeholder="55.1234567"
-                [ngModel]="latitude()"
-                (ngModelChange)="latitudeChange.emit($event)" />
-        </hlm-field>
+        <div class="grid min-w-0 gap-4 sm:grid-cols-2">
+            <hlm-field class="min-w-0">
+                <label hlmFieldLabel for="building-latitude">Широта</label>
+                <input hlmInput id="building-latitude" name="buildingLatitude" inputmode="decimal"
+                    placeholder="55.577276" data-testid="building-latitude" [ngModel]="latitude()"
+                    (ngModelChange)="latitudeChange.emit(normalizeScalar($event))"
+                    (paste)="handleCoordinatePaste($event, 'latitude')" />
+            </hlm-field>
 
-        <hlm-field>
-            <label hlmFieldLabel for="building-longitude">Долгота</label>
-            <input
-                hlmInput
-                id="building-longitude"
-                inputmode="decimal"
-                placeholder="37.1234567"
-                [ngModel]="longitude()"
-                (ngModelChange)="longitudeChange.emit($event)" />
-        </hlm-field>
-    </div>
-</hlm-field-group>
+            <hlm-field class="min-w-0">
+                <label hlmFieldLabel for="building-longitude">Долгота</label>
+                <input hlmInput id="building-longitude" name="buildingLongitude" inputmode="decimal"
+                    placeholder="38.245099" data-testid="building-longitude" [ngModel]="longitude()"
+                    (ngModelChange)="longitudeChange.emit(normalizeScalar($event))"
+                    (paste)="handleCoordinatePaste($event, 'longitude')" />
+            </hlm-field>
+        </div>
+        <p class="text-xs text-muted-foreground">
+            Можно вставить пару координат в любое поле, например: 55.577276, 38.245099
+        </p>
+    </hlm-field-group>
 
-@if (error(); as message) {
-<p class="text-sm text-destructive" data-testid="building-error">{{ message }}</p>
-}
+    @if (error(); as message) {
+    <p class="text-sm text-destructive" data-testid="building-error">{{ message }}</p>
+    }
 
-<hlm-dialog-footer>
-    <button
-        hlmBtn
-        variant="outline"
-        type="button"
-        hlmDialogClose
-        data-testid="building-cancel"
-        [disabled]="saving()">
-        Отмена
-    </button>
-    <button
-        hlmBtn
-        type="button"
-        data-testid="building-submit"
-        [disabled]="saving()"
-        (click)="saveRequested.emit()">
-        Сохранить
-    </button>
-</hlm-dialog-footer>
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose
+            data-testid="building-cancel" [disabled]="saving()">
+            Отмена
+        </button>
+        <button hlmBtn type="submit" data-testid="building-submit" [disabled]="saving()">
+            Сохранить
+        </button>
+    </hlm-dialog-footer>
+</form>

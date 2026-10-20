@@ -45,6 +45,27 @@ describe('AddressApiService', () => {
     });
 
     it('should use address CRUD endpoints', () => {
+        service.createType({
+            category: 'territory',
+            name: 'Территория ГСК',
+            short_name: 'тер. ГСК',
+            sort_order: 75,
+        }).subscribe();
+        const createType = http.expectOne('/api/v1/address-types');
+        expect(createType.request.method).toBe('POST');
+        expect(createType.request.body).not.toHaveProperty('code');
+        createType.flush({});
+
+        service.updateType(9, { name: 'Территория кооператива' }).subscribe();
+        const updateType = http.expectOne('/api/v1/address-types/9');
+        expect(updateType.request.method).toBe('PATCH');
+        updateType.flush({});
+
+        service.deleteType(9).subscribe();
+        const deleteType = http.expectOne('/api/v1/address-types/9');
+        expect(deleteType.request.method).toBe('DELETE');
+        deleteType.flush(null);
+
         service.createObject({
             parent_id: 1,
             type_id: 3,

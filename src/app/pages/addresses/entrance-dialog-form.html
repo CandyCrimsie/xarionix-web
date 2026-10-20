@@ -1,0 +1,25 @@
+<form class="grid gap-5" data-testid="entrance-form" (ngSubmit)="submit()">
+    <hlm-dialog-header class="pr-8">
+        <h3 hlmDialogTitle>{{ editing() ? 'Изменение подъезда' : 'Новый подъезд' }}</h3>
+    </hlm-dialog-header>
+
+    <hlm-field-group class="gap-5">
+        <hlm-field class="min-w-0">
+            <label hlmFieldLabel for="entrance-number">Номер</label>
+            <input hlmInput id="entrance-number" name="entranceNumber" maxlength="20"
+                data-testid="entrance-number" [ngModel]="number()"
+                (ngModelChange)="numberChange.emit($event)" />
+        </hlm-field>
+    </hlm-field-group>
+
+    @if (error(); as message) {
+    <p class="text-sm text-destructive" data-testid="entrance-error">{{ message }}</p>
+    }
+
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose
+            data-testid="entrance-cancel" [disabled]="saving()">Отмена</button>
+        <button hlmBtn type="submit" data-testid="entrance-submit"
+            [disabled]="saving()">Сохранить</button>
+    </hlm-dialog-footer>
+</form>

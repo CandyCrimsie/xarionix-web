@@ -10,6 +10,8 @@ import type {
     AddressObjectUpdate,
     AddressSearchResult,
     AddressType,
+    AddressTypeCreate,
+    AddressTypeUpdate,
     Building,
     BuildingCreate,
     BuildingUpdate,
@@ -28,6 +30,32 @@ export class AddressApiService {
     listTypes(): Observable<AddressType[]> {
         return this.http.get<AddressType[]>(
             `${API_BASE_URL}/address-types`,
+        );
+    }
+
+
+    createType(data: AddressTypeCreate): Observable<AddressType> {
+        return this.http.post<AddressType>(
+            `${API_BASE_URL}/address-types`,
+            data,
+        );
+    }
+
+
+    updateType(
+        id: number,
+        data: AddressTypeUpdate,
+    ): Observable<AddressType> {
+        return this.http.patch<AddressType>(
+            `${API_BASE_URL}/address-types/${id}`,
+            data,
+        );
+    }
+
+
+    deleteType(id: number): Observable<void> {
+        return this.http.delete<void>(
+            `${API_BASE_URL}/address-types/${id}`,
         );
     }
 

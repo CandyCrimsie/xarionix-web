@@ -3,6 +3,7 @@ export type AddressTypeCategory =
     | 'region'
     | 'locality'
     | 'area'
+    | 'territory'
     | 'thoroughfare';
 
 
@@ -42,6 +43,22 @@ export interface AddressObjectCreate {
     parent_id: number | null;
     type_id: number;
     name: string;
+}
+
+
+export interface AddressTypeCreate {
+    code?: string;
+    category: AddressTypeCategory;
+    name: string;
+    short_name: string | null;
+    sort_order: number;
+}
+
+
+export interface AddressTypeUpdate {
+    name?: string;
+    short_name?: string | null;
+    sort_order?: number;
 }
 
 

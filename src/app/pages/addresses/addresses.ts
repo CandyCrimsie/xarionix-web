@@ -21,6 +21,7 @@ import {
     lucidePencil,
     lucidePlus,
     lucideRefreshCw,
+    lucideSettings2,
     lucideTrash2,
     lucideWarehouse,
 } from '@ng-icons/lucide';
@@ -37,11 +38,17 @@ import { AddressApiService } from '../../core/addresses/address-api.service';
 import type {
     AddressObject,
     AddressType,
-    AddressTypeCategory,
     Building,
     Entrance,
     Location,
 } from '../../core/addresses/address.models';
+import {
+    addressObjectAllowsBuildings,
+    addressObjectDisplayName,
+    allowedChildCategories,
+    filterAllowedAddressTypes,
+} from '../../core/addresses/address-hierarchy';
+import type { CoordinatePair } from '../../core/addresses/coordinate-input';
 import { CompanyContextService } from '../../core/company/company-context.service';
 import {
     PermissionCode,
@@ -54,6 +61,7 @@ import {
     EntranceDialogForm,
     LocationDialogForm,
 } from './address-dialog-forms';
+import { AddressTypeManager } from './address-type-manager';
 
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -72,25 +80,6 @@ interface AddressTreeRow {
     node: AddressTreeNode;
     depth: number;
 }
-
-
-const ROOT_CATEGORIES: AddressTypeCategory[] = [
-    'country',
-    'region',
-    'locality',
-];
-
-
-const ALLOWED_CHILD_CATEGORIES: Record<
-    AddressTypeCategory,
-    AddressTypeCategory[]
-> = {
-    country: ['region', 'locality'],
-    region: ['area', 'locality'],
-    locality: ['area', 'locality', 'thoroughfare'],
-    area: ['area', 'locality', 'thoroughfare'],
-    thoroughfare: [],
-};
 
 
 const SEARCH_PAGE_SIZE = 20;
@@ -112,6 +101,7 @@ const SEARCH_DEBOUNCE_MS = 300;
         BuildingDialogForm,
         EntranceDialogForm,
         LocationDialogForm,
+        AddressTypeManager,
     ],
     providers: [
         provideIcons({
@@ -125,6 +115,7 @@ const SEARCH_DEBOUNCE_MS = 300;
             lucidePencil,
             lucidePlus,
             lucideRefreshCw,
+            lucideSettings2,
             lucideTrash2,
             lucideWarehouse,
         }),
@@ -183,6 +174,7 @@ export class Addresses {
     readonly objectError = signal<string | null>(null);
 
     readonly editingBuilding = signal<Building | null>(null);
+    readonly buildingParent = signal<AddressObject | null>(null);
     readonly buildingNumber = signal('');
     readonly buildingCorpus = signal('');
     readonly buildingStructure = signal('');
@@ -190,6 +182,14 @@ export class Addresses {
     readonly buildingLongitude = signal('');
     readonly buildingSaving = signal(false);
     readonly buildingError = signal<string | null>(null);
+    readonly buildingParentName = computed(() => {
+        const parent = this.buildingParent();
+        return parent ? this.objectDisplayName(parent) : '';
+    });
+    readonly objectParentName = computed(() => {
+        const parent = this.objectParent();
+        return parent ? this.objectDisplayName(parent) : null;
+    });
 
     readonly editingEntrance = signal<Entrance | null>(null);
     readonly entranceNumber = signal('');
@@ -232,12 +232,7 @@ export class Addresses {
 
     readonly availableObjectTypes = computed(() => {
         const parent = this.objectParent();
-        const categories = parent
-            ? ALLOWED_CHILD_CATEGORIES[parent.type_category]
-            : ROOT_CATEGORIES;
-        const available = this.types().filter(
-            type => categories.includes(type.category),
-        );
+        const available = filterAllowedAddressTypes(this.types(), parent);
         const editing = this.editingObject();
         if (
             editing
@@ -303,9 +298,25 @@ export class Addresses {
 
 
     canCreateChild(addressObject: AddressObject): boolean {
-        return ALLOWED_CHILD_CATEGORIES[
-            addressObject.type_category
-        ].length > 0;
+        return allowedChildCategories(addressObject).length > 0;
+    }
+
+
+    canCreateBuilding(addressObject: AddressObject): boolean {
+        return addressObjectAllowsBuildings(addressObject);
+    }
+
+
+    objectDisplayName(addressObject: AddressObject): string {
+        return addressObjectDisplayName(addressObject);
+    }
+
+
+    rowCreateLabel(addressObject: AddressObject): string {
+        const action = this.canCreateBuilding(addressObject)
+            ? 'Добавить дом в'
+            : 'Добавить объект в';
+        return `${action} ${this.objectDisplayName(addressObject)}`;
     }
 
 
@@ -589,10 +600,7 @@ export class Addresses {
         this.editingObject.set(null);
         this.objectName.set('');
         this.objectError.set(null);
-        const categories = parent
-            ? ALLOWED_CHILD_CATEGORIES[parent.type_category]
-            : ROOT_CATEGORIES;
-        const firstType = this.types().find(type => categories.includes(type.category));
+        const firstType = filterAllowedAddressTypes(this.types(), parent)[0];
         this.objectTypeId.set(firstType?.id ?? null);
     }
 
@@ -704,14 +712,16 @@ export class Addresses {
     }
 
 
-    startCreateBuilding(): void {
+    startCreateBuilding(parent: AddressObject | null = this.selectedObject()): void {
         this.editingBuilding.set(null);
+        this.buildingParent.set(parent);
         this.resetBuildingForm();
     }
 
 
     startEditBuilding(building: Building): void {
         this.editingBuilding.set(building);
+        this.buildingParent.set(this.selectedObject());
         this.buildingNumber.set(building.number);
         this.buildingCorpus.set(building.corpus ?? '');
         this.buildingStructure.set(building.structure ?? '');
@@ -722,7 +732,7 @@ export class Addresses {
 
 
     saveBuilding(dialog: BrnDialog): void {
-        const addressObject = this.selectedObject();
+        const addressObject = this.buildingParent();
         const number = this.buildingNumber().trim();
         if (!addressObject || !number) {
             this.buildingError.set('Укажите номер дома');
@@ -732,6 +742,9 @@ export class Addresses {
         const longitude = this.parseCoordinate(this.buildingLongitude(), -180, 180);
         if (latitude === undefined || longitude === undefined) {
             this.buildingError.set('Проверьте диапазоны координат');
+            return;
+        }
+        if (this.buildingSaving()) {
             return;
         }
         this.buildingSaving.set(true);
@@ -752,6 +765,7 @@ export class Addresses {
             next: saved => {
                 this.buildingSaving.set(false);
                 dialog.close({});
+                this.selectedObject.set(addressObject);
                 this.loadBuildings(addressObject.id, saved.id);
             },
             error: error => {
@@ -798,7 +812,11 @@ export class Addresses {
             this.entranceError.set('Укажите номер подъезда');
             return;
         }
+        if (this.entranceSaving()) {
+            return;
+        }
         this.entranceSaving.set(true);
+        this.entranceError.set(null);
         const editing = this.editingEntrance();
         const request = editing
             ? this.addressApi.updateEntrance(editing.id, number)
@@ -855,10 +873,14 @@ export class Addresses {
         const building = this.selectedBuilding();
         const name = this.locationName().trim().replace(/\s+/g, ' ');
         if (!building || !name) {
-            this.locationError.set('Укажите название помещения');
+            this.locationError.set('Укажите название места');
+            return;
+        }
+        if (this.locationSaving()) {
             return;
         }
         this.locationSaving.set(true);
+        this.locationError.set(null);
         const data = {
             building_id: building.id,
             entrance_id: this.locationEntranceId(),
@@ -878,9 +900,33 @@ export class Addresses {
             },
             error: error => {
                 this.locationSaving.set(false);
-                this.locationError.set(this.apiError(error, 'Не удалось сохранить помещение'));
+                this.locationError.set(this.apiError(error, 'Не удалось сохранить место'));
             },
         });
+    }
+
+
+    applyCoordinatePair(pair: CoordinatePair): void {
+        this.buildingLatitude.set(pair.latitude);
+        this.buildingLongitude.set(pair.longitude);
+        this.buildingError.set(null);
+    }
+
+
+    addressTypeCreated(addressType: AddressType): void {
+        this.types.update(types => this.sortAddressTypes([...types, addressType]));
+    }
+
+
+    addressTypeUpdated(addressType: AddressType): void {
+        this.types.update(types => this.sortAddressTypes(
+            types.map(item => item.id === addressType.id ? addressType : item),
+        ));
+    }
+
+
+    addressTypeDeleted(addressTypeId: number): void {
+        this.types.update(types => types.filter(item => item.id !== addressTypeId));
     }
 
 
@@ -904,6 +950,11 @@ export class Addresses {
         }
         const entrance = this.entrances().find(item => item.id === entranceId);
         return entrance ? `Подъезд ${entrance.number}` : 'Подъезд недоступен';
+    }
+
+
+    coordinateDisplay(value: string | number): string {
+        return value.toString().replace(',', '.');
     }
 
 
@@ -963,6 +1014,7 @@ export class Addresses {
 
     private resetSelection(): void {
         this.selectedObject.set(null);
+        this.buildingParent.set(null);
         this.selectedBuilding.set(null);
         this.buildings.set([]);
         this.entrances.set([]);
@@ -1153,6 +1205,15 @@ export class Addresses {
         this.buildingLatitude.set('');
         this.buildingLongitude.set('');
         this.buildingError.set(null);
+    }
+
+
+    private sortAddressTypes(types: AddressType[]): AddressType[] {
+        return [...types].sort((left, right) => (
+            left.sort_order - right.sort_order
+            || left.name.localeCompare(right.name, 'ru')
+            || left.id - right.id
+        ));
     }
 
 

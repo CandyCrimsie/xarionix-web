@@ -1,0 +1,59 @@
+<form class="grid gap-5" data-testid="location-form" (ngSubmit)="submit()">
+    <hlm-dialog-header class="pr-8">
+        <h3 hlmDialogTitle>{{ editing() ? 'Изменение места размещения' : 'Новое место размещения' }}</h3>
+        <p hlmDialogDescription>
+            Укажите физическое место размещения оборудования или техническую зону.
+        </p>
+    </hlm-dialog-header>
+
+    <hlm-field-group class="gap-5">
+        <hlm-field class="min-w-0">
+            <label hlmFieldLabel for="location-entrance">Подъезд</label>
+            <select id="location-entrance" name="locationEntrance"
+                class="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                data-testid="location-entrance" [ngModel]="entranceId()"
+                (ngModelChange)="entranceIdChange.emit($event === null ? null : +$event)">
+                <option [ngValue]="null">Без подъезда</option>
+                @for (entrance of entrances(); track entrance.id) {
+                <option [ngValue]="entrance.id">Подъезд {{ entrance.number }}</option>
+                }
+            </select>
+        </hlm-field>
+
+        <div class="grid min-w-0 gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
+            <hlm-field class="min-w-0">
+                <label hlmFieldLabel for="location-floor">Этаж</label>
+                <input hlmInput id="location-floor" name="locationFloor" maxlength="20"
+                    data-testid="location-floor" placeholder="Например: -1 или чердак"
+                    [ngModel]="floor()" (ngModelChange)="floorChange.emit($event)" />
+            </hlm-field>
+            <hlm-field class="min-w-0">
+                <label hlmFieldLabel for="location-name">Название места</label>
+                <input hlmInput id="location-name" name="locationName" maxlength="255"
+                    data-testid="location-name"
+                    placeholder="Например: Подвал, Кроссовая, Чердак, Шкаф №2"
+                    [ngModel]="name()" (ngModelChange)="nameChange.emit($event)" />
+            </hlm-field>
+        </div>
+
+        <hlm-field class="min-w-0">
+            <label hlmFieldLabel for="location-description">Описание</label>
+            <textarea id="location-description" name="locationDescription"
+                class="min-h-24 w-full rounded-md border bg-background p-3 text-sm"
+                maxlength="5000" data-testid="location-description"
+                [ngModel]="description()"
+                (ngModelChange)="descriptionChange.emit($event)"></textarea>
+        </hlm-field>
+    </hlm-field-group>
+
+    @if (error(); as message) {
+    <p class="text-sm text-destructive" data-testid="location-error">{{ message }}</p>
+    }
+
+    <hlm-dialog-footer>
+        <button hlmBtn variant="outline" type="button" hlmDialogClose
+            data-testid="location-cancel" [disabled]="saving()">Отмена</button>
+        <button hlmBtn type="submit" data-testid="location-submit"
+            [disabled]="saving()">Сохранить</button>
+    </hlm-dialog-footer>
+</form>

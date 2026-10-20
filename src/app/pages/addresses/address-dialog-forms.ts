@@ -1,6 +1,7 @@
 import {
     ChangeDetectionStrategy,
     Component,
+    computed,
     input,
     output,
 } from '@angular/core';
@@ -18,6 +19,11 @@ import type {
     AddressType,
     Entrance,
 } from '../../core/addresses/address.models';
+import {
+    normalizeCoordinateScalar,
+    parseCoordinatePair,
+    type CoordinatePair,
+} from '../../core/addresses/coordinate-input';
 
 
 @Component({
@@ -44,6 +50,10 @@ export class AddressObjectDialogForm {
     readonly name = input.required<string>();
     readonly saving = input.required<boolean>();
     readonly error = input.required<string | null>();
+    readonly nameLabel = computed(() => {
+        const selected = this.types().find(type => type.id === this.typeId());
+        return selected ? `Название (${selected.name})` : 'Название';
+    });
 
     readonly typeToString = (typeId: number): string =>
         this.types().find(type => type.id === typeId)?.name ?? '';
@@ -55,6 +65,12 @@ export class AddressObjectDialogForm {
     selectType(typeId: number | null | undefined): void {
         if (typeId !== null && typeId !== undefined) {
             this.typeIdChange.emit(typeId);
+        }
+    }
+
+    submit(): void {
+        if (!this.saving()) {
+            this.saveRequested.emit();
         }
     }
 }
@@ -89,12 +105,57 @@ export class BuildingDialogForm {
     readonly structureChange = output<string>();
     readonly latitudeChange = output<string>();
     readonly longitudeChange = output<string>();
+    readonly coordinatePairChange = output<CoordinatePair>();
+    readonly coordinateInputError = output<string>();
     readonly saveRequested = output<void>();
+
+    normalizeScalar(value: string): string {
+        return normalizeCoordinateScalar(value) ?? value;
+    }
+
+    handleCoordinatePaste(
+        event: ClipboardEvent,
+        field: 'latitude' | 'longitude',
+    ): void {
+        const pasted = event.clipboardData?.getData('text')?.trim() ?? '';
+        if (!pasted) {
+            return;
+        }
+        const pair = parseCoordinatePair(pasted);
+        if (pair) {
+            event.preventDefault();
+            this.coordinatePairChange.emit(pair);
+            return;
+        }
+        const scalar = normalizeCoordinateScalar(pasted);
+        if (scalar !== null) {
+            event.preventDefault();
+            if (field === 'latitude') {
+                this.latitudeChange.emit(scalar);
+            } else {
+                this.longitudeChange.emit(scalar);
+            }
+            return;
+        }
+        if (/[,;\s]/.test(pasted)) {
+            event.preventDefault();
+            this.coordinateInputError.emit(
+                'Не удалось однозначно распознать координаты',
+            );
+        }
+    }
+
+    submit(): void {
+        if (!this.saving()) {
+            this.saveRequested.emit();
+        }
+    }
 }
 
 
 @Component({
     selector: 'app-entrance-dialog-form',
+    host: { class: 'contents' },
     imports: [
         FormsModule,
         HlmButtonImports,
@@ -103,46 +164,7 @@ export class BuildingDialogForm {
         HlmInputImports,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-        <hlm-dialog-header>
-            <h3 hlmDialogTitle>{{ editing() ? 'Изменение подъезда' : 'Новый подъезд' }}</h3>
-        </hlm-dialog-header>
-
-        <hlm-field>
-            <label hlmFieldLabel for="entrance-number">Номер</label>
-            <input
-                hlmInput
-                id="entrance-number"
-                maxlength="20"
-                data-testid="entrance-number"
-                [ngModel]="number()"
-                (ngModelChange)="numberChange.emit($event)" />
-        </hlm-field>
-
-        @if (error(); as message) {
-        <p class="text-sm text-destructive" data-testid="entrance-error">{{ message }}</p>
-        }
-
-        <hlm-dialog-footer>
-            <button
-                hlmBtn
-                variant="outline"
-                type="button"
-                hlmDialogClose
-                data-testid="entrance-cancel"
-                [disabled]="saving()">
-                Отмена
-            </button>
-            <button
-                hlmBtn
-                type="button"
-                data-testid="entrance-submit"
-                [disabled]="saving()"
-                (click)="saveRequested.emit()">
-                Сохранить
-            </button>
-        </hlm-dialog-footer>
-    `,
+    templateUrl: './entrance-dialog-form.html',
 })
 export class EntranceDialogForm {
     readonly editing = input.required<boolean>();
@@ -152,11 +174,18 @@ export class EntranceDialogForm {
 
     readonly numberChange = output<string>();
     readonly saveRequested = output<void>();
+
+    submit(): void {
+        if (!this.saving()) {
+            this.saveRequested.emit();
+        }
+    }
 }
 
 
 @Component({
     selector: 'app-location-dialog-form',
+    host: { class: 'contents' },
     imports: [
         FormsModule,
         HlmButtonImports,
@@ -165,83 +194,7 @@ export class EntranceDialogForm {
         HlmInputImports,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-        <hlm-dialog-header>
-            <h3 hlmDialogTitle>{{ editing() ? 'Изменение помещения' : 'Новое помещение' }}</h3>
-        </hlm-dialog-header>
-
-        <hlm-field-group>
-            <hlm-field>
-                <label hlmFieldLabel for="location-entrance">Подъезд</label>
-                <select
-                    id="location-entrance"
-                    class="h-9 rounded-md border bg-background px-3 text-sm"
-                    data-testid="location-entrance"
-                    [ngModel]="entranceId()"
-                    (ngModelChange)="entranceIdChange.emit($event === null ? null : +$event)">
-                    <option [ngValue]="null">Без подъезда</option>
-                    @for (entrance of entrances(); track entrance.id) {
-                    <option [ngValue]="entrance.id">Подъезд {{ entrance.number }}</option>
-                    }
-                </select>
-            </hlm-field>
-            <div class="grid gap-4 sm:grid-cols-[8rem_1fr]">
-                <hlm-field>
-                    <label hlmFieldLabel for="location-floor">Этаж</label>
-                    <input
-                        hlmInput
-                        id="location-floor"
-                        maxlength="20"
-                        data-testid="location-floor"
-                        [ngModel]="floor()"
-                        (ngModelChange)="floorChange.emit($event)" />
-                </hlm-field>
-                <hlm-field>
-                    <label hlmFieldLabel for="location-name">Название</label>
-                    <input
-                        hlmInput
-                        id="location-name"
-                        maxlength="255"
-                        data-testid="location-name"
-                        [ngModel]="name()"
-                        (ngModelChange)="nameChange.emit($event)" />
-                </hlm-field>
-            </div>
-            <hlm-field>
-                <label hlmFieldLabel for="location-description">Описание</label>
-                <textarea
-                    id="location-description"
-                    class="min-h-24 rounded-md border bg-background p-3 text-sm"
-                    maxlength="5000"
-                    [ngModel]="description()"
-                    (ngModelChange)="descriptionChange.emit($event)"></textarea>
-            </hlm-field>
-        </hlm-field-group>
-
-        @if (error(); as message) {
-        <p class="text-sm text-destructive" data-testid="location-error">{{ message }}</p>
-        }
-
-        <hlm-dialog-footer>
-            <button
-                hlmBtn
-                variant="outline"
-                type="button"
-                hlmDialogClose
-                data-testid="location-cancel"
-                [disabled]="saving()">
-                Отмена
-            </button>
-            <button
-                hlmBtn
-                type="button"
-                data-testid="location-submit"
-                [disabled]="saving()"
-                (click)="saveRequested.emit()">
-                Сохранить
-            </button>
-        </hlm-dialog-footer>
-    `,
+    templateUrl: './location-dialog-form.html',
 })
 export class LocationDialogForm {
     readonly editing = input.required<boolean>();
@@ -258,4 +211,10 @@ export class LocationDialogForm {
     readonly nameChange = output<string>();
     readonly descriptionChange = output<string>();
     readonly saveRequested = output<void>();
+
+    submit(): void {
+        if (!this.saving()) {
+            this.saveRequested.emit();
+        }
+    }
 }

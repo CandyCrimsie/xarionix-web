@@ -56,6 +56,23 @@ describe('Addresses', () => {
         name: 'Улица',
         short_name: 'ул.',
     };
+    const settlementType: AddressType = {
+        ...cityType,
+        id: 4,
+        code: 'settlement',
+        name: 'Посёлок',
+        short_name: 'пос.',
+        sort_order: 40,
+    };
+    const sntType: AddressType = {
+        ...cityType,
+        id: 5,
+        code: 'snt_territory',
+        category: 'territory',
+        name: 'Территория СНТ',
+        short_name: 'тер. СНТ',
+        sort_order: 73,
+    };
     const city: AddressObject = {
         id: 10,
         parent_id: null,
@@ -90,6 +107,17 @@ describe('Addresses', () => {
         type_short_name: streetType.short_name,
         name: 'Дмитрия Ульянова',
     };
+    const territory: AddressObject = {
+        ...city,
+        id: 13,
+        parent_id: city.id,
+        type_id: sntType.id,
+        type_code: sntType.code,
+        type_category: sntType.category,
+        type_name: sntType.name,
+        type_short_name: sntType.short_name,
+        name: 'Облепиха',
+    };
     const building: Building = {
         id: 20,
         address_object_id: street.id,
@@ -123,6 +151,9 @@ describe('Addresses', () => {
 
     const addressApi = {
         listTypes: vi.fn(),
+        createType: vi.fn(),
+        updateType: vi.fn(),
+        deleteType: vi.fn(),
         listObjects: vi.fn(),
         getObject: vi.fn(),
         createObject: vi.fn(),
@@ -159,9 +190,15 @@ describe('Addresses', () => {
         activeCompanyId.set(1);
         canRead.set(true);
         canManage.set(true);
-        addressApi.listTypes.mockReturnValue(of([cityType, districtType, streetType]));
+        addressApi.listTypes.mockReturnValue(of([
+            cityType,
+            settlementType,
+            districtType,
+            sntType,
+            streetType,
+        ]));
         addressApi.listObjects.mockImplementation((parentId?: number) => of(
-            parentId === city.id ? [district, street] : [city],
+            parentId === city.id ? [district, territory, street] : [city],
         ));
         addressApi.listBuildings.mockReturnValue(of([building]));
         addressApi.listEntrances.mockReturnValue(of([entrance]));
@@ -232,6 +269,26 @@ describe('Addresses', () => {
     }
 
 
+    function submitForm(dialog: HTMLElement, testId: string): void {
+        const form = dialog.querySelector<HTMLFormElement>(`[data-testid="${testId}"]`);
+        expect(form).not.toBeNull();
+        form?.requestSubmit();
+        fixture.detectChanges();
+    }
+
+
+    async function pasteText(element: HTMLInputElement, value: string): Promise<void> {
+        const event = new Event('paste', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'clipboardData', {
+            value: { getData: () => value },
+        });
+        element.dispatchEvent(event);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+    }
+
+
     function addressSearchInput(): HTMLInputElement {
         const input = fixture.nativeElement.querySelector(
             '[data-testid="address-search-input"] input',
@@ -268,6 +325,124 @@ describe('Addresses', () => {
         expect(addressApi.listObjects).toHaveBeenCalledWith(10);
         expect(fixture.nativeElement.textContent).toContain('Академический район');
         expect(fixture.nativeElement.textContent).toContain('Дмитрия Ульянова');
+    });
+
+
+    it('should place root creation in the tree header and prefix tree labels', () => {
+        createComponent();
+        const pageHeader = fixture.nativeElement.querySelector('header') as HTMLElement;
+        const treeHeader = fixture.nativeElement.querySelector(
+            '[data-testid="address-tree-header"]',
+        ) as HTMLElement;
+
+        expect(pageHeader.querySelector('[data-testid="create-root-address-action"]')).toBeNull();
+        expect(treeHeader.querySelector('[data-testid="create-root-address-action"]')).not.toBeNull();
+        expect(
+            treeHeader.querySelector('[data-testid="create-root-address-action"]')
+                ?.getAttribute('aria-label'),
+        ).toBe('Добавить адресный объект');
+        expect(fixture.nativeElement.querySelector('[data-testid="address-object-10"]')?.textContent)
+            .toContain('г. Москва');
+
+        component.toggleNode(component.roots()[0]);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="address-object-12"]')?.textContent)
+            .toContain('ул. Дмитрия Ульянова');
+        expect(component.objectDisplayName({ ...city, type_short_name: null })).toBe('Москва');
+    });
+
+
+    it('should expose a focused row add action without selecting or toggling the node', async () => {
+        createComponent();
+        const add = fixture.nativeElement.querySelector(
+            `[data-testid="row-add-object-${city.id}"]`,
+        ) as HTMLButtonElement;
+
+        expect(add).not.toBeNull();
+        expect(add.className).toContain('md:opacity-0');
+        expect(add.className).toContain('md:group-focus-within:opacity-100');
+        expect(add.getAttribute('aria-label')).toBe('Добавить объект в г. Москва');
+        add.focus();
+        expect(document.activeElement).toBe(add);
+
+        const dialog = await openDialog(`row-add-object-${city.id}`);
+        expect(component.selectedObject()).toBeNull();
+        expect(component.roots()[0].expanded).toBe(false);
+        expect(dialog.textContent).toContain('Родитель: г. Москва');
+    });
+
+
+    it('should filter child types and submit a row-created object with the correct parent', async () => {
+        createComponent();
+        addressApi.createObject.mockReturnValue(of(district));
+        const dialog = await openDialog(`row-add-object-${city.id}`);
+        const typeTrigger = dialog.querySelector<HTMLElement>(
+            '[data-testid="address-object-type"]',
+        );
+        (typeTrigger?.querySelector('button') ?? typeTrigger)?.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const options = document.body.querySelector<HTMLElement>('[role="listbox"]');
+        expect(options?.textContent).toContain('Район');
+        expect(options?.textContent).toContain('Территория СНТ');
+        expect(options?.textContent).toContain('Улица');
+        expect(options?.textContent).not.toContain('Город');
+        expect(options?.textContent).not.toContain('Посёлок');
+
+        const districtOption = Array.from(
+            options?.querySelectorAll<HTMLElement>('[role="option"]') ?? [],
+        ).find(option => option.textContent?.includes('Район'));
+        districtOption?.click();
+        fixture.detectChanges();
+        expect(addressApi.createObject).not.toHaveBeenCalled();
+        expect(dialog.textContent).toContain('Название (Район)');
+        const name = dialog.querySelector<HTMLInputElement>('[data-testid="address-object-name"]');
+        enterValue(name as HTMLInputElement, 'Центральный');
+        submitForm(dialog, 'address-object-form');
+
+        expect(addressApi.createObject).toHaveBeenCalledWith({
+            parent_id: city.id,
+            type_id: districtType.id,
+            name: 'Центральный',
+        });
+    });
+
+
+    it('should create buildings from street and territory row actions', async () => {
+        createComponent();
+        component.toggleNode(component.roots()[0]);
+        fixture.detectChanges();
+        addressApi.createBuilding.mockReturnValue(of(building));
+
+        const streetDialog = await openDialog(`row-add-building-${street.id}`);
+        enterValue(
+            streetDialog.querySelector<HTMLInputElement>('[data-testid="building-number"]')!,
+            '15',
+        );
+        submitForm(streetDialog, 'building-form');
+        expect(addressApi.createBuilding).toHaveBeenCalledWith(expect.objectContaining({
+            address_object_id: street.id,
+            number: '15',
+        }));
+
+        addressApi.createBuilding.mockClear();
+        addressApi.createBuilding.mockReturnValue(of({
+            ...building,
+            address_object_id: territory.id,
+            full_address: 'Жуковский, тер. СНТ Облепиха, д. 41',
+        }));
+        const territoryDialog = await openDialog(`row-add-building-${territory.id}`);
+        enterValue(
+            territoryDialog.querySelector<HTMLInputElement>('[data-testid="building-number"]')!,
+            '41',
+        );
+        submitForm(territoryDialog, 'building-form');
+        expect(addressApi.createBuilding).toHaveBeenCalledWith(expect.objectContaining({
+            address_object_id: territory.id,
+            number: '41',
+        }));
     });
 
 
@@ -323,7 +498,7 @@ describe('Addresses', () => {
 
         const childDialog = await openDialog('create-child-address-action');
         expect(childDialog.textContent).toContain('Новый адресный объект');
-        expect(childDialog.textContent).toContain(`Родитель: ${city.name}`);
+        expect(childDialog.textContent).toContain(`Родитель: г. ${city.name}`);
         await closeDialog(childDialog, 'address-object-cancel');
 
         component.selectObject(street);
@@ -354,12 +529,12 @@ describe('Addresses', () => {
         await closeDialog(editEntranceDialog, 'entrance-cancel');
 
         const createLocationDialog = await openDialog('create-location-action');
-        expect(createLocationDialog.textContent).toContain('Новое помещение');
+        expect(createLocationDialog.textContent).toContain('Новое место размещения');
         expect(createLocationDialog.querySelector('[data-testid="location-entrance"]')).not.toBeNull();
         await closeDialog(createLocationDialog, 'location-cancel');
 
         const editLocationDialog = await openDialog(`edit-location-action-${location.id}`);
-        expect(editLocationDialog.textContent).toContain('Изменение помещения');
+        expect(editLocationDialog.textContent).toContain('Изменение места размещения');
         expect(editLocationDialog.querySelector<HTMLInputElement>('[data-testid="location-name"]')?.value)
             .toBe(location.name);
         await closeDialog(editLocationDialog, 'location-cancel');
@@ -432,6 +607,192 @@ describe('Addresses', () => {
         expect(openDialogElement).not.toBeNull();
         expect(openDialogElement?.querySelector('[data-testid="address-object-error"]')?.textContent)
             .toContain('Такая запись уже существует');
+    });
+
+
+    it('should create a custom address type and keep system types protected in the UI', async () => {
+        const customType: AddressType = {
+            ...sntType,
+            id: 99,
+            code: 'custom_territory_garazhnyi_kooperativ',
+            name: 'Гаражный кооператив',
+            short_name: 'тер. ГСК',
+            is_system: false,
+        };
+        addressApi.createType.mockReturnValue(of(customType));
+        createComponent();
+
+        const dialog = await openDialog('manage-address-types-action');
+        expect(dialog.textContent).toContain('Изменения пользовательских типов видны всем компаниям');
+        expect(dialog.querySelector(`[data-testid="edit-address-type-${cityType.id}"]`)).toBeNull();
+        expect(dialog.querySelector(`[data-testid="delete-address-type-${cityType.id}"]`)).toBeNull();
+
+        (dialog.querySelector('[data-testid="create-address-type-action"]') as HTMLElement).click();
+        fixture.detectChanges();
+        enterValue(
+            dialog.querySelector<HTMLInputElement>('[data-testid="address-type-name"]')!,
+            '  Гаражный кооператив  ',
+        );
+        enterValue(
+            dialog.querySelector<HTMLInputElement>('[data-testid="address-type-short-name"]')!,
+            ' тер. ГСК ',
+        );
+        await fixture.whenStable();
+        fixture.detectChanges();
+        (dialog.querySelector('[data-testid="address-type-submit"]') as HTMLElement).click();
+        fixture.detectChanges();
+
+        expect(dialog.querySelector('[data-testid="address-type-error"]')?.textContent ?? '')
+            .toBe('');
+        expect(addressApi.createType).toHaveBeenCalledWith({
+            name: 'Гаражный кооператив',
+            short_name: 'тер. ГСК',
+            category: 'territory',
+            sort_order: 75,
+        });
+        expect(component.types()).toContainEqual(customType);
+    });
+
+
+    it('should submit native forms with Enter semantics and block duplicate requests', async () => {
+        const pending = new Subject<AddressObject>();
+        addressApi.createObject.mockReturnValue(pending);
+        createComponent();
+        const dialog = await openDialog('create-root-address-action');
+        const name = dialog.querySelector<HTMLInputElement>('[data-testid="address-object-name"]')!;
+        enterValue(name, 'Раменское');
+
+        name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        submitForm(dialog, 'address-object-form');
+        submitForm(dialog, 'address-object-form');
+
+        expect(addressApi.createObject).toHaveBeenCalledTimes(1);
+        expect(component.objectSaving()).toBe(true);
+        pending.next({ ...city, name: 'Раменское' });
+        pending.complete();
+        fixture.detectChanges();
+    });
+
+
+    it('should parse coordinate pairs pasted into either coordinate field', async () => {
+        createComponent();
+        component.selectObject(street);
+        fixture.detectChanges();
+        let dialog = await openDialog('create-building-action');
+        const latitude = dialog.querySelector<HTMLInputElement>('[data-testid="building-latitude"]')!;
+        const longitude = dialog.querySelector<HTMLInputElement>('[data-testid="building-longitude"]')!;
+
+        await pasteText(latitude, '55.577276, 38.245099');
+        expect(latitude.value).toBe('55.577276');
+        expect(longitude.value).toBe('38.245099');
+        await closeDialog(dialog, 'building-cancel');
+
+        dialog = await openDialog('create-building-action');
+        const secondLatitude = dialog.querySelector<HTMLInputElement>('[data-testid="building-latitude"]')!;
+        const secondLongitude = dialog.querySelector<HTMLInputElement>('[data-testid="building-longitude"]')!;
+        await pasteText(secondLongitude, '-55,577276; -38,245099');
+        expect(secondLatitude.value).toBe('-55.577276');
+        expect(secondLongitude.value).toBe('-38.245099');
+    });
+
+
+    it('should reject ambiguous coordinate input and preserve scalar decimal commas', async () => {
+        createComponent();
+        component.selectObject(street);
+        fixture.detectChanges();
+        const dialog = await openDialog('create-building-action');
+        const latitude = dialog.querySelector<HTMLInputElement>('[data-testid="building-latitude"]')!;
+
+        await pasteText(latitude, '55,577276');
+        expect(latitude.value).toBe('55.577276');
+        await pasteText(latitude, '55,577276, 38,245099');
+        expect(dialog.querySelector('[data-testid="building-error"]')?.textContent)
+            .toContain('Не удалось однозначно распознать координаты');
+    });
+
+
+    it('should keep textarea Enter inside the location form and submit location explicitly', async () => {
+        addressApi.createLocation.mockReturnValue(of(location));
+        createComponent();
+        component.selectObject(street);
+        component.selectBuilding(building);
+        fixture.detectChanges();
+        const dialog = await openDialog('create-location-action');
+        const description = dialog.querySelector<HTMLTextAreaElement>(
+            '[data-testid="location-description"]',
+        )!;
+        description.value = 'Первая строка';
+        description.dispatchEvent(new Event('input', { bubbles: true }));
+        description.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Enter',
+            bubbles: true,
+        }));
+        fixture.detectChanges();
+        expect(addressApi.createLocation).not.toHaveBeenCalled();
+
+        enterValue(
+            dialog.querySelector<HTMLInputElement>('[data-testid="location-name"]')!,
+            'Технический шкаф',
+        );
+        submitForm(dialog, 'location-form');
+        expect(addressApi.createLocation).toHaveBeenCalledWith(expect.objectContaining({
+            name: 'Технический шкаф',
+            description: 'Первая строка',
+        }));
+    });
+
+
+    it('should submit entrance and location edit forms through their native forms', async () => {
+        addressApi.createEntrance.mockReturnValue(of(entrance));
+        addressApi.updateLocation.mockReturnValue(of({
+            ...location,
+            name: 'Кроссовая',
+        }));
+        createComponent();
+        component.selectObject(street);
+        component.selectBuilding(building);
+        fixture.detectChanges();
+
+        const entranceDialog = await openDialog('create-entrance-action');
+        enterValue(
+            entranceDialog.querySelector<HTMLInputElement>('[data-testid="entrance-number"]')!,
+            '2',
+        );
+        submitForm(entranceDialog, 'entrance-form');
+        expect(addressApi.createEntrance).toHaveBeenCalledWith(building.id, '2');
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const locationDialog = await openDialog(`edit-location-action-${location.id}`);
+        enterValue(
+            locationDialog.querySelector<HTMLInputElement>('[data-testid="location-name"]')!,
+            'Кроссовая',
+        );
+        submitForm(locationDialog, 'location-form');
+        expect(addressApi.updateLocation).toHaveBeenCalledWith(
+            location.id,
+            expect.objectContaining({ name: 'Кроссовая' }),
+        );
+    });
+
+
+    it('should render responsive field groups with unambiguous location labels', async () => {
+        createComponent();
+        component.selectObject(street);
+        component.selectBuilding(building);
+        fixture.detectChanges();
+        const locationDialog = await openDialog('create-location-action');
+
+        expect(locationDialog.querySelector('form[data-testid="location-form"]')).not.toBeNull();
+        expect(locationDialog.querySelectorAll('hlm-field.min-w-0').length).toBeGreaterThan(2);
+        expect(locationDialog.textContent).toContain('Название места');
+        expect(locationDialog.textContent).toContain(
+            'Укажите физическое место размещения оборудования или техническую зону',
+        );
+        expect(
+            locationDialog.querySelector<HTMLInputElement>('[data-testid="location-name"]')
+                ?.placeholder,
+        ).toContain('Подвал');
     });
 
 
@@ -969,6 +1330,8 @@ describe('Addresses', () => {
         component.selectObject(street);
         fixture.detectChanges();
         expect(fixture.nativeElement.querySelector('[data-testid="create-root-address-action"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="manage-address-types-action"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector(`[data-testid="row-add-object-${city.id}"]`)).toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="create-building-action"]')).toBeNull();
     });
 

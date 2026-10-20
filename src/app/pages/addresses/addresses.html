@@ -1,34 +1,12 @@
 <div class="flex h-full min-h-0 flex-col gap-4 p-4">
-    <header class="flex flex-wrap items-start justify-between gap-4">
+    <header>
         <div>
             <h1 class="text-2xl font-semibold">Адресная база</h1>
             <p class="mt-1 text-sm text-muted-foreground">
-                Общий каталог физических адресов и помещения текущей компании
+                Общий каталог физических адресов и места размещения текущей компании
             </p>
         </div>
 
-        @if (canManageAddresses()) {
-        <hlm-dialog #rootObjectDialog>
-            <button hlmDialogTrigger hlmBtn type="button" data-testid="create-root-address-action"
-                (click)="startCreateObject(null)">
-                <ng-icon name="lucidePlus" />
-                Добавить
-            </button>
-            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
-                <app-address-object-dialog-form
-                    [editing]="editingObject() !== null"
-                    [parentName]="objectParent()?.name ?? null"
-                    [types]="availableObjectTypes()"
-                    [typeId]="objectTypeId()"
-                    [name]="objectName()"
-                    [saving]="objectSaving()"
-                    [error]="objectError()"
-                    (typeIdChange)="objectTypeId.set($event)"
-                    (nameChange)="objectName.set($event)"
-                    (saveRequested)="saveObject(rootObjectDialog)" />
-            </hlm-dialog-content>
-        </hlm-dialog>
-        }
     </header>
 
     <hlm-autocomplete
@@ -137,12 +115,53 @@
     } @else if (state() === 'ready') {
     <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,2fr)]">
         <section class="min-h-0 overflow-auto rounded-lg border bg-card" data-testid="address-tree">
-            <div class="sticky top-0 z-10 border-b bg-card px-4 py-3">
+            <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-card px-4 py-3"
+                data-testid="address-tree-header">
                 <h2 class="font-medium">Адресные объекты</h2>
+                @if (canManageAddresses()) {
+                <div class="flex items-center gap-1">
+                    <hlm-dialog #addressTypeDialog>
+                        <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                            aria-label="Управление типами адресных объектов"
+                            data-testid="manage-address-types-action">
+                            <ng-icon name="lucideSettings2" />
+                        </button>
+                        <hlm-dialog-content *hlmDialogPortal="let ctx"
+                            class="w-[calc(100vw-2rem)] sm:w-2xl sm:max-w-2xl">
+                            <app-address-type-manager [types]="types()"
+                                (typeCreated)="addressTypeCreated($event)"
+                                (typeUpdated)="addressTypeUpdated($event)"
+                                (typeDeleted)="addressTypeDeleted($event)" />
+                        </hlm-dialog-content>
+                    </hlm-dialog>
+
+                    <hlm-dialog #rootObjectDialog>
+                        <button hlmDialogTrigger hlmBtn size="icon" type="button"
+                            aria-label="Добавить адресный объект"
+                            data-testid="create-root-address-action"
+                            (click)="startCreateObject(null)">
+                            <ng-icon name="lucidePlus" />
+                        </button>
+                        <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
+                            <app-address-object-dialog-form
+                                [editing]="editingObject() !== null"
+                                [parentName]="objectParentName()"
+                                [types]="availableObjectTypes()"
+                                [typeId]="objectTypeId()"
+                                [name]="objectName()"
+                                [saving]="objectSaving()"
+                                [error]="objectError()"
+                                (typeIdChange)="objectTypeId.set($event)"
+                                (nameChange)="objectName.set($event)"
+                                (saveRequested)="saveObject(rootObjectDialog)" />
+                        </hlm-dialog-content>
+                    </hlm-dialog>
+                </div>
+                }
             </div>
             <div class="p-2">
                 @for (row of treeRows(); track row.node.id) {
-                <div class="flex items-center gap-1" [style.padding-left.px]="row.depth * 18">
+                <div class="group flex items-center gap-1" [style.padding-left.px]="row.depth * 18">
                     <button hlmBtn variant="ghost" size="icon" type="button" class="size-8 shrink-0"
                         [attr.aria-label]="row.node.expanded ? 'Свернуть' : 'Развернуть'"
                         [attr.data-testid]="'toggle-address-' + row.node.id" (click)="toggleNode(row.node)">
@@ -158,9 +177,68 @@
                         class="h-auto min-w-0 flex-1 justify-start px-2 py-2 text-left"
                         [class.bg-muted]="selectedObject()?.id === row.node.id"
                         [attr.data-testid]="'address-object-' + row.node.id" (click)="selectObject(row.node)">
-                        <span class="truncate">{{ row.node.name }}</span>
-                        <span class="ml-auto text-xs text-muted-foreground">{{ row.node.type_short_name || row.node.type_name }}</span>
+                        <span class="truncate">{{ objectDisplayName(row.node) }}</span>
                     </button>
+
+                    @if (canManageAddresses() && (canCreateBuilding(row.node) || canCreateChild(row.node))) {
+                    @if (canCreateBuilding(row.node)) {
+                    <hlm-dialog #rowBuildingDialog>
+                        <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                            class="size-8 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                            [disabled]="row.node.loading"
+                            [attr.aria-label]="rowCreateLabel(row.node)"
+                            [attr.data-testid]="'row-add-building-' + row.node.id"
+                            (click)="$event.stopPropagation(); startCreateBuilding(row.node)">
+                            <ng-icon name="lucidePlus" />
+                        </button>
+                        <hlm-dialog-content *hlmDialogPortal="let ctx"
+                            class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
+                            <app-building-dialog-form
+                                [editing]="editingBuilding() !== null"
+                                [addressObjectName]="buildingParentName()"
+                                [number]="buildingNumber()"
+                                [corpus]="buildingCorpus()"
+                                [structure]="buildingStructure()"
+                                [latitude]="buildingLatitude()"
+                                [longitude]="buildingLongitude()"
+                                [saving]="buildingSaving()"
+                                [error]="buildingError()"
+                                (numberChange)="buildingNumber.set($event)"
+                                (corpusChange)="buildingCorpus.set($event)"
+                                (structureChange)="buildingStructure.set($event)"
+                                (latitudeChange)="buildingLatitude.set($event)"
+                                (longitudeChange)="buildingLongitude.set($event)"
+                                (coordinatePairChange)="applyCoordinatePair($event)"
+                                (coordinateInputError)="buildingError.set($event)"
+                                (saveRequested)="saveBuilding(rowBuildingDialog)" />
+                        </hlm-dialog-content>
+                    </hlm-dialog>
+                    } @else {
+                    <hlm-dialog #rowObjectDialog>
+                        <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                            class="size-8 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                            [disabled]="row.node.loading"
+                            [attr.aria-label]="rowCreateLabel(row.node)"
+                            [attr.data-testid]="'row-add-object-' + row.node.id"
+                            (click)="$event.stopPropagation(); startCreateObject(row.node)">
+                            <ng-icon name="lucidePlus" />
+                        </button>
+                        <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
+                            <app-address-object-dialog-form
+                                [editing]="editingObject() !== null"
+                                [parentName]="objectParentName()"
+                                [types]="availableObjectTypes()"
+                                [typeId]="objectTypeId()"
+                                [name]="objectName()"
+                                [saving]="objectSaving()"
+                                [error]="objectError()"
+                                (typeIdChange)="objectTypeId.set($event)"
+                                (nameChange)="objectName.set($event)"
+                                (saveRequested)="saveObject(rowObjectDialog)" />
+                        </hlm-dialog-content>
+                    </hlm-dialog>
+                    }
+                    }
                 </div>
                 } @empty {
                 <p class="p-6 text-center text-sm text-muted-foreground" data-testid="addresses-empty">
@@ -177,7 +255,7 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <ng-icon name="lucideMapPin" class="text-muted-foreground" />
-                            <h2 class="text-xl font-semibold" data-testid="selected-address-name">{{ addressObject.name }}</h2>
+                            <h2 class="text-xl font-semibold" data-testid="selected-address-name">{{ objectDisplayName(addressObject) }}</h2>
                         </div>
                         <p class="mt-1 text-sm text-muted-foreground">{{ addressObject.type_name }}</p>
                     </div>
@@ -231,7 +309,7 @@
                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
                                 <app-address-object-dialog-form
                                     [editing]="editingObject() !== null"
-                                    [parentName]="objectParent()?.name ?? null"
+                                    [parentName]="objectParentName()"
                                     [types]="availableObjectTypes()"
                                     [typeId]="objectTypeId()"
                                     [name]="objectName()"
@@ -247,7 +325,7 @@
                             <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-sm">
                                 <app-address-object-dialog-form
                                     [editing]="editingObject() !== null"
-                                    [parentName]="objectParent()?.name ?? null"
+                                    [parentName]="objectParentName()"
                                     [types]="availableObjectTypes()"
                                     [typeId]="objectTypeId()"
                                     [name]="objectName()"
@@ -283,7 +361,7 @@
                 <div class="border-t pt-5">
                     <div class="mb-3 flex items-center justify-between gap-3">
                         <h3 class="font-medium">Здания</h3>
-                        @if (canManageAddresses() && addressObject.type_category === 'thoroughfare') {
+                        @if (canManageAddresses() && canCreateBuilding(addressObject)) {
                         <hlm-dialog #createBuildingDialog>
                             <button hlmDialogTrigger hlmBtn size="sm" type="button"
                                 data-testid="create-building-action" (click)="startCreateBuilding()">
@@ -295,7 +373,7 @@
                                 class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
                                 <app-building-dialog-form
                                     [editing]="editingBuilding() !== null"
-                                    [addressObjectName]="selectedObject()?.name ?? ''"
+                                    [addressObjectName]="buildingParentName()"
                                     [number]="buildingNumber()"
                                     [corpus]="buildingCorpus()"
                                     [structure]="buildingStructure()"
@@ -308,6 +386,8 @@
                                     (structureChange)="buildingStructure.set($event)"
                                     (latitudeChange)="buildingLatitude.set($event)"
                                     (longitudeChange)="buildingLongitude.set($event)"
+                                    (coordinatePairChange)="applyCoordinatePair($event)"
+                                    (coordinateInputError)="buildingError.set($event)"
                                     (saveRequested)="saveBuilding(createBuildingDialog)" />
                             </hlm-dialog-content>
                         </hlm-dialog>
@@ -354,7 +434,7 @@
                             <p class="mt-1 text-sm text-muted-foreground">
                                 Координаты:
                                 @if (building.latitude !== null && building.longitude !== null) {
-                                {{ building.latitude }}, {{ building.longitude }}
+                                {{ coordinateDisplay(building.latitude) }}, {{ coordinateDisplay(building.longitude) }}
                                 } @else { не заданы }
                             </p>
                         </div>
@@ -371,7 +451,7 @@
                                     class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
                                     <app-building-dialog-form
                                         [editing]="editingBuilding() !== null"
-                                        [addressObjectName]="selectedObject()?.name ?? ''"
+                                        [addressObjectName]="buildingParentName()"
                                         [number]="buildingNumber()"
                                         [corpus]="buildingCorpus()"
                                         [structure]="buildingStructure()"
@@ -384,6 +464,8 @@
                                         (structureChange)="buildingStructure.set($event)"
                                         (latitudeChange)="buildingLatitude.set($event)"
                                         (longitudeChange)="buildingLongitude.set($event)"
+                                        (coordinatePairChange)="applyCoordinatePair($event)"
+                                        (coordinateInputError)="buildingError.set($event)"
                                         (saveRequested)="saveBuilding(editBuildingDialog)"
                                     />
                                 </hlm-dialog-content>
@@ -395,7 +477,7 @@
                                     <hlm-alert-dialog-header>
                                         <h3 hlmAlertDialogTitle>Удалить здание?</h3>
                                         <p hlmAlertDialogDescription>
-                                            Сначала потребуется удалить подъезды и помещения здания.
+                                            Сначала потребуется удалить подъезды и места размещения здания.
                                         </p>
                                     </hlm-alert-dialog-header>
                                     <hlm-alert-dialog-footer>
@@ -412,10 +494,10 @@
                     @if (detailsState() === 'loading') {
                     <div class="flex items-center gap-2 py-6 text-sm text-muted-foreground">
                         <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-                        Загружаем помещения...
+                        Загружаем места размещения...
                     </div>
                     } @else if (detailsState() === 'error') {
-                    <p class="text-sm text-destructive">Не удалось загрузить подъезды и помещения</p>
+                    <p class="text-sm text-destructive">Не удалось загрузить подъезды и места размещения</p>
                     } @else {
                     <div class="grid gap-5 xl:grid-cols-2">
                         <section>
@@ -470,7 +552,7 @@
                                                 <hlm-alert-dialog-header>
                                                     <h3 hlmAlertDialogTitle>Удалить подъезд {{ entrance.number }}?</h3>
                                                     <p hlmAlertDialogDescription>
-                                                        Удаление невозможно, пока к подъезду привязаны помещения.
+                                                        Удаление невозможно, пока к подъезду привязаны места размещения.
                                                     </p>
                                                 </hlm-alert-dialog-header>
                                                 <hlm-alert-dialog-footer>
@@ -491,7 +573,7 @@
 
                         <section>
                             <div class="mb-3 flex items-center justify-between">
-                                <h4 class="font-medium">Помещения</h4>
+                                <h4 class="font-medium">Места размещения</h4>
                                 @if (canManageAddresses()) {
                                 <hlm-dialog #createLocationDialog>
                                     <button hlmDialogTrigger hlmBtn variant="outline" size="sm" type="button"
@@ -555,14 +637,14 @@
                                             </hlm-dialog>
                                             <hlm-alert-dialog>
                                                 <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon"
-                                                    type="button" aria-label="Удалить помещение">
+                                                    type="button" aria-label="Удалить место размещения">
                                                     <ng-icon name="lucideTrash2" />
                                                 </button>
                                                 <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
                                                     <hlm-alert-dialog-header>
-                                                        <h3 hlmAlertDialogTitle>Удалить помещение?</h3>
+                                                        <h3 hlmAlertDialogTitle>Удалить место размещения?</h3>
                                                         <p hlmAlertDialogDescription>
-                                                            Помещение нельзя удалить, если к нему привязаны другие данные.
+                                                            Место нельзя удалить, если к нему привязаны другие данные.
                                                         </p>
                                                     </hlm-alert-dialog-header>
                                                     <hlm-alert-dialog-footer>
@@ -580,7 +662,7 @@
                                     }
                                 </div>
                                 } @empty {
-                                <p class="py-3 text-sm text-muted-foreground">Помещения не добавлены</p>
+                                <p class="py-3 text-sm text-muted-foreground">Места размещения не добавлены</p>
                                 }
                             </div>
                         </section>
