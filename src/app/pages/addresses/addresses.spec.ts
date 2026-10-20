@@ -1789,7 +1789,7 @@ describe('Addresses', () => {
     });
 
 
-    it('should render action errors with the Spartan alert icon in the top-left grid cell', () => {
+    it('should render action errors with the native Spartan alert structure', () => {
         createComponent();
         component.actionError.set('Недопустимое расположение');
         fixture.detectChanges();
@@ -1797,12 +1797,14 @@ describe('Addresses', () => {
         const alert = fixture.nativeElement.querySelector(
             '[data-testid="address-action-error"]',
         ) as HTMLElement;
-        const icon = alert.firstElementChild as HTMLElement;
+        const children = Array.from(alert.children) as HTMLElement[];
 
         expect(alert.getAttribute('role')).toBe('alert');
         expect(alert.classList.contains('grid')).toBe(true);
-        expect(icon.tagName).toBe('NG-ICON');
-        expect(icon.classList.contains('self-start')).toBe(true);
+        expect(children[0].tagName).toBe('NG-ICON');
+        expect(children[0].classList.contains('self-start')).toBe(false);
+        expect(children[1].getAttribute('data-slot')).toBe('alert-title');
+        expect(children[2].getAttribute('data-slot')).toBe('alert-description');
         expect(alert.querySelector('[data-slot="alert-title"]')?.textContent)
             .toContain('Не удалось выполнить действие');
     });

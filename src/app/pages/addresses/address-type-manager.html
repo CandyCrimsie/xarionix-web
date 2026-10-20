@@ -19,7 +19,7 @@
 
 @if (error(); as message) {
 <hlm-alert variant="destructive" data-testid="address-type-error">
-    <ng-icon name="lucideCircleAlert" class="self-start" />
+    <ng-icon name="lucideCircleAlert" />
     <h4 hlmAlertTitle>Не удалось выполнить действие</h4>
     <div hlmAlertDescription>{{ message }}</div>
 </hlm-alert>
@@ -174,7 +174,7 @@
     }
     @if (error(); as message) {
     <hlm-alert variant="destructive" data-testid="address-type-error">
-        <ng-icon name="lucideCircleAlert" class="self-start" />
+        <ng-icon name="lucideCircleAlert" />
         <h4 hlmAlertTitle>Не удалось сохранить тип</h4>
         <div hlmAlertDescription>{{ message }}</div>
     </hlm-alert>

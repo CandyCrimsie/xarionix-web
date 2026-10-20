@@ -16,6 +16,7 @@ import {
     DragDropModule,
 } from '@angular/cdk/drag-drop';
 import { toast } from '@spartan-ng/brain/sonner';
+import { HlmSeparatorImports } from '@spartan-ng/helm/separator';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -36,6 +37,7 @@ import {
     lucideSettings2,
     lucideTrash2,
     lucideWarehouse,
+    lucideInfo
 } from '@ng-icons/lucide';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
@@ -139,6 +141,7 @@ const SEARCH_DEBOUNCE_MS = 300;
         HlmButtonGroupImports,
         HlmDialogImports,
         HlmSelectImports,
+        HlmSeparatorImports,
         AddressObjectDialogForm,
         BuildingDialogForm,
         EntranceDialogForm,
@@ -164,6 +167,7 @@ const SEARCH_DEBOUNCE_MS = 300;
             lucideSettings2,
             lucideTrash2,
             lucideWarehouse,
+            lucideInfo
         }),
     ],
     templateUrl: './addresses.html',
@@ -1622,11 +1626,7 @@ export class Addresses {
                 },
             });
         }
-        toast.success('Адресный объект перемещён', {
-            description: targetId === null
-                ? `${this.objectDisplayName(saved)} перенесён на корневой уровень`
-                : `${this.objectDisplayName(saved)} перенесён в ${this.objectDisplayName(this.findTreeNode(targetId)!)}`,
-        });
+        toast.success('Адресный объект перемещён');
     }
 
 

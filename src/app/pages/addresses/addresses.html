@@ -1,14 +1,4 @@
 <div class="flex h-full min-h-0 flex-col gap-4 p-4">
-    <header>
-        <div>
-            <h1 class="text-2xl font-semibold">Адресная база</h1>
-            <p class="mt-1 text-sm text-muted-foreground">
-                Общий каталог физических адресов и места размещения текущей компании
-            </p>
-        </div>
-
-    </header>
-
     <hlm-autocomplete
         class="w-full"
         autoHighlight
@@ -22,7 +12,7 @@
         <hlm-autocomplete-input
             class="w-full"
             data-testid="address-search-input"
-            placeholder="Москва Ленина 15 или Раменское Гагарина 34 корпус 2"
+            placeholder="Введите адрес"
             (keydown.enter)="onSearchEnter()"
             showClear />
 
@@ -60,7 +50,6 @@
                 <hlm-autocomplete-item
                     [value]="building"
                     [attr.data-testid]="'address-search-result-' + building.id">
-                    <ng-icon name="lucideBuilding2" />
                     <span class="min-w-0 truncate">{{ building.full_address }}</span>
                 </hlm-autocomplete-item>
                 }
@@ -93,7 +82,7 @@
 
     @if (actionError(); as error) {
     <hlm-alert variant="destructive" data-testid="address-action-error">
-        <ng-icon name="lucideCircleAlert" class="self-start" />
+        <ng-icon name="lucideCircleAlert" />
         <h4 hlmAlertTitle>Не удалось выполнить действие</h4>
         <div hlmAlertDescription>{{ error }}</div>
     </hlm-alert>
@@ -273,10 +262,9 @@
                         </span>
                         <div class="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-dashed border-primary/60 bg-primary/10 px-2 text-sm text-primary">
                             @if (dragged.kind === 'building') {
-                            <ng-icon name="lucideBuilding2" class="shrink-0" />
+                                <span>12345</span>
                             }
                             <span class="truncate">{{ treeDragLabel(dragged) }}</span>
-                            <span class="ml-auto shrink-0 text-xs text-muted-foreground">сюда</span>
                         </div>
                     </div>
                     }
@@ -298,7 +286,6 @@
                         <ng-template cdkDragPreview>
                             <div class="flex items-center gap-2 rounded-md border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md"
                                 [attr.data-testid]="'drag-preview-building-' + row.building.id">
-                                <ng-icon name="lucideBuilding2" />
                                 д. {{ row.building.number }}
                             </div>
                         </ng-template>
@@ -319,7 +306,6 @@
                             [class.bg-muted]="selectedBuilding()?.id === row.building.id"
                             [attr.data-testid]="'tree-building-' + row.building.id"
                             (click)="selectTreeBuilding(row.building, row.parent)">
-                            <ng-icon name="lucideBuilding2" class="shrink-0" />
                             <span class="truncate">д. {{ row.building.number }}</span>
                             @if (row.building.corpus) { <span class="text-xs text-muted-foreground">корп. {{ row.building.corpus }}</span> }
                              @if (row.building.structure) { <span class="text-xs text-muted-foreground">стр. {{ row.building.structure }}</span> }
@@ -342,18 +328,14 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div class="flex items-center gap-2">
-                            <ng-icon name="lucideMapPin" class="text-muted-foreground" />
+                            
                             <h2 class="text-xl font-semibold" data-testid="selected-address-name">{{ objectDisplayName(addressObject) }}</h2>
                         </div>
-                        <p class="mt-1 text-sm text-muted-foreground">{{ addressObject.type_name }}</p>
+                        <!-- <p class="mt-1 text-sm text-muted-foreground">{{ addressObject.type_name }}</p>-->
                     </div>
                     @if (canManageAddresses()) {
                     <div class="shrink-0">
-                        <div hlmButtonGroup
-                            [class]="canCreateChild(addressObject)
-                                ? '[&>hlm-select>hlm-select-trigger>button]:rounded-s-none [&>hlm-select>hlm-select-trigger>button]:border-s-0'
-                                : ''"
-                            aria-label="Действия с адресным объектом">
+                        <div hlmButtonGroup aria-label="Действия с адресным объектом">
                             @if (canCreateChild(addressObject)) {
                             <button hlmBtn variant="outline" type="button"
                                 data-testid="create-child-address-action"
@@ -367,8 +349,10 @@
                                 class="inline-block"
                                 [value]="objectActionSelection()"
                                 (valueChange)="selectObjectAction($event, addressObject, editObjectDialog, deleteObjectDialog)">
-                                <hlm-select-trigger size="sm"
-                                    class="size-9 justify-center p-0 [&>ng-icon:last-child]:hidden!"
+                                <hlm-select-trigger
+                                    [class]="canCreateChild(addressObject)
+                                        ? 'size-8 justify-center rounded-s-none border-s-0 p-0 [&>ng-icon:last-child]:hidden!'
+                                        : 'size-8 justify-center p-0 [&>ng-icon:last-child]:hidden!'"
                                     data-testid="address-object-actions">
                                     <ng-icon name="lucideEllipsis" />
                                     <span class="sr-only">Дополнительные действия</span>
@@ -496,7 +480,6 @@
                             [class.bg-muted]="selectedBuilding()?.id === building.id"
                             [attr.data-testid]="'building-' + building.id" (click)="selectBuilding(building)">
                             <div class="flex items-center gap-2 font-medium">
-                                <ng-icon name="lucideBuilding2" />
                                 Дом {{ building.number }}
                             </div>
                             @if (building.corpus || building.structure) {
@@ -525,7 +508,7 @@
                     </button>
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <p class="text-sm font-medium text-muted-foreground">Дом {{ building.number }}</p>
+                            <!-- <p class="text-sm font-medium text-muted-foreground">Дом {{ building.number }}</p>-->
                             <h2 class="mt-1 text-xl font-semibold" data-testid="building-full-address">{{ building.full_address }}</h2>
                             <p class="mt-1 text-sm text-muted-foreground">
                                 Координаты:
@@ -605,6 +588,8 @@
                         </div>
                         }
                     </div>
+
+                    <hlm-separator />
 
                     @if (detailsState() === 'loading') {
                     <div class="flex items-center gap-2 py-6 text-sm text-muted-foreground">
@@ -828,7 +813,7 @@
             </div>
             } @else {
             <div class="flex min-h-72 flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
-                <ng-icon name="lucideMapPin" class="size-10" />
+                <ng-icon name="lucideInfo" class="size-10" />
                 <p>Выберите адресный объект слева или найдите здание через поиск</p>
             </div>
             }
