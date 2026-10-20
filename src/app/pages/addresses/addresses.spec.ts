@@ -1702,17 +1702,17 @@ describe('Addresses', () => {
     });
 
 
-    it('should highlight only the active drop target without an overlapping ghost and reveal drag handles on hover', () => {
-        const targetStreet: AddressObject = {
-            ...street,
-            id: 15,
-            name: 'Гагарина',
+    it('should render the dragged street as a child of the active parent drop target', () => {
+        const targetCity: AddressObject = {
+            ...city,
+            id: 14,
+            name: 'Жуковский',
         };
         createComponent();
-        component.roots.set([{
-            ...city,
-            children: [
-                {
+        component.roots.set([
+            {
+                ...city,
+                children: [{
                     ...street,
                     children: [],
                     buildings: [building],
@@ -1720,31 +1720,38 @@ describe('Addresses', () => {
                     loaded: true,
                     loading: false,
                     loadError: false,
-                },
-                {
-                    ...targetStreet,
-                    children: [],
-                    buildings: [],
-                    expanded: false,
-                    loaded: true,
-                    loading: false,
-                    loadError: false,
-                },
-            ],
-            buildings: [],
-            expanded: true,
-            loaded: true,
-            loading: false,
-            loadError: false,
-        }]);
+                }],
+                buildings: [],
+                expanded: true,
+                loaded: true,
+                loading: false,
+                loadError: false,
+            },
+            {
+                ...targetCity,
+                children: [],
+                buildings: [],
+                expanded: true,
+                loaded: true,
+                loading: false,
+                loadError: false,
+            },
+        ]);
         fixture.detectChanges();
 
-        const target = component.treeRows().find(
-            row => row.kind === 'address' && row.node.id === targetStreet.id,
+        const source = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === street.id,
         );
-        if (!target || target.kind !== 'address') {
-            throw new Error('Target street row is unavailable');
+        const target = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === targetCity.id,
+        );
+        if (
+            !source || source.kind !== 'address'
+            || !target || target.kind !== 'address'
+        ) {
+            throw new Error('Drag-and-drop rows are unavailable');
         }
+        component.startTreeDrag(component.treeDragData(source));
         component.showTreeDropTarget(target);
         fixture.detectChanges();
 
@@ -1752,12 +1759,18 @@ describe('Addresses', () => {
             '.address-drop-zone.address-drop-target-active',
         );
         expect(activeTargets).toHaveLength(1);
-        expect(activeTargets[0].querySelector(
-            `[data-testid="address-object-${targetStreet.id}"]`,
-        )).not.toBeNull();
-        expect(fixture.nativeElement.querySelector(
-            '[data-testid^="drop-ghost-"]',
-        )).toBeNull();
+        const targetRow = activeTargets[0].querySelector(
+            `[data-testid="address-object-${targetCity.id}"]`,
+        )?.parentElement;
+        const ghost = activeTargets[0].querySelector(
+            `[data-testid="drop-ghost-${targetCity.id}"]`,
+        ) as HTMLElement | null;
+        expect(targetRow).not.toBeNull();
+        expect(ghost).not.toBeNull();
+        expect(targetRow?.nextElementSibling).toBe(ghost);
+        expect(ghost?.style.paddingLeft).toBe(`${(target.depth + 1) * 18}px`);
+        expect(ghost?.textContent).toContain('ул. Дмитрия Ульянова');
+        expect(ghost?.textContent).toContain('сюда');
 
         const handle = fixture.nativeElement.querySelector(
             `[data-testid="drag-building-${building.id}"]`,
@@ -1765,11 +1778,14 @@ describe('Addresses', () => {
         expect(handle.classList.contains('opacity-0')).toBe(true);
         expect(handle.classList.contains('group-hover:opacity-100')).toBe(true);
 
-        component.clearTreeDropTarget(target.key);
+        component.endTreeDrag();
         fixture.detectChanges();
         expect(fixture.nativeElement.querySelectorAll(
             '.address-drop-zone.address-drop-target-active',
         )).toHaveLength(0);
+        expect(fixture.nativeElement.querySelector(
+            '[data-testid^="drop-ghost-"]',
+        )).toBeNull();
     });
 
 

@@ -12,11 +12,11 @@
 }
 
 .cdk-drag-placeholder {
-    opacity: 0.35;
+    opacity: 0;
 }
 
-/* Stage 25.13 DnD: highlight only the actual destination row.
-   No absolute-position overlay and no duplicated text over the target. */
+/* Highlight the destination parent itself. The child preview remains in
+   normal document flow below it, never as an overlay over the parent row. */
 .address-drop-zone.address-drop-target-active > .address-tree-drag-row > .address-tree-row {
     background-color: var(--accent);
     color: var(--accent-foreground);
@@ -24,17 +24,14 @@
     border-radius: var(--radius-md);
 }
 
-/* Keep the source row's space reserved while dragging; the previous h-0
-   placeholder made the surrounding rows jump underneath each other. */
+/* Reserve the source row's height without presenting it as the destination.
+   The visible destination preview is rendered below the active parent. */
 .address-tree-drag-placeholder {
     box-sizing: border-box;
     display: block;
     width: 100%;
     height: 2.25rem;
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-md);
-    background-color: var(--muted);
-    opacity: 0.55;
+    visibility: hidden;
     pointer-events: none;
 }
 
@@ -42,8 +39,26 @@
     transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 
+.address-tree-drop-preview {
+    animation: address-tree-drop-preview-in 120ms ease-out;
+}
+
+@keyframes address-tree-drop-preview-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.25rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .address-tree-drag-row .address-tree-row {
+    .address-tree-drag-row .address-tree-row,
+    .address-tree-drop-preview {
         transition: none;
+        animation: none;
     }
 }

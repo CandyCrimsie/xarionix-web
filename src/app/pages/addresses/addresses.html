@@ -173,7 +173,8 @@
                     @if (row.kind === 'address') {
                     <div cdkDrag class="address-tree-drag-row group flex items-center gap-1 rounded-md"
                         [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
-                        (cdkDragEnded)="clearTreeDropTarget()"
+                        (cdkDragStarted)="startTreeDrag(treeDragData(row))"
+                        (cdkDragEnded)="endTreeDrag()"
                         [style.padding-left.px]="row.depth * 18">
                         <ng-template cdkDragPreview>
                             <div class="flex items-center gap-2 rounded-md border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md"
@@ -263,6 +264,22 @@
                         }
                         }
                     </div>
+                    @if (activeDropTargetKey() === row.key && activeTreeDrag(); as dragged) {
+                    <div class="address-tree-drop-preview flex items-center gap-1"
+                        [style.padding-left.px]="(row.depth + 1) * 18"
+                        [attr.data-testid]="'drop-ghost-' + row.node.id">
+                        <span class="flex size-7 shrink-0 items-center justify-center text-primary">
+                            <ng-icon name="lucideMove" />
+                        </span>
+                        <div class="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-dashed border-primary/60 bg-primary/10 px-2 text-sm text-primary">
+                            @if (dragged.kind === 'building') {
+                            <ng-icon name="lucideBuilding2" class="shrink-0" />
+                            }
+                            <span class="truncate">{{ treeDragLabel(dragged) }}</span>
+                            <span class="ml-auto shrink-0 text-xs text-muted-foreground">сюда</span>
+                        </div>
+                    </div>
+                    }
                     @if (row.node.loadError && row.node.expanded) {
                     <div class="flex items-center justify-between gap-2 py-1 pr-2 text-xs text-destructive"
                         [style.padding-left.px]="(row.depth + 1) * 18">
@@ -275,7 +292,8 @@
                     } @else {
                     <div cdkDrag class="address-tree-drag-row group flex items-center gap-1 rounded-md"
                         [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
-                        (cdkDragEnded)="clearTreeDropTarget()"
+                        (cdkDragStarted)="startTreeDrag(treeDragData(row))"
+                        (cdkDragEnded)="endTreeDrag()"
                         [style.padding-left.px]="row.depth * 18">
                         <ng-template cdkDragPreview>
                             <div class="flex items-center gap-2 rounded-md border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md"

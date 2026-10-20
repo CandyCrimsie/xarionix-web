@@ -255,6 +255,7 @@ export class Addresses {
 
     readonly moveSaving = signal(false);
     readonly activeDropTargetKey = signal<string | null>(null);
+    readonly activeTreeDrag = signal<TreeDragData | null>(null);
 
     readonly reloadVersion = signal(0);
 
@@ -405,6 +406,29 @@ export class Addresses {
     }
 
 
+    startTreeDrag(data: TreeDragData): void {
+        this.activeTreeDrag.set(data);
+    }
+
+
+    endTreeDrag(): void {
+        this.activeTreeDrag.set(null);
+        this.clearTreeDropTarget();
+    }
+
+
+    treeDragLabel(data: TreeDragData): string {
+        if (data.kind === 'address') {
+            return this.objectDisplayName(data.node);
+        }
+        const suffix = [
+            data.building.corpus ? `корп. ${data.building.corpus}` : null,
+            data.building.structure ? `стр. ${data.building.structure}` : null,
+        ].filter(Boolean).join(', ');
+        return `д. ${data.building.number}${suffix ? `, ${suffix}` : ''}`;
+    }
+
+
     canDropTreeItem(data: TreeDragData, target: TreeDropTarget): boolean {
         if (!this.canManageAddresses() || target.kind !== 'address') {
             return false;
@@ -432,6 +456,7 @@ export class Addresses {
 
     handleTreeDrop(event: CdkDragDrop<TreeDropTarget>): void {
         this.clearTreeDropTarget();
+        this.activeTreeDrag.set(null);
         const data = event.item.data as TreeDragData;
         const target = event.container.data;
         if (
@@ -1420,6 +1445,7 @@ export class Addresses {
         this.locationActionSelection.set(null);
         this.moveSaving.set(false);
         this.activeDropTargetKey.set(null);
+        this.activeTreeDrag.set(null);
     }
 
 
