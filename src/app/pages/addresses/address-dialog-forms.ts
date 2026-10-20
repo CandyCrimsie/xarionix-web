@@ -6,6 +6,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideCircleAlert } from '@ng-icons/lucide';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
@@ -30,6 +32,7 @@ import {
     host: { class: 'contents' },
     imports: [
         FormsModule,
+        NgIcon,
         HlmAlertImports,
         HlmButtonImports,
         HlmDialogImports,
@@ -38,6 +41,7 @@ import {
         HlmSelectImports,
         HlmSpinnerImports,
     ],
+    providers: [provideIcons({ lucideCircleAlert })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './address-object-dialog-form.html',
 })
@@ -75,11 +79,14 @@ export class AddressObjectDialogForm {
     host: { class: 'contents' },
     imports: [
         FormsModule,
+        NgIcon,
+        HlmAlertImports,
         HlmButtonImports,
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
     ],
+    providers: [provideIcons({ lucideCircleAlert })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './building-dialog-form.html',
 })
@@ -152,11 +159,14 @@ export class BuildingDialogForm {
     host: { class: 'contents' },
     imports: [
         FormsModule,
+        NgIcon,
+        HlmAlertImports,
         HlmButtonImports,
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
     ],
+    providers: [provideIcons({ lucideCircleAlert })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './entrance-dialog-form.html',
 })
@@ -182,11 +192,14 @@ export class EntranceDialogForm {
     host: { class: 'contents' },
     imports: [
         FormsModule,
+        NgIcon,
+        HlmAlertImports,
         HlmButtonImports,
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
     ],
+    providers: [provideIcons({ lucideCircleAlert })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './location-dialog-form.html',
 })

@@ -51,7 +51,11 @@
     </hlm-field-group>
 
     @if (error(); as message) {
-    <p class="text-sm text-destructive" data-testid="building-error">{{ message }}</p>
+    <hlm-alert variant="destructive" data-testid="building-error">
+        <ng-icon name="lucideCircleAlert" class="self-start" />
+        <h4 hlmAlertTitle>Не удалось сохранить здание</h4>
+        <div hlmAlertDescription>{{ message }}</div>
+    </hlm-alert>
     }
 
     <hlm-dialog-footer>

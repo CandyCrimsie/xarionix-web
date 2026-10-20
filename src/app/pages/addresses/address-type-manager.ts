@@ -13,6 +13,7 @@ import { toast } from '@spartan-ng/brain/sonner';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
     lucideArrowLeft,
+    lucideCircleAlert,
     lucideInfo,
     lucidePencil,
     lucidePlus,
@@ -87,6 +88,7 @@ const CATEGORY_SORT_BASE: Readonly<Record<AddressTypeCategory, number>> = {
     ],
     providers: [provideIcons({
         lucideArrowLeft,
+        lucideCircleAlert,
         lucideInfo,
         lucidePencil,
         lucidePlus,

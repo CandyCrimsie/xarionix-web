@@ -6,6 +6,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideCircleAlert } from '@ng-icons/lucide';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
@@ -26,6 +28,7 @@ export interface AddressMoveTarget {
     host: { class: 'contents' },
     imports: [
         FormsModule,
+        NgIcon,
         HlmAlertImports,
         HlmButtonImports,
         HlmDialogImports,
@@ -33,6 +36,7 @@ export interface AddressMoveTarget {
         HlmSelectImports,
         HlmSpinnerImports,
     ],
+    providers: [provideIcons({ lucideCircleAlert })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './address-move-dialog-form.html',
 })
@@ -40,7 +44,7 @@ export class AddressMoveDialogForm {
     readonly title = input.required<string>();
     readonly description = input.required<string>();
     readonly targets = input.required<AddressMoveTarget[]>();
-    readonly targetId = input.required<number | null>();
+    readonly targetId = input.required<number | null | undefined>();
     readonly saving = input.required<boolean>();
     readonly error = input.required<string | null>();
 
@@ -53,8 +57,13 @@ export class AddressMoveDialogForm {
     };
 
 
-    selectedKey(): string {
-        return this.targetId() === null ? 'root' : this.targetId()!.toString();
+    selectedKey(): string | undefined {
+        const targetId = this.targetId();
+        return targetId === undefined
+            ? undefined
+            : targetId === null
+                ? 'root'
+                : targetId.toString();
     }
 
 

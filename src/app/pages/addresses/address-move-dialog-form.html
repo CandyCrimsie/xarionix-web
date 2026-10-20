@@ -28,14 +28,17 @@
 
     @if (error(); as message) {
     <hlm-alert variant="destructive" data-testid="address-move-error">
-        <p hlmAlertDescription>{{ message }}</p>
+        <ng-icon name="lucideCircleAlert" class="self-start" />
+        <h4 hlmAlertTitle>Не удалось переместить объект</h4>
+        <div hlmAlertDescription>{{ message }}</div>
     </hlm-alert>
     }
 
     <hlm-dialog-footer>
         <button hlmBtn variant="outline" type="button" hlmDialogClose
             data-testid="address-move-cancel" [disabled]="saving()">Отмена</button>
-        <button hlmBtn type="submit" data-testid="address-move-submit" [disabled]="saving()">
+        <button hlmBtn type="submit" data-testid="address-move-submit"
+            [disabled]="saving() || targetId() === undefined">
             @if (saving()) { <hlm-spinner aria-label="Перемещение" /> }
             Переместить
         </button>

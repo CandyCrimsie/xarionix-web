@@ -1552,6 +1552,9 @@ describe('Addresses', () => {
         fixture.detectChanges();
         const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
         expect(dialog.querySelector('[data-testid="address-move-form"]')).not.toBeNull();
+        expect(component.moveTargetId()).toBeUndefined();
+        expect((dialog.querySelector('[data-testid="address-move-submit"]') as HTMLButtonElement).disabled)
+            .toBe(true);
 
         component.moveTargetId.set(targetCity.id);
         fixture.detectChanges();
@@ -1569,6 +1572,44 @@ describe('Addresses', () => {
             'Адресный объект перемещён',
             expect.objectContaining({ description: expect.stringContaining('Жуковский') }),
         );
+    });
+
+
+    it('should require an explicit move target and allow an explicit root selection', () => {
+        const nestedCity: AddressObject = {
+            ...city,
+            id: 18,
+            parent_id: city.id,
+            name: 'Зеленоград',
+        };
+        const movedCity: AddressObject = { ...nestedCity, parent_id: null };
+        const dialog = { open: vi.fn(), close: vi.fn() };
+        addressApi.updateObject.mockReturnValue(of(movedCity));
+        createComponent();
+
+        component.openMoveBuildingDialog(building, dialog as never);
+        expect(component.moveTargetId()).toBeUndefined();
+
+        component.openMoveObjectDialog(nestedCity, dialog as never);
+
+        expect(dialog.open).toHaveBeenCalledTimes(2);
+        expect(component.availableMoveTargets()).toContainEqual({
+            id: null,
+            label: 'Корневой уровень',
+            depth: 0,
+        });
+        expect(component.moveTargetId()).toBeUndefined();
+
+        component.saveMove(dialog as never);
+        expect(addressApi.updateObject).not.toHaveBeenCalled();
+        expect(component.moveError()).toBe('Выберите допустимое новое расположение');
+
+        component.moveTargetId.set(null);
+        component.saveMove(dialog as never);
+
+        expect(addressApi.updateObject).toHaveBeenCalledWith(nestedCity.id, {
+            parent_id: null,
+        });
     });
 
 
@@ -1620,16 +1661,107 @@ describe('Addresses', () => {
         component.handleTreeDrop({
             item: { data: { kind: 'address', node: source.node } },
             container: { data: { kind: 'address', node: source.node } },
+            isPointerOverContainer: true,
         } as never);
         expect(addressApi.updateObject).not.toHaveBeenCalled();
 
         component.handleTreeDrop({
             item: { data: { kind: 'address', node: source.node } },
             container: { data: { kind: 'address', node: target.node } },
+            isPointerOverContainer: false,
+        } as never);
+        expect(addressApi.updateObject).not.toHaveBeenCalled();
+
+        component.handleTreeDrop({
+            item: { data: { kind: 'address', node: source.node } },
+            container: { data: { kind: 'address', node: target.node } },
+            isPointerOverContainer: true,
         } as never);
         expect(addressApi.updateObject).toHaveBeenCalledWith(street.id, {
             parent_id: targetCity.id,
         });
+    });
+
+
+    it('should show a ghost only for the active drop target and reveal drag handles on hover', () => {
+        const targetStreet: AddressObject = {
+            ...street,
+            id: 15,
+            name: 'Гагарина',
+        };
+        createComponent();
+        component.roots.set([{
+            ...city,
+            children: [
+                {
+                    ...street,
+                    children: [],
+                    buildings: [building],
+                    expanded: true,
+                    loaded: true,
+                    loading: false,
+                    loadError: false,
+                },
+                {
+                    ...targetStreet,
+                    children: [],
+                    buildings: [],
+                    expanded: false,
+                    loaded: true,
+                    loading: false,
+                    loadError: false,
+                },
+            ],
+            buildings: [],
+            expanded: true,
+            loaded: true,
+            loading: false,
+            loadError: false,
+        }]);
+        fixture.detectChanges();
+
+        const target = component.treeRows().find(
+            row => row.kind === 'address' && row.node.id === targetStreet.id,
+        );
+        if (!target || target.kind !== 'address') {
+            throw new Error('Target street row is unavailable');
+        }
+        component.showTreeDropTarget(target);
+        fixture.detectChanges();
+
+        const ghosts = fixture.nativeElement.querySelectorAll('[data-testid^="drop-ghost-"]');
+        expect(ghosts).toHaveLength(1);
+        expect(ghosts[0].getAttribute('data-testid')).toBe(`drop-ghost-${targetStreet.id}`);
+        expect(ghosts[0].textContent).toContain('Переместить в ул. Гагарина');
+
+        const handle = fixture.nativeElement.querySelector(
+            `[data-testid="drag-building-${building.id}"]`,
+        ) as HTMLElement;
+        expect(handle.classList.contains('opacity-0')).toBe(true);
+        expect(handle.classList.contains('group-hover:opacity-100')).toBe(true);
+
+        component.clearTreeDropTarget(target.key);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid^="drop-ghost-"]')).toBeNull();
+    });
+
+
+    it('should render action errors with the Spartan alert icon in the top-left grid cell', () => {
+        createComponent();
+        component.actionError.set('Недопустимое расположение');
+        fixture.detectChanges();
+
+        const alert = fixture.nativeElement.querySelector(
+            '[data-testid="address-action-error"]',
+        ) as HTMLElement;
+        const icon = alert.firstElementChild as HTMLElement;
+
+        expect(alert.getAttribute('role')).toBe('alert');
+        expect(alert.classList.contains('grid')).toBe(true);
+        expect(icon.tagName).toBe('NG-ICON');
+        expect(icon.classList.contains('self-start')).toBe(true);
+        expect(alert.querySelector('[data-slot="alert-title"]')?.textContent)
+            .toContain('Не удалось выполнить действие');
     });
 
 

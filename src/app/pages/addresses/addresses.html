@@ -92,10 +92,11 @@
     </hlm-autocomplete>
 
     @if (actionError(); as error) {
-    <div class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-        data-testid="address-action-error">
-        {{ error }}
-    </div>
+    <hlm-alert variant="destructive" data-testid="address-action-error">
+        <ng-icon name="lucideCircleAlert" class="self-start" />
+        <h4 hlmAlertTitle>Не удалось выполнить действие</h4>
+        <div hlmAlertDescription>{{ error }}</div>
+    </hlm-alert>
     }
 
     @if (state() === 'loading') {
@@ -162,17 +163,31 @@
             <div class="p-2" cdkDropListGroup>
                 @for (row of treeRows(); track row.key) {
                 <div cdkDropList cdkDropListSortingDisabled [cdkDropListAutoScrollStep]="16"
+                    class="address-drop-zone relative"
                     [cdkDropListData]="treeDropTarget(row)"
                     [cdkDropListEnterPredicate]="treeDropPredicate"
-                    [class.address-drop-target]="row.kind === 'address'"
+                    [class.address-drop-target-active]="activeDropTargetKey() === row.key"
+                    (cdkDropListEntered)="showTreeDropTarget(row)"
+                    (cdkDropListExited)="clearTreeDropTarget(row.key)"
                     (cdkDropListDropped)="handleTreeDrop($event)">
                     @if (row.kind === 'address') {
                     <div cdkDrag class="group flex items-center gap-1 rounded-md"
                         [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
+                        (cdkDragEnded)="clearTreeDropTarget()"
                         [style.padding-left.px]="row.depth * 18">
+                        <ng-template cdkDragPreview>
+                            <div class="flex items-center gap-2 rounded-md border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md"
+                                [attr.data-testid]="'drag-preview-address-' + row.node.id">
+                                <ng-icon name="lucideMove" />
+                                {{ objectDisplayName(row.node) }}
+                            </div>
+                        </ng-template>
+                        <ng-template cdkDragPlaceholder>
+                            <span class="block h-0 overflow-hidden"></span>
+                        </ng-template>
                         @if (canManageAddresses()) {
                         <button cdkDragHandle hlmBtn variant="ghost" size="icon" type="button"
-                            class="size-7 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
+                            class="size-7 shrink-0 cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 active:cursor-grabbing"
                             [attr.aria-label]="'Перетащить ' + objectDisplayName(row.node)"
                             [attr.data-testid]="'drag-address-' + row.node.id"
                             (click)="$event.stopPropagation()">
@@ -248,6 +263,14 @@
                         }
                         }
                     </div>
+                    @if (activeDropTargetKey() === row.key) {
+                    <div class="pointer-events-none absolute inset-0 flex items-center gap-2 rounded-md border border-primary bg-primary/10 px-3 text-sm font-medium text-primary"
+                        [style.padding-left.px]="row.depth * 18 + 40"
+                        [attr.data-testid]="'drop-ghost-' + row.node.id">
+                        <ng-icon name="lucideMove" class="shrink-0" />
+                        <span class="truncate">Переместить в {{ objectDisplayName(row.node) }}</span>
+                    </div>
+                    }
                     @if (row.node.loadError && row.node.expanded) {
                     <div class="flex items-center justify-between gap-2 py-1 pr-2 text-xs text-destructive"
                         [style.padding-left.px]="(row.depth + 1) * 18">
@@ -260,10 +283,21 @@
                     } @else {
                     <div cdkDrag class="group flex items-center gap-1 rounded-md"
                         [cdkDragData]="treeDragData(row)" [cdkDragDisabled]="!canManageAddresses()"
+                        (cdkDragEnded)="clearTreeDropTarget()"
                         [style.padding-left.px]="row.depth * 18">
+                        <ng-template cdkDragPreview>
+                            <div class="flex items-center gap-2 rounded-md border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md"
+                                [attr.data-testid]="'drag-preview-building-' + row.building.id">
+                                <ng-icon name="lucideBuilding2" />
+                                д. {{ row.building.number }}
+                            </div>
+                        </ng-template>
+                        <ng-template cdkDragPlaceholder>
+                            <span class="block h-0 overflow-hidden"></span>
+                        </ng-template>
                         @if (canManageAddresses()) {
                         <button cdkDragHandle hlmBtn variant="ghost" size="icon" type="button"
-                            class="size-7 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
+                            class="size-7 shrink-0 cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 active:cursor-grabbing"
                             [attr.aria-label]="'Перетащить дом ' + row.building.number"
                             [attr.data-testid]="'drag-building-' + row.building.id"
                             (click)="$event.stopPropagation()">

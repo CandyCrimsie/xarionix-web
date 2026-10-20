@@ -23,6 +23,7 @@ import {
     lucideArrowLeft,
     lucideChevronDown,
     lucideChevronRight,
+    lucideCircleAlert,
     lucideDoorOpen,
     lucideEllipsis,
     lucideGripVertical,
@@ -36,6 +37,7 @@ import {
     lucideTrash2,
     lucideWarehouse,
 } from '@ng-icons/lucide';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmAutocompleteImports } from '@spartan-ng/helm/autocomplete';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -133,6 +135,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     imports: [
         NgIcon,
         DragDropModule,
+        HlmAlertImports,
         HlmAlertDialogImports,
         HlmAutocompleteImports,
         HlmBadgeImports,
@@ -153,6 +156,7 @@ const SEARCH_DEBOUNCE_MS = 300;
             lucideBuilding2,
             lucideChevronDown,
             lucideChevronRight,
+            lucideCircleAlert,
             lucideDoorOpen,
             lucideEllipsis,
             lucideGripVertical,
@@ -253,9 +257,10 @@ export class Addresses {
 
     readonly movingObject = signal<AddressObject | null>(null);
     readonly movingBuilding = signal<Building | null>(null);
-    readonly moveTargetId = signal<number | null>(null);
+    readonly moveTargetId = signal<number | null | undefined>(undefined);
     readonly moveSaving = signal(false);
     readonly moveError = signal<string | null>(null);
+    readonly activeDropTargetKey = signal<string | null>(null);
 
     readonly reloadVersion = signal(0);
 
@@ -476,10 +481,29 @@ export class Addresses {
     }
 
 
+    showTreeDropTarget(row: AddressTreeRow): void {
+        if (row.kind === 'address') {
+            this.activeDropTargetKey.set(row.key);
+        }
+    }
+
+
+    clearTreeDropTarget(rowKey?: string): void {
+        if (rowKey === undefined || this.activeDropTargetKey() === rowKey) {
+            this.activeDropTargetKey.set(null);
+        }
+    }
+
+
     handleTreeDrop(event: CdkDragDrop<TreeDropTarget>): void {
+        this.clearTreeDropTarget();
         const data = event.item.data as TreeDragData;
         const target = event.container.data;
-        if (!this.canDropTreeItem(data, target) || target.kind !== 'address') {
+        if (
+            !event.isPointerOverContainer
+            || !this.canDropTreeItem(data, target)
+            || target.kind !== 'address'
+        ) {
             this.restoreTreeRender();
             return;
         }
@@ -882,8 +906,7 @@ export class Addresses {
         this.movingBuilding.set(null);
         this.movingObject.set(addressObject);
         this.moveError.set(null);
-        const firstTarget = this.availableMoveTargets()[0];
-        this.moveTargetId.set(firstTarget?.id ?? null);
+        this.moveTargetId.set(undefined);
         dialog.open();
     }
 
@@ -892,8 +915,7 @@ export class Addresses {
         this.movingObject.set(null);
         this.movingBuilding.set(building);
         this.moveError.set(null);
-        const firstTarget = this.availableMoveTargets()[0];
-        this.moveTargetId.set(firstTarget?.id ?? null);
+        this.moveTargetId.set(undefined);
         dialog.open();
     }
 
@@ -903,7 +925,10 @@ export class Addresses {
             return;
         }
         const targetId = this.moveTargetId();
-        if (!this.availableMoveTargets().some(target => target.id === targetId)) {
+        if (
+            targetId === undefined
+            || !this.availableMoveTargets().some(target => target.id === targetId)
+        ) {
             this.moveError.set('Выберите допустимое новое расположение');
             return;
         }
@@ -943,6 +968,7 @@ export class Addresses {
                 }
                 this.movingObject.set(null);
                 this.movingBuilding.set(null);
+                this.moveTargetId.set(undefined);
             },
             error: error => {
                 if (contextGeneration !== this.contextGeneration) {
@@ -1489,8 +1515,10 @@ export class Addresses {
         this.actionError.set(null);
         this.movingObject.set(null);
         this.movingBuilding.set(null);
+        this.moveTargetId.set(undefined);
         this.moveError.set(null);
         this.moveSaving.set(false);
+        this.activeDropTargetKey.set(null);
     }
 
 
