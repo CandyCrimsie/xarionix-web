@@ -4,6 +4,7 @@ import { Injectable } from '@angular/core';
 export type MapLibreModule = typeof import('maplibre-gl');
 
 const MAPLIBRE_STYLESHEET_URL = '/assets/maplibre/maplibre-gl.css';
+const MAPLIBRE_WORKER_URL = '/assets/maplibre/maplibre-gl-worker.mjs';
 const MAPLIBRE_STYLESHEET_ATTRIBUTE = 'data-xarionix-maplibre';
 
 
@@ -17,7 +18,10 @@ export class MapLibreLoaderService {
             this.loadStylesheet(),
             import('maplibre-gl'),
         ])
-            .then(([, mapLibre]) => mapLibre)
+            .then(([, mapLibre]) => {
+                mapLibre.setWorkerUrl(MAPLIBRE_WORKER_URL);
+                return mapLibre;
+            })
             .catch(error => {
                 this.modulePromise = null;
                 throw error;

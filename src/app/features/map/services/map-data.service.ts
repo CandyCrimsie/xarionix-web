@@ -7,6 +7,9 @@ import type {
     MapAddressObjectBounds,
     MapBounds,
     MapBuildingFeatureCollection,
+    MapMarker,
+    MapMarkerPayload,
+    MapMarkerUpdate,
     MapTileSession,
 } from '../models/map.models';
 
@@ -38,5 +41,43 @@ export class MapDataService {
         return this.http.get<MapAddressObjectBounds>(
             `${API_BASE_URL}/map/address-objects/${id}/bounds`,
         );
+    }
+
+
+    getMarkers(bounds?: MapBounds): Observable<MapMarker[]> {
+        const params = bounds
+            ? new HttpParams()
+                .set('west', bounds.west)
+                .set('south', bounds.south)
+                .set('east', bounds.east)
+                .set('north', bounds.north)
+            : undefined;
+        return this.http.get<MapMarker[]>(
+            `${API_BASE_URL}/map/markers`,
+            params ? { params } : undefined,
+        );
+    }
+
+
+    getMarker(id: number): Observable<MapMarker> {
+        return this.http.get<MapMarker>(`${API_BASE_URL}/map/markers/${id}`);
+    }
+
+
+    createMarker(data: MapMarkerPayload): Observable<MapMarker> {
+        return this.http.post<MapMarker>(`${API_BASE_URL}/map/markers`, data);
+    }
+
+
+    updateMarker(id: number, data: MapMarkerUpdate): Observable<MapMarker> {
+        return this.http.patch<MapMarker>(
+            `${API_BASE_URL}/map/markers/${id}`,
+            data,
+        );
+    }
+
+
+    deleteMarker(id: number): Observable<void> {
+        return this.http.delete<void>(`${API_BASE_URL}/map/markers/${id}`);
     }
 }

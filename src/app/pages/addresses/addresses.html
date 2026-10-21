@@ -46,11 +46,27 @@
                 Найдено: {{ searchTotal() }} адресов
             </p>
             <div hlmAutocompleteList aria-label="Найденные адреса">
-                @for (building of searchResults(); track building.id) {
+                @for (item of searchResults(); track searchResultKey(item)) {
                 <hlm-autocomplete-item
-                    [value]="building"
-                    [attr.data-testid]="'address-search-result-' + building.id">
-                    <span class="min-w-0 truncate">{{ building.full_address }}</span>
+                    [value]="item"
+                    [attr.data-testid]="'address-search-result-' + searchResultKey(item)">
+                    <div class="flex min-w-0 flex-1 items-start gap-3 py-1">
+                        <ng-icon [name]="searchResultIcon(item)"
+                            class="mt-0.5 shrink-0 text-muted-foreground" />
+                        <div class="min-w-0 flex-1">
+                            <div class="flex min-w-0 items-center gap-2">
+                                <span class="truncate font-medium">
+                                    {{ searchResultPrimaryText(item) }}
+                                </span>
+                                <span hlmBadge variant="outline" class="shrink-0">
+                                    {{ searchResultTypeLabel(item) }}
+                                </span>
+                            </div>
+                            <p class="truncate text-xs text-muted-foreground">
+                                {{ searchResultSecondaryText(item) }}
+                            </p>
+                        </div>
+                    </div>
                 </hlm-autocomplete-item>
                 }
             </div>
@@ -315,6 +331,14 @@
                             @if (row.building.corpus) { <span class="text-xs text-muted-foreground">корп. {{ row.building.corpus }}</span> }
                              @if (row.building.structure) { <span class="text-xs text-muted-foreground">стр. {{ row.building.structure }}</span> }
                         </button>
+                        <button hlmBtn variant="ghost" size="icon" type="button"
+                            class="size-8 shrink-0"
+                            [disabled]="!buildingHasCoordinates(row.building)"
+                            [attr.aria-label]="buildingHasCoordinates(row.building) ? 'Показать дом на карте' : 'У дома не заданы координаты'"
+                            [attr.data-testid]="'tree-building-map-' + row.building.id"
+                            (click)="openBuildingMap(row.building, row.parent, $event)">
+                            <ng-icon name="lucideMap" />
+                        </button>
                     </div>
                     }
                 </div>
@@ -331,6 +355,7 @@
             <app-address-map
                 [selectedObject]="selectedObject()"
                 [selectedBuilding]="selectedBuilding()"
+                [canManage]="canManageAddresses()"
                 (buildingSelected)="openMapBuilding($event)"
                 (closeRequested)="closeMap()" />
             } @else if (selectedObject(); as addressObject) {
@@ -487,19 +512,29 @@
                     } @else {
                     <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="building-list">
                         @for (building of buildings(); track building.id) {
-                        <button type="button" class="rounded-md border p-3 text-left transition-colors hover:bg-muted"
-                            [class.bg-muted]="selectedBuilding()?.id === building.id"
-                            [attr.data-testid]="'building-' + building.id" (click)="selectBuilding(building)">
-                            <div class="flex items-center gap-2 font-medium">
-                                Дом {{ building.number }}
-                            </div>
-                            @if (building.corpus || building.structure) {
-                            <p class="mt-1 text-xs text-muted-foreground">
-                                @if (building.corpus) { корпус {{ building.corpus }} }
-                                @if (building.structure) { строение {{ building.structure }} }
-                            </p>
-                            }
-                        </button>
+                        <div class="flex min-w-0 items-stretch rounded-md border transition-colors hover:bg-muted"
+                            [class.bg-muted]="selectedBuilding()?.id === building.id">
+                            <button type="button" class="min-w-0 flex-1 p-3 text-left"
+                                [attr.data-testid]="'building-' + building.id" (click)="selectBuilding(building)">
+                                <div class="flex items-center gap-2 font-medium">
+                                    Дом {{ building.number }}
+                                </div>
+                                @if (building.corpus || building.structure) {
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    @if (building.corpus) { корпус {{ building.corpus }} }
+                                    @if (building.structure) { строение {{ building.structure }} }
+                                </p>
+                                }
+                            </button>
+                            <button hlmBtn variant="ghost" size="icon" type="button"
+                                class="m-2 size-8 shrink-0 self-start"
+                                [disabled]="!buildingHasCoordinates(building)"
+                                [attr.aria-label]="buildingHasCoordinates(building) ? 'Показать дом на карте' : 'У дома не заданы координаты'"
+                                [attr.data-testid]="'building-map-' + building.id"
+                                (click)="openBuildingMap(building, null, $event)">
+                                <ng-icon name="lucideMap" />
+                            </button>
+                        </div>
                         } @empty {
                         <p class="col-span-full py-6 text-center text-sm text-muted-foreground"
                             data-testid="buildings-empty">Здания не добавлены</p>
@@ -528,8 +563,16 @@
                                 } @else { не заданы }
                             </p>
                         </div>
-                        @if (canManageAddresses()) {
-                        <div class="shrink-0">
+                        <div class="flex shrink-0 items-center gap-1">
+                            <button hlmBtn variant="outline" size="icon" type="button"
+                                class="size-8"
+                                [disabled]="!buildingHasCoordinates(building)"
+                                [attr.aria-label]="buildingHasCoordinates(building) ? 'Показать дом на карте' : 'У дома не заданы координаты'"
+                                data-testid="building-details-map"
+                                (click)="openBuildingMap(building)">
+                                <ng-icon name="lucideMap" />
+                            </button>
+                            @if (canManageAddresses()) {
                             <hlm-select
                                 class="inline-block"
                                 [value]="buildingActionSelection()"
@@ -596,8 +639,8 @@
                                     </hlm-alert-dialog-footer>
                                 </hlm-alert-dialog-content>
                             </hlm-alert-dialog>
+                            }
                         </div>
-                        }
                     </div>
 
                     <hlm-separator />

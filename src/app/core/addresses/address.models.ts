@@ -130,8 +130,25 @@ export interface LocationCreate {
 export type LocationUpdate = Partial<LocationCreate>;
 
 
+export interface AddressObjectSearchItem {
+    kind: 'address_object';
+    object: AddressObject;
+    full_address: string;
+}
+
+
+export interface BuildingSearchItem {
+    kind: 'building';
+    building: Building;
+    full_address: string;
+}
+
+
+export type AddressSearchItem = AddressObjectSearchItem | BuildingSearchItem;
+
+
 export interface AddressSearchResult {
-    items: Building[];
+    items: AddressSearchItem[];
     total: number;
     limit: number;
     offset: number;

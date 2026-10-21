@@ -1,10 +1,7 @@
 export const MAP_SOURCE_ID = 'yandex-map';
 export const MAP_BUILDINGS_SOURCE_ID = 'xarionix-buildings';
-
-// Neutral overview used only until an address object with coordinates is
-// selected. Business locations are never hardcoded here.
-export const DEFAULT_MAP_CENTER: [number, number] = [90, 60];
-export const DEFAULT_MAP_ZOOM = 2;
+export const MAP_MARKERS_SOURCE_ID = 'xarionix-custom-markers';
+export const MAP_BUILDING_FOCUS_ZOOM = 17;
 export const MAP_VIEWPORT_DEBOUNCE_MS = 300;
 export const MAP_SESSION_REFRESH_MARGIN_SECONDS = 60;
 

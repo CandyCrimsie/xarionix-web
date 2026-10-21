@@ -1,0 +1,320 @@
+<hlm-dialog-header>
+    <h3 hlmDialogTitle>{{ editing() ? 'Редактирование маркера' : 'Новый маркер' }}</h3>
+    <p hlmDialogDescription>
+        Заполните основные данные, выберите иконку и при необходимости настройте оформление.
+    </p>
+</hlm-dialog-header>
+
+<div class="grid max-h-[70vh] gap-6 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,1.45fr)_minmax(15rem,0.75fr)]">
+    <hlm-tabs tab="main" class="min-w-0">
+        <hlm-tabs-list class="grid w-full grid-cols-3" aria-label="Настройки маркера">
+            <button hlmTabsTrigger="main" type="button">Основное</button>
+            <button hlmTabsTrigger="icon" type="button">Иконка</button>
+            <button hlmTabsTrigger="appearance" type="button">Оформление</button>
+        </hlm-tabs-list>
+
+        <div hlmTabsContent="main" class="mt-5 grid gap-5">
+            <div>
+                <h4 class="font-medium">Основная информация</h4>
+                <p class="text-sm text-muted-foreground">
+                    Название показывается в карточке, а подпись — непосредственно под маркером.
+                </p>
+            </div>
+            <hlm-field-group>
+                <hlm-field>
+                    <label hlmFieldLabel for="marker-name">Название маркера</label>
+                    <input hlmInput id="marker-name" maxlength="120" [ngModel]="draft().name"
+                        (ngModelChange)="update('name', $event)" data-testid="marker-name" />
+                </hlm-field>
+                <hlm-field>
+                    <label hlmFieldLabel for="marker-description">Описание</label>
+                    <textarea hlmTextarea id="marker-description" maxlength="2000" rows="3"
+                        [ngModel]="draft().description ?? ''"
+                        (ngModelChange)="updateNullableText('description', $event)"></textarea>
+                </hlm-field>
+                <hlm-field>
+                    <label hlmFieldLabel for="marker-label">Подпись под маркером</label>
+                    <input hlmInput id="marker-label" maxlength="80" [ngModel]="draft().label_text ?? ''"
+                        (ngModelChange)="updateNullableText('label_text', $event)" />
+                </hlm-field>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <hlm-field>
+                        <label hlmFieldLabel for="marker-latitude">Широта</label>
+                        <input hlmInput id="marker-latitude" inputmode="decimal"
+                            [ngModel]="draft().latitude" (paste)="handleCoordinatePaste($event)"
+                            (ngModelChange)="updateNumber('latitude', $event)" />
+                    </hlm-field>
+                    <hlm-field>
+                        <label hlmFieldLabel for="marker-longitude">Долгота</label>
+                        <input hlmInput id="marker-longitude" inputmode="decimal"
+                            [ngModel]="draft().longitude" (paste)="handleCoordinatePaste($event)"
+                            (ngModelChange)="updateNumber('longitude', $event)" />
+                    </hlm-field>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button hlmBtn variant="outline" type="button" (click)="pointRequested.emit()"
+                        data-testid="choose-marker-point">
+                        <ng-icon name="lucideMapPin" />
+                        Выбрать на карте
+                    </button>
+                    <span class="text-xs text-muted-foreground">
+                        Можно вставить «55.577276, 38.245099» в любое поле координат.
+                    </span>
+                </div>
+                <hlm-field>
+                    <label hlmFieldLabel for="marker-building">ID здания</label>
+                    <input hlmInput id="marker-building" inputmode="numeric"
+                        [ngModel]="draft().building_id ?? ''"
+                        (ngModelChange)="updateNumber('building_id', $event)" />
+                    <p hlmFieldDescription>
+                        Необязательно. Привязка информационная, координаты маркера остаются независимыми.
+                    </p>
+                </hlm-field>
+            </hlm-field-group>
+        </div>
+
+        <div hlmTabsContent="icon" class="mt-5 grid gap-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h4 class="font-medium">Иконка маркера</h4>
+                    <p class="text-sm text-muted-foreground">
+                        Наведите курсор или сфокусируйте кнопку, чтобы увидеть название.
+                    </p>
+                </div>
+                <button hlmBtn variant="outline" size="sm" type="button" (click)="selectIcon(null)">
+                    Без иконки
+                </button>
+            </div>
+            <div class="relative">
+                <ng-icon name="lucideSearch"
+                    class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input hlmInput class="pl-9" placeholder="Найти иконку" [ngModel]="iconSearch()"
+                    (ngModelChange)="iconSearch.set($event)" data-testid="marker-icon-search" />
+            </div>
+            <div class="grid max-h-72 grid-cols-5 gap-2 overflow-y-auto p-1 sm:grid-cols-7">
+                @for (icon of icons(); track icon.value) {
+                <button hlmBtn type="button" size="icon"
+                    [variant]="draft().icon_name === icon.value ? 'default' : 'outline'"
+                    class="size-11" [hlmTooltip]="icon.label"
+                    [attr.aria-label]="icon.label"
+                    [attr.data-testid]="'marker-icon-' + icon.value"
+                    (click)="selectIcon(icon.value)">
+                    <ng-icon [name]="icon.icon" />
+                </button>
+                } @empty {
+                <p class="col-span-full py-8 text-center text-sm text-muted-foreground">
+                    Иконки не найдены
+                </p>
+                }
+            </div>
+        </div>
+
+        <div hlmTabsContent="appearance" class="mt-5 grid gap-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h4 class="font-medium">Оформление</h4>
+                    <p class="text-sm text-muted-foreground">Начните с пресета и измените только нужные параметры.</p>
+                </div>
+                <button hlmBtn variant="ghost" size="sm" type="button" (click)="resetAppearance()">
+                    <ng-icon name="lucideRotateCcw" />
+                    Сбросить
+                </button>
+            </div>
+
+            <hlm-field>
+                <label hlmFieldLabel>Готовый стиль</label>
+                <hlm-select [itemToString]="presetToString" (valueChange)="applyPreset($event)">
+                    <hlm-select-trigger class="w-full">
+                        <hlm-select-value placeholder="Выберите пресет" />
+                    </hlm-select-trigger>
+                    <hlm-select-content *hlmSelectPortal>
+                        @for (preset of presets; track preset.id) {
+                        <hlm-select-item [value]="preset.id">{{ preset.label }}</hlm-select-item>
+                        }
+                    </hlm-select-content>
+                </hlm-select>
+            </hlm-field>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <hlm-field>
+                    <label hlmFieldLabel>Размер</label>
+                    <hlm-select [value]="draft().marker_size" [itemToString]="sizeToString"
+                        (valueChange)="selectSize($event)">
+                        <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal>
+                            @for (size of sizes; track size.value) {
+                            <hlm-select-item [value]="size.value">{{ size.label }}</hlm-select-item>
+                            }
+                        </hlm-select-content>
+                    </hlm-select>
+                </hlm-field>
+                <hlm-field>
+                    <label hlmFieldLabel>Форма</label>
+                    <hlm-select [value]="draft().marker_shape" [itemToString]="shapeToString"
+                        (valueChange)="selectShape($event)">
+                        <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal>
+                            @for (shape of shapes; track shape.value) {
+                            <hlm-select-item [value]="shape.value">{{ shape.label }}</hlm-select-item>
+                            }
+                        </hlm-select-content>
+                    </hlm-select>
+                </hlm-field>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <hlm-field>
+                    <label hlmFieldLabel for="marker-icon-color">Цвет иконки</label>
+                    <div class="flex gap-2">
+                        <input hlmInput id="marker-icon-color" maxlength="7" [ngModel]="draft().icon_color"
+                            (ngModelChange)="update('icon_color', $event)" />
+                        <input type="color" class="h-10 w-12 cursor-pointer rounded-md border bg-transparent p-1"
+                            aria-label="Выбрать цвет иконки" [ngModel]="draft().icon_color"
+                            (ngModelChange)="update('icon_color', $event)" />
+                    </div>
+                </hlm-field>
+                <hlm-field>
+                    <label hlmFieldLabel for="marker-text-color">Цвет подписи</label>
+                    <div class="flex gap-2">
+                        <input hlmInput id="marker-text-color" maxlength="7" [ngModel]="draft().text_color"
+                            (ngModelChange)="update('text_color', $event)" />
+                        <input type="color" class="h-10 w-12 cursor-pointer rounded-md border bg-transparent p-1"
+                            aria-label="Выбрать цвет подписи" [ngModel]="draft().text_color"
+                            (ngModelChange)="update('text_color', $event)" />
+                    </div>
+                </hlm-field>
+            </div>
+
+            <div class="grid gap-3 rounded-md border p-4">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label hlmFieldLabel for="marker-background">Фон</label>
+                        <p class="text-xs text-muted-foreground">Цветная подложка под иконкой.</p>
+                    </div>
+                    <hlm-switch id="marker-background" [checked]="draft().background_enabled"
+                        (checkedChange)="update('background_enabled', $event)" />
+                </div>
+                @if (draft().background_enabled) {
+                <hlm-field>
+                    <label hlmFieldLabel for="marker-background-color">Цвет фона</label>
+                    <div class="flex gap-2">
+                        <input hlmInput id="marker-background-color" maxlength="7"
+                            [ngModel]="draft().background_color"
+                            (ngModelChange)="update('background_color', $event)" />
+                        <input type="color" class="h-10 w-12 cursor-pointer rounded-md border bg-transparent p-1"
+                            aria-label="Выбрать цвет фона" [ngModel]="draft().background_color"
+                            (ngModelChange)="update('background_color', $event)" />
+                    </div>
+                </hlm-field>
+                }
+            </div>
+
+            <div class="grid gap-3 rounded-md border p-4">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <label hlmFieldLabel for="marker-border">Обводка</label>
+                        <p class="text-xs text-muted-foreground">Граница вокруг фона маркера.</p>
+                    </div>
+                    <hlm-switch id="marker-border" [checked]="draft().border_enabled"
+                        (checkedChange)="update('border_enabled', $event)" />
+                </div>
+                @if (draft().border_enabled) {
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <hlm-field>
+                        <label hlmFieldLabel for="marker-border-color">Цвет обводки</label>
+                        <div class="flex gap-2">
+                            <input hlmInput id="marker-border-color" maxlength="7"
+                                [ngModel]="draft().border_color"
+                                (ngModelChange)="update('border_color', $event)" />
+                            <input type="color" class="h-10 w-12 cursor-pointer rounded-md border bg-transparent p-1"
+                                aria-label="Выбрать цвет обводки" [ngModel]="draft().border_color"
+                                (ngModelChange)="update('border_color', $event)" />
+                        </div>
+                    </hlm-field>
+                    <hlm-field>
+                        <label hlmFieldLabel for="marker-border-width">Толщина, px</label>
+                        <input hlmInput id="marker-border-width" type="number" min="0" max="8" step="0.5"
+                            [ngModel]="draft().border_width"
+                            (ngModelChange)="updateNumber('border_width', $event)" />
+                    </hlm-field>
+                </div>
+                }
+            </div>
+
+            <section class="grid gap-4 rounded-md border p-4" aria-labelledby="marker-opacity-heading">
+                <div>
+                    <h5 id="marker-opacity-heading" class="text-sm font-medium">Прозрачность</h5>
+                    <p class="text-xs text-muted-foreground">100% — полностью видно, 0% — полностью прозрачно.</p>
+                </div>
+                @for (opacity of [
+                    { field: 'marker_opacity', label: 'Весь маркер' },
+                    { field: 'icon_opacity', label: 'Иконка' },
+                    { field: 'text_opacity', label: 'Подпись' },
+                    { field: 'background_opacity', label: 'Фон' },
+                    { field: 'border_opacity', label: 'Обводка' }
+                ]; track opacity.field) {
+                <div class="grid gap-2"
+                    [class.opacity-50]="(opacity.field === 'background_opacity' && !draft().background_enabled) || (opacity.field === 'border_opacity' && !draft().border_enabled)">
+                    <div class="flex justify-between gap-3 text-sm">
+                        <span>{{ opacity.label }}</span>
+                        <span class="tabular-nums text-muted-foreground">{{ opacityPercent($any(opacity.field)) }}%</span>
+                    </div>
+                    <hlm-slider [min]="0" [max]="100" [step]="1"
+                        [value]="[opacityPercent($any(opacity.field))]"
+                        (valueChange)="setOpacity($any(opacity.field), $event)" />
+                </div>
+                }
+            </section>
+        </div>
+    </hlm-tabs>
+
+    <aside class="lg:sticky lg:top-0 lg:self-start">
+        <div class="grid gap-4 rounded-lg border bg-muted/30 p-4">
+            <div>
+                <h4 class="font-medium">Предпросмотр</h4>
+                <p class="text-sm text-muted-foreground">Соответствует расположению элементов на карте.</p>
+            </div>
+            <div class="flex min-h-48 items-center justify-center rounded-md border bg-background p-6"
+                data-testid="marker-live-preview">
+                <div class="flex flex-col items-center gap-2" [style.opacity]="draft().marker_opacity">
+                    <div class="flex shrink-0 items-center justify-center"
+                        [style.width.px]="previewWidth()" [style.height.px]="previewSize()"
+                        [style.border-radius]="previewRadius()"
+                        [style.background-color]="draft().background_enabled && draft().marker_shape !== 'icon' ? 'color-mix(in srgb, ' + draft().background_color + ' ' + opacityPercent('background_opacity') + '%, transparent)' : 'transparent'"
+                        [style.border-style]="draft().border_enabled && draft().marker_shape !== 'icon' ? 'solid' : 'none'"
+                        [style.border-width.px]="draft().border_enabled && draft().marker_shape !== 'icon' ? draft().border_width : 0"
+                        [style.border-color]="draft().border_enabled && draft().marker_shape !== 'icon' ? 'color-mix(in srgb, ' + draft().border_color + ' ' + opacityPercent('border_opacity') + '%, transparent)' : 'transparent'">
+                        @if (selectedIconName(); as iconName) {
+                        <ng-icon [name]="iconName" [style.color]="draft().icon_color"
+                            [style.opacity]="draft().icon_opacity" />
+                        }
+                    </div>
+                    @if (draft().label_text) {
+                    <span class="whitespace-nowrap text-center text-sm font-medium"
+                        [style.color]="draft().text_color" [style.opacity]="draft().text_opacity">
+                        {{ draft().label_text }}
+                    </span>
+                    }
+                </div>
+            </div>
+            <p class="text-xs text-muted-foreground">
+                {{ draft().latitude.toFixed(6) }} / {{ draft().longitude.toFixed(6) }}
+            </p>
+        </div>
+    </aside>
+</div>
+
+@if (error(); as message) {
+<hlm-alert variant="destructive">
+    <h4 hlmAlertTitle>Не удалось сохранить маркер</h4>
+    <div hlmAlertDescription>{{ message }}</div>
+</hlm-alert>
+}
+
+<hlm-dialog-footer>
+    <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="saving()">Отмена</button>
+    <button hlmBtn type="button" [disabled]="!canSave() || saving()" (click)="submit()"
+        data-testid="save-map-marker">
+        {{ saving() ? 'Сохраняем...' : 'Сохранить маркер' }}
+    </button>
+</hlm-dialog-footer>

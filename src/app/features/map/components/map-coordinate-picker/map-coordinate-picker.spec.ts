@@ -72,11 +72,13 @@ class FakeMarker {
 describe('MapCoordinatePicker', () => {
     let fixture: ComponentFixture<MapCoordinatePicker>;
     let map: FakePickerMap;
+    let latestMapOptions: Record<string, unknown> | null;
     const loader = { load: vi.fn() };
     const mapData = { createTileSession: vi.fn() };
 
     beforeEach(async () => {
         map = new FakePickerMap();
+        latestMapOptions = null;
         vi.clearAllMocks();
         const expiresAt = Math.floor(Date.now() / 1000) + 600;
         mapData.createTileSession.mockReturnValue(of({
@@ -85,10 +87,14 @@ describe('MapCoordinatePicker', () => {
             min_zoom: 0,
             max_zoom: 20,
             tile_size: 256,
+            default_latitude: 55.7558,
+            default_longitude: 37.6176,
+            default_zoom: 10,
         }));
         loader.load.mockResolvedValue({
             Map: class {
-                constructor() {
+                constructor(options: Record<string, unknown>) {
+                    latestMapOptions = options;
                     return map;
                 }
             },
@@ -111,6 +117,17 @@ describe('MapCoordinatePicker', () => {
         vi.restoreAllMocks();
     });
 
+    it('keeps the MapLibre container at the full height of the picker', () => {
+        fixture.detectChanges();
+
+        const container = fixture.nativeElement.querySelector(
+            '[aria-label="Выбор координат на карте"]',
+        ) as HTMLElement;
+        expect(container.classList.contains('h-full')).toBe(true);
+        expect(container.classList.contains('w-full')).toBe(true);
+        expect(container.classList.contains('absolute')).toBe(false);
+    });
+
     it('does not mutate the form until a point has been selected and confirmed by its parent', async () => {
         fixture.detectChanges();
         await Promise.resolve();
@@ -122,6 +139,17 @@ describe('MapCoordinatePicker', () => {
         expect(fixture.componentInstance.selectedCoordinates()).toEqual({
             latitude: '55.577276',
             longitude: '38.245099',
+        });
+    });
+
+    it('uses the backend-configured center when the form has no coordinates', async () => {
+        fixture.detectChanges();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(latestMapOptions).toMatchObject({
+            center: [37.6176, 55.7558],
+            zoom: 10,
         });
     });
 });

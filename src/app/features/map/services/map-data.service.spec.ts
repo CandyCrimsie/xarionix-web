@@ -6,6 +6,7 @@ import {
 } from '@angular/common/http/testing';
 
 import { MapDataService } from './map-data.service';
+import { createDefaultMapMarker } from '../map-marker.config';
 
 
 describe('MapDataService', () => {
@@ -33,6 +34,9 @@ describe('MapDataService', () => {
             min_zoom: 0,
             max_zoom: 20,
             tile_size: 256,
+            default_latitude: 55.7558,
+            default_longitude: 37.6176,
+            default_zoom: 10,
         });
     });
 
@@ -48,5 +52,35 @@ describe('MapDataService', () => {
         const bounds = http.expectOne('/api/v1/map/address-objects/42/bounds');
         expect(bounds.request.method).toBe('GET');
         bounds.flush({ bounds: null, building_count: 0 });
+    });
+
+    it('uses company-scoped marker CRUD endpoints and viewport parameters', () => {
+        const payload = {
+            ...createDefaultMapMarker(55.577276, 38.245099),
+            name: 'Узел связи №1',
+        };
+        service.getMarkers({ west: 38, south: 55, east: 39, north: 56 }).subscribe();
+        const list = http.expectOne(
+            '/api/v1/map/markers?west=38&south=55&east=39&north=56',
+        );
+        expect(list.request.method).toBe('GET');
+        list.flush([]);
+
+        service.createMarker(payload).subscribe();
+        const create = http.expectOne('/api/v1/map/markers');
+        expect(create.request.method).toBe('POST');
+        expect(create.request.body).toEqual(payload);
+        create.flush({ id: 1, company_id: 1, ...payload });
+
+        service.updateMarker(1, { name: 'Новый узел' }).subscribe();
+        const update = http.expectOne('/api/v1/map/markers/1');
+        expect(update.request.method).toBe('PATCH');
+        expect(update.request.body).toEqual({ name: 'Новый узел' });
+        update.flush({ id: 1, company_id: 1, ...payload, name: 'Новый узел' });
+
+        service.deleteMarker(1).subscribe();
+        const remove = http.expectOne('/api/v1/map/markers/1');
+        expect(remove.request.method).toBe('DELETE');
+        remove.flush(null);
     });
 });

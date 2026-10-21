@@ -18,8 +18,6 @@ import { HlmAlertImports } from '@spartan-ng/helm/alert';
 
 import type { CoordinatePair } from '../../../../core/addresses/coordinate-input';
 import {
-    DEFAULT_MAP_CENTER,
-    DEFAULT_MAP_ZOOM,
     MAP_SESSION_REFRESH_MARGIN_SECONDS,
     MAP_SOURCE_ID,
     YANDEX_LOGO_URL,
@@ -100,8 +98,8 @@ export class MapCoordinatePicker implements AfterViewInit {
                 container: this.mapContainer().nativeElement,
                 center: initial
                     ? [Number(initial.longitude), Number(initial.latitude)]
-                    : DEFAULT_MAP_CENTER,
-                zoom: initial ? 16 : DEFAULT_MAP_ZOOM,
+                    : [session.default_longitude, session.default_latitude],
+                zoom: initial ? 16 : session.default_zoom,
                 minZoom: session.min_zoom,
                 maxZoom: session.max_zoom,
                 attributionControl: false,

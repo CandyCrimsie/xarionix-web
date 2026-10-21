@@ -43,5 +43,8 @@ describe('MapLibreLoaderService', () => {
         stylesheet?.dispatchEvent(new Event('load'));
         const mapLibre = await firstLoad;
         expect(mapLibre.Map).toBeTypeOf('function');
+        expect(mapLibre.getWorkerUrl()).toBe(
+            '/assets/maplibre/maplibre-gl-worker.mjs',
+        );
     });
 });

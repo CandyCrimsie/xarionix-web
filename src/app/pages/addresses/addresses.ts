@@ -31,10 +31,12 @@ import {
     lucideLoaderCircle,
     lucideMap,
     lucideMapPin,
+    lucideHouse,
     lucideMove,
     lucidePencil,
     lucidePlus,
     lucideRefreshCw,
+    lucideRoute,
     lucideSettings2,
     lucideTrash2,
     lucideWarehouse,
@@ -53,6 +55,7 @@ import type { BrnDialog } from '@spartan-ng/brain/dialog';
 import { AddressApiService } from '../../core/addresses/address-api.service';
 import type {
     AddressObject,
+    AddressSearchItem,
     AddressType,
     Building,
     Entrance,
@@ -164,10 +167,12 @@ const SEARCH_DEBOUNCE_MS = 300;
             lucideLoaderCircle,
             lucideMap,
             lucideMapPin,
+            lucideHouse,
             lucideMove,
             lucidePencil,
             lucidePlus,
             lucideRefreshCw,
+            lucideRoute,
             lucideSettings2,
             lucideTrash2,
             lucideWarehouse,
@@ -211,17 +216,17 @@ export class Addresses {
 
     readonly searchQuery = signal('');
     readonly searchState = signal<SearchState>('idle');
-    readonly searchResults = signal<Building[]>([]);
+    readonly searchResults = signal<AddressSearchItem[]>([]);
     readonly searchTotal = signal(0);
     readonly searchLoadingMore = signal(false);
     readonly searchPageError = signal(false);
-    readonly selectedSearchResult = signal<Building | null>(null);
+    readonly selectedSearchResult = signal<AddressSearchItem | null>(null);
     readonly searchOverlayState = signal<'open' | 'closed'>('closed');
     readonly hasMoreSearchResults = computed(
         () => this.searchResults().length < this.searchTotal(),
     );
-    readonly searchResultToString = (building: Building): string => (
-        building.full_address
+    readonly searchResultToString = (item: AddressSearchItem): string => (
+        item.full_address
     );
 
     readonly objectParent = signal<AddressObject | null>(null);
@@ -709,10 +714,10 @@ export class Addresses {
     }
 
 
-    selectSearchResult(building: Building | null | undefined): void {
-        this.selectedSearchResult.set(building ?? null);
-        if (building) {
-            this.openSearchResult(building);
+    selectSearchResult(item: AddressSearchItem | null | undefined): void {
+        this.selectedSearchResult.set(item ?? null);
+        if (item) {
+            this.openSearchResult(item);
         }
     }
 
@@ -794,9 +799,27 @@ export class Addresses {
     }
 
 
-    openSearchResult(building: Building): void {
+    openSearchResult(result: AddressSearchItem | Building): void {
+        const item: AddressSearchItem = 'kind' in result
+            ? result
+            : {
+                kind: 'building',
+                building: result,
+                full_address: result.full_address,
+            };
         const contextGeneration = this.contextGeneration;
         const requestGeneration = ++this.searchResultRequestGeneration;
+        if (item.kind === 'address_object') {
+            this.loadSearchResultPath(
+                item.object,
+                null,
+                contextGeneration,
+                requestGeneration,
+                [],
+            );
+            return;
+        }
+        const building = item.building;
         this.addressApi.getObject(building.address_object_id).subscribe({
             next: addressObject => {
                 if (
@@ -831,6 +854,39 @@ export class Addresses {
     }
 
 
+    buildingHasCoordinates(building: Building): boolean {
+        if (building.latitude === null || building.longitude === null) {
+            return false;
+        }
+        const latitude = Number(building.latitude);
+        const longitude = Number(building.longitude);
+        return Number.isFinite(latitude)
+            && latitude >= -90
+            && latitude <= 90
+            && Number.isFinite(longitude)
+            && longitude >= -180
+            && longitude <= 180;
+    }
+
+
+    openBuildingMap(
+        building: Building,
+        parent: AddressObject | null = null,
+        event?: Event,
+    ): void {
+        event?.stopPropagation();
+        if (!this.buildingHasCoordinates(building)) {
+            return;
+        }
+        if (parent) {
+            this.selectTreeBuilding(building, parent);
+        } else if (this.selectedBuilding()?.id !== building.id) {
+            this.selectBuilding(building);
+        }
+        this.mapOpen.set(true);
+    }
+
+
     closeMap(): void {
         this.mapOpen.set(false);
     }
@@ -848,7 +904,11 @@ export class Addresses {
                 ) {
                     return;
                 }
-                this.openSearchResult(building);
+                this.openSearchResult({
+                    kind: 'building',
+                    building,
+                    full_address: building.full_address,
+                });
             },
             error: () => {
                 if (
@@ -1740,26 +1800,78 @@ export class Addresses {
 
 
     private mergeSearchResults(
-        current: Building[],
-        incoming: Building[],
-    ): Building[] {
-        const seen = new Set(current.map(item => item.id));
+        current: AddressSearchItem[],
+        incoming: AddressSearchItem[],
+    ): AddressSearchItem[] {
+        const seen = new Set(current.map(item => this.searchResultKey(item)));
         return [
             ...current,
             ...incoming.filter(item => {
-                if (seen.has(item.id)) {
+                const key = this.searchResultKey(item);
+                if (seen.has(key)) {
                     return false;
                 }
-                seen.add(item.id);
+                seen.add(key);
                 return true;
             }),
         ];
     }
 
 
+    searchResultKey(item: AddressSearchItem): string {
+        return item.kind === 'address_object'
+            ? `address_object:${item.object.id}`
+            : `building:${item.building.id}`;
+    }
+
+
+    searchResultPrimaryText(item: AddressSearchItem): string {
+        if (item.kind === 'building') {
+            const suffix = [
+                `д. ${item.building.number}`,
+                item.building.corpus ? `корп. ${item.building.corpus}` : null,
+                item.building.structure ? `стр. ${item.building.structure}` : null,
+            ].filter(Boolean);
+            return suffix.join(', ');
+        }
+        return this.objectDisplayName(item.object);
+    }
+
+
+    searchResultSecondaryText(item: AddressSearchItem): string {
+        if (item.kind === 'building') {
+            const separator = item.full_address.lastIndexOf(', д. ');
+            return separator >= 0
+                ? item.full_address.slice(0, separator)
+                : item.full_address;
+        }
+        return item.full_address;
+    }
+
+
+    searchResultTypeLabel(item: AddressSearchItem): string {
+        return item.kind === 'building' ? 'Дом' : item.object.type_name;
+    }
+
+
+    searchResultIcon(item: AddressSearchItem): string {
+        if (item.kind === 'building') {
+            return 'lucideHouse';
+        }
+        switch (item.object.type_category) {
+            case 'thoroughfare':
+                return 'lucideRoute';
+            case 'locality':
+                return 'lucideBuilding2';
+            default:
+                return 'lucideMapPin';
+        }
+    }
+
+
     private loadSearchResultPath(
         addressObject: AddressObject,
-        building: Building,
+        building: Building | null,
         contextGeneration: number,
         requestGeneration: number,
         descendants: AddressObject[],
@@ -1782,8 +1894,8 @@ export class Addresses {
             this.actionError.set(null);
             this.loadBuildings(
                 selectedObject.id,
-                building.id,
-                'Выбранный дом больше недоступен',
+                building?.id,
+                building ? 'Выбранный дом больше недоступен' : undefined,
             );
             return;
         }

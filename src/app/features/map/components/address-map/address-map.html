@@ -1,5 +1,5 @@
 <div class="relative h-full min-h-[32rem] overflow-hidden rounded-lg" data-testid="address-map">
-    <div #mapContainer class="absolute inset-0" aria-label="Карта адресов"></div>
+    <div #mapContainer class="h-full w-full" aria-label="Карта адресов"></div>
 
     @if (state() === 'loading') {
     <div class="absolute inset-0 z-20 flex items-center justify-center bg-background/80">
@@ -24,12 +24,62 @@
     </div>
     }
 
-    <button hlmBtn variant="secondary" size="sm" type="button"
-        class="absolute left-3 top-3 z-10" data-testid="close-address-map"
-        (click)="closeRequested.emit()">
-        <ng-icon name="lucideX" />
-        Закрыть карту
-    </button>
+    <div class="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
+        <button hlmBtn variant="secondary" size="sm" type="button"
+            data-testid="close-address-map" (click)="closeRequested.emit()">
+            <ng-icon name="lucideX" />
+            Закрыть карту
+        </button>
+
+        @if (canManage()) {
+        <hlm-dialog #markerDialog="hlmDialog">
+            <button hlmDialogTrigger hlmBtn size="sm" type="button"
+                data-testid="add-map-marker" (click)="startCreateMarker()">
+                <ng-icon name="lucideMapPinPlus" />
+                Добавить маркер
+            </button>
+            <hlm-dialog-content *hlmDialogPortal="let ctx" class="w-[min(72rem,calc(100vw-2rem))] max-w-none">
+                <app-map-marker-editor
+                    [(draft)]="markerDraft"
+                    [editing]="editingMarker() !== null"
+                    [saving]="markerSaving()"
+                    [error]="markerError()"
+                    (pointRequested)="startPointSelection()"
+                    (saveRequested)="saveMarker()" />
+            </hlm-dialog-content>
+        </hlm-dialog>
+        }
+    </div>
+
+    @if (placingMarker()) {
+    <div class="absolute left-1/2 top-16 z-10 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-md"
+        data-testid="marker-placement-controls">
+        <span class="px-2 text-sm">Нажмите на карту или перетащите метку</span>
+        <button hlmBtn variant="outline" size="sm" type="button" (click)="cancelPointSelection()">Отмена</button>
+        <button hlmBtn size="sm" type="button" (click)="confirmPointSelection()">Подтвердить точку</button>
+    </div>
+    }
+
+    <hlm-alert-dialog #deleteMarkerDialog="hlmAlertDialog">
+        <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+            <hlm-alert-dialog-header>
+                <h3 hlmAlertDialogTitle>Удалить маркер?</h3>
+                <p hlmAlertDialogDescription>
+                    @if (markerToDelete(); as marker) {
+                    «{{ marker.name }}» будет удалён без возможности восстановления.
+                    }
+                </p>
+            </hlm-alert-dialog-header>
+            <hlm-alert-dialog-footer>
+                <button hlmAlertDialogCancel type="button" [disabled]="markerDeleting()">Отмена</button>
+                <button hlmAlertDialogAction variant="destructive" type="button"
+                    [disabled]="markerDeleting()" (click)="deleteMarker()">
+                    <ng-icon name="lucideTrash2" />
+                    {{ markerDeleting() ? 'Удаляем...' : 'Удалить' }}
+                </button>
+            </hlm-alert-dialog-footer>
+        </hlm-alert-dialog-content>
+    </hlm-alert-dialog>
 
     @if (viewportError(); as message) {
     <hlm-alert class="absolute left-1/2 top-3 z-10 w-[min(28rem,calc(100%-8rem))] -translate-x-1/2"
@@ -42,13 +92,6 @@
                 Повторить
             </button>
         </div>
-    </hlm-alert>
-    } @else if (tileError()) {
-    <hlm-alert class="absolute left-1/2 top-3 z-10 w-[min(28rem,calc(100%-8rem))] -translate-x-1/2"
-        variant="destructive">
-        <ng-icon name="lucideTriangleAlert" />
-        <h4 hlmAlertTitle>Не удалось загрузить подложку</h4>
-        <div hlmAlertDescription>Проверьте доступность прокси и настройки Yandex Tiles API.</div>
     </hlm-alert>
     }
 
