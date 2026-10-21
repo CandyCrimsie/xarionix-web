@@ -1,0 +1,75 @@
+<div class="relative h-full min-h-[32rem] overflow-hidden rounded-lg" data-testid="address-map">
+    <div #mapContainer class="absolute inset-0" aria-label="Карта адресов"></div>
+
+    @if (state() === 'loading') {
+    <div class="absolute inset-0 z-20 flex items-center justify-center bg-background/80">
+        <div class="flex items-center gap-2 text-sm text-muted-foreground">
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+            Загружаем карту...
+        </div>
+    </div>
+    } @else if (state() === 'error') {
+    <div class="absolute inset-0 z-20 flex items-center justify-center bg-background/90 p-6">
+        <hlm-alert class="max-w-md" variant="destructive">
+            <ng-icon name="lucideTriangleAlert" />
+            <h4 hlmAlertTitle>Карта недоступна</h4>
+            <div hlmAlertDescription>{{ setupError() }}</div>
+            <div hlmAlertAction>
+                <button hlmBtn variant="outline" size="sm" type="button" (click)="retrySetup()">
+                    <ng-icon name="lucideRefreshCw" />
+                    Повторить
+                </button>
+            </div>
+        </hlm-alert>
+    </div>
+    }
+
+    <button hlmBtn variant="secondary" size="sm" type="button"
+        class="absolute left-3 top-3 z-10" data-testid="close-address-map"
+        (click)="closeRequested.emit()">
+        <ng-icon name="lucideX" />
+        Закрыть карту
+    </button>
+
+    @if (viewportError(); as message) {
+    <hlm-alert class="absolute left-1/2 top-3 z-10 w-[min(28rem,calc(100%-8rem))] -translate-x-1/2"
+        variant="destructive">
+        <ng-icon name="lucideTriangleAlert" />
+        <h4 hlmAlertTitle>Здания не загружены</h4>
+        <div hlmAlertDescription>{{ message }}</div>
+        <div hlmAlertAction>
+            <button hlmBtn variant="outline" size="xs" type="button" (click)="retryViewport()">
+                Повторить
+            </button>
+        </div>
+    </hlm-alert>
+    } @else if (tileError()) {
+    <hlm-alert class="absolute left-1/2 top-3 z-10 w-[min(28rem,calc(100%-8rem))] -translate-x-1/2"
+        variant="destructive">
+        <ng-icon name="lucideTriangleAlert" />
+        <h4 hlmAlertTitle>Не удалось загрузить подложку</h4>
+        <div hlmAlertDescription>Проверьте доступность прокси и настройки Yandex Tiles API.</div>
+    </hlm-alert>
+    }
+
+    @if (coordinateNotice(); as message) {
+    <hlm-alert class="absolute bottom-12 left-1/2 z-10 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 bg-background/95">
+        <ng-icon name="lucideBuilding2" />
+        <h4 hlmAlertTitle>Нет координат</h4>
+        <div hlmAlertDescription>{{ message }}</div>
+    </hlm-alert>
+    }
+
+    <div class="absolute bottom-0 left-0 z-10 flex items-end">
+        <a [href]="yandexMapsUrl()" target="_blank" rel="noopener noreferrer"
+            aria-label="Открыть эту область в Яндекс Картах">
+            <img [src]="yandexLogoUrl" alt="Яндекс" class="h-12 w-[88px]" />
+        </a>
+    </div>
+    <div class="absolute bottom-1 right-1 z-10 flex items-center gap-2 rounded bg-background/90 px-2 py-1 text-[11px]">
+        <a class="underline underline-offset-2" [href]="yandexMapsUrl()" target="_blank"
+            rel="noopener noreferrer">Открыть в Картах</a>
+        <a class="underline underline-offset-2" [href]="yandexTermsUrl" target="_blank"
+            rel="noopener noreferrer">Условия использования</a>
+    </div>
+</div>

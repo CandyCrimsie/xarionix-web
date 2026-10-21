@@ -1,14 +1,17 @@
 <div class="flex h-full w-full flex-col gap-4 px-4 pb-4">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-            <h1 class="text-2xl font-semibold">Приглашения</h1>
-            <p class="mt-1 text-sm text-muted-foreground">
-                Одноразовые ссылки для присоединения к текущей компании
-            </p>
-        </div>
+    <hlm-tabs [tab]="scope()" class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <hlm-tabs-list aria-label="Список приглашений">
+                <button hlmTabsTrigger="mine" data-testid="invite-scope-mine" (click)="selectScope('mine')">
+                    Мои приглашения
+                </button>
+                <button hlmTabsTrigger="all" data-testid="invite-scope-all" (click)="selectScope('all')">
+                    Все приглашения
+                </button>
+            </hlm-tabs-list>
 
-        @if (canManageInvitations()) {
-        <hlm-dialog>
+            @if (canManageInvitations()) {
+            <hlm-dialog>
             <button hlmDialogTrigger hlmBtn type="button" data-testid="create-invite-action"
                 (click)="resetCreate()">
                 <ng-icon name="lucidePlus" />
@@ -92,19 +95,9 @@
                     }
                 </hlm-dialog-footer>
             </hlm-dialog-content>
-        </hlm-dialog>
-        }
-    </div>
-
-    <hlm-tabs [tab]="scope()" class="flex flex-col gap-4">
-        <hlm-tabs-list aria-label="Список приглашений">
-            <button hlmTabsTrigger="mine" data-testid="invite-scope-mine" (click)="selectScope('mine')">
-                Мои приглашения
-            </button>
-            <button hlmTabsTrigger="all" data-testid="invite-scope-all" (click)="selectScope('all')">
-                Все приглашения
-            </button>
-        </hlm-tabs-list>
+            </hlm-dialog>
+            }
+        </div>
 
         @if (state() === 'loading') {
         <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"

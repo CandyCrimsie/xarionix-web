@@ -372,6 +372,43 @@ describe('Addresses', () => {
     });
 
 
+    it('should open the map from lucideMap and preserve the selected building and expanded tree', () => {
+        createComponent();
+        const root = component.roots()[0];
+        component.toggleNode(root);
+        component.selectTreeBuilding(building, street);
+        fixture.detectChanges();
+
+        const openMap = fixture.nativeElement.querySelector(
+            '[data-testid="open-address-map"]',
+        ) as HTMLButtonElement | null;
+        expect(openMap).not.toBeNull();
+        openMap?.click();
+
+        expect(component.mapOpen()).toBe(true);
+        expect(component.selectedObject()).toEqual(street);
+        expect(component.selectedBuilding()).toEqual(building);
+        expect(component.roots()[0].expanded).toBe(true);
+
+        component.closeMap();
+        expect(component.mapOpen()).toBe(false);
+        expect(component.selectedObject()).toEqual(street);
+        expect(component.selectedBuilding()).toEqual(building);
+        expect(component.roots()[0].expanded).toBe(true);
+    });
+
+
+    it('should not expose the map action without addresses.read', () => {
+        canRead.set(false);
+        createComponent();
+
+        expect(component.state()).toBe('idle');
+        expect(
+            fixture.nativeElement.querySelector('[data-testid="open-address-map"]'),
+        ).toBeNull();
+    });
+
+
     it('should place root creation in the tree header and prefix tree labels', () => {
         createComponent();
         const pageHeader = fixture.nativeElement.querySelector('header') as HTMLElement;
@@ -379,7 +416,7 @@ describe('Addresses', () => {
             '[data-testid="address-tree-header"]',
         ) as HTMLElement;
 
-        expect(pageHeader.querySelector('[data-testid="create-root-address-action"]')).toBeNull();
+        expect(pageHeader).toBeNull();
         expect(treeHeader.querySelector('[data-testid="create-root-address-action"]')).not.toBeNull();
         expect(
             treeHeader.querySelector('[data-testid="create-root-address-action"]')
@@ -1770,7 +1807,6 @@ describe('Addresses', () => {
         expect(targetRow?.nextElementSibling).toBe(ghost);
         expect(ghost?.style.paddingLeft).toBe(`${(target.depth + 1) * 18}px`);
         expect(ghost?.textContent).toContain('ул. Дмитрия Ульянова');
-        expect(ghost?.textContent).toContain('сюда');
 
         const handle = fixture.nativeElement.querySelector(
             `[data-testid="drag-building-${building.id}"]`,

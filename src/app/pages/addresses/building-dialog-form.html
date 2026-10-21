@@ -48,6 +48,33 @@
         <p class="text-xs text-muted-foreground">
             Можно вставить пару координат в любое поле, например: 55.577276, 38.245099
         </p>
+
+        <hlm-dialog #coordinatePickerDialog>
+            <button hlmDialogTrigger hlmBtn variant="outline" type="button"
+                class="w-fit" data-testid="open-coordinate-picker">
+                <ng-icon name="lucideMapPin" />
+                Указать на карте
+            </button>
+            <hlm-dialog-content *hlmDialogPortal="let ctx"
+                class="w-[calc(100vw-2rem)] sm:w-3xl sm:max-w-3xl">
+                <hlm-dialog-header>
+                    <h3 hlmDialogTitle>Координаты здания</h3>
+                    <p hlmDialogDescription>
+                        Укажите точку здания. Изменения попадут в форму только после нажатия «Применить».
+                    </p>
+                </hlm-dialog-header>
+                <app-map-coordinate-picker #coordinatePicker
+                    [latitude]="latitude()" [longitude]="longitude()" />
+                <hlm-dialog-footer>
+                    <button hlmBtn variant="outline" type="button" hlmDialogClose>Отмена</button>
+                    <button hlmBtn type="button" data-testid="apply-coordinate-picker"
+                        [disabled]="coordinatePicker.selectedCoordinates() === null"
+                        (click)="applyMapCoordinates(coordinatePicker.selectedCoordinates(), coordinatePickerDialog)">
+                        Применить
+                    </button>
+                </hlm-dialog-footer>
+            </hlm-dialog-content>
+        </hlm-dialog>
     </hlm-field-group>
 
     @if (error(); as message) {

@@ -1,0 +1,33 @@
+<div class="relative h-[min(55vh,28rem)] overflow-hidden rounded-md border" data-testid="coordinate-map">
+    <div #mapContainer class="absolute inset-0" aria-label="Выбор координат на карте"></div>
+    @if (loading()) {
+    <div class="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
+        <div class="flex items-center gap-2 text-sm text-muted-foreground">
+            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+            Загружаем карту...
+        </div>
+    </div>
+    }
+    @if (error(); as message) {
+    <div class="absolute inset-0 z-10 flex items-center justify-center bg-background/90 p-4">
+        <hlm-alert variant="destructive">
+            <ng-icon name="lucideTriangleAlert" />
+            <h4 hlmAlertTitle>Карта недоступна</h4>
+            <div hlmAlertDescription>{{ message }}</div>
+        </hlm-alert>
+    </div>
+    }
+    <a class="absolute bottom-0 left-0 z-10" [href]="yandexMapsUrl()"
+        target="_blank" rel="noopener noreferrer" aria-label="Открыть в Яндекс Картах">
+        <img [src]="yandexLogoUrl" alt="Яндекс" class="h-12 w-[88px]" />
+    </a>
+    <div class="absolute bottom-1 right-1 z-10 flex items-center gap-2 rounded bg-background/90 px-2 py-1 text-[11px]">
+        <a class="underline underline-offset-2" [href]="yandexMapsUrl()" target="_blank"
+            rel="noopener noreferrer">Открыть в Картах</a>
+        <a class="underline underline-offset-2" [href]="yandexTermsUrl" target="_blank"
+            rel="noopener noreferrer">Условия использования</a>
+    </div>
+</div>
+<p class="text-xs text-muted-foreground">
+    Нажмите на карту или перетащите метку. Координаты применятся только после подтверждения.
+</p>

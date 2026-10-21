@@ -1,0 +1,22 @@
+:host {
+    display: block;
+    height: 100%;
+    min-height: 0;
+}
+
+:host ::ng-deep .maplibregl-popup-content {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow: var(--shadow-md);
+}
+
+:host ::ng-deep .maplibregl-popup-tip {
+    border-top-color: var(--popover);
+    border-bottom-color: var(--popover);
+}
+
+:host ::ng-deep .maplibregl-popup-close-button {
+    color: var(--muted-foreground);
+}

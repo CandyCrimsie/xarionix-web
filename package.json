@@ -27,6 +27,7 @@
     "clsx": "^2.1.1",
     "embla-carousel": ">=8.0.0 <9.0.0",
     "embla-carousel-angular": "^21.0.0",
+    "maplibre-gl": "^6.15.0",
     "ngx-scrollbar": "^19.1.5",
     "rxjs": "~7.8.0",
     "tailwind-merge": "^3.5.0",

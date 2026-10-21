@@ -29,6 +29,7 @@ import {
     lucideEllipsis,
     lucideGripVertical,
     lucideLoaderCircle,
+    lucideMap,
     lucideMapPin,
     lucideMove,
     lucidePencil,
@@ -71,6 +72,7 @@ import {
     PermissionScope,
 } from '../../core/permissions/permission.models';
 import { PermissionService } from '../../core/permissions/permission.service';
+import { AddressMap } from '../../features/map/components/address-map/address-map';
 import {
     AddressObjectDialogForm,
     BuildingDialogForm,
@@ -147,6 +149,7 @@ const SEARCH_DEBOUNCE_MS = 300;
         EntranceDialogForm,
         LocationDialogForm,
         AddressTypeManager,
+        AddressMap,
     ],
     providers: [
         provideIcons({
@@ -159,6 +162,7 @@ const SEARCH_DEBOUNCE_MS = 300;
             lucideEllipsis,
             lucideGripVertical,
             lucideLoaderCircle,
+            lucideMap,
             lucideMapPin,
             lucideMove,
             lucidePencil,
@@ -203,6 +207,7 @@ export class Addresses {
     readonly locations = signal<Location[]>([]);
     readonly detailsState = signal<LoadState>('idle');
     readonly actionError = signal<string | null>(null);
+    readonly mapOpen = signal(false);
 
     readonly searchQuery = signal('');
     readonly searchState = signal<SearchState>('idle');
@@ -268,6 +273,7 @@ export class Addresses {
     private buildingDetailsRequestGeneration = 0;
     private searchRequestGeneration = 0;
     private searchResultRequestGeneration = 0;
+    private mapBuildingRequestGeneration = 0;
     private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     private searchEnterReopenTimer: ReturnType<typeof setTimeout> | null = null;
     private searchNextOffset = 0;
@@ -815,6 +821,43 @@ export class Addresses {
                     return;
                 }
                 this.actionError.set('Адресный объект больше недоступен');
+            },
+        });
+    }
+
+
+    openMap(): void {
+        this.mapOpen.set(true);
+    }
+
+
+    closeMap(): void {
+        this.mapOpen.set(false);
+    }
+
+
+    openMapBuilding(buildingId: number): void {
+        const contextGeneration = this.contextGeneration;
+        const requestGeneration = ++this.mapBuildingRequestGeneration;
+        this.mapOpen.set(false);
+        this.addressApi.getBuilding(buildingId).subscribe({
+            next: building => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.mapBuildingRequestGeneration
+                ) {
+                    return;
+                }
+                this.openSearchResult(building);
+            },
+            error: () => {
+                if (
+                    contextGeneration !== this.contextGeneration
+                    || requestGeneration !== this.mapBuildingRequestGeneration
+                ) {
+                    return;
+                }
+                this.actionError.set('Здание больше недоступно');
             },
         });
     }
@@ -1423,6 +1466,7 @@ export class Addresses {
         this.buildingDetailsRequestGeneration += 1;
         this.searchRequestGeneration += 1;
         this.searchResultRequestGeneration += 1;
+        this.mapBuildingRequestGeneration += 1;
         this.childRequestGenerations.clear();
     }
 

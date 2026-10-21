@@ -1,4 +1,4 @@
-<div class="flex h-full min-h-0 flex-col gap-4 p-4">
+<div class="flex h-full min-h-0 flex-col gap-4 px-4">
     <hlm-autocomplete
         class="w-full"
         autoHighlight
@@ -108,8 +108,13 @@
             <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-card px-4 py-3"
                 data-testid="address-tree-header">
                 <h2 class="font-medium">Адресные объекты</h2>
-                @if (canManageAddresses()) {
                 <div class="flex items-center gap-1">
+                    <button hlmBtn variant="ghost" size="icon" type="button"
+                        aria-label="Открыть карту" data-testid="open-address-map"
+                        (click)="openMap()">
+                        <ng-icon name="lucideMap" />
+                    </button>
+                    @if (canManageAddresses()) {
                     <hlm-dialog #addressTypeDialog>
                         <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
                             aria-label="Управление типами адресных объектов"
@@ -146,8 +151,8 @@
                                 (saveRequested)="saveObject(rootObjectDialog)" />
                         </hlm-dialog-content>
                     </hlm-dialog>
+                    }
                 </div>
-                }
             </div>
             <div class="p-2" cdkDropListGroup>
                 @for (row of treeRows(); track row.key) {
@@ -322,7 +327,13 @@
         </section>
 
         <section class="min-h-0 overflow-auto rounded-lg border bg-card">
-            @if (selectedObject(); as addressObject) {
+            @if (mapOpen()) {
+            <app-address-map
+                [selectedObject]="selectedObject()"
+                [selectedBuilding]="selectedBuilding()"
+                (buildingSelected)="openMapBuilding($event)"
+                (closeRequested)="closeMap()" />
+            } @else if (selectedObject(); as addressObject) {
             <div class="flex flex-col gap-5 p-4 sm:p-6">
                 @if (!selectedBuilding()) {
                 <div class="flex flex-wrap items-start justify-between gap-3">

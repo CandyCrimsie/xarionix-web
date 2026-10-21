@@ -1,15 +1,4 @@
 <div class="flex flex-col gap-4 px-4 pb-4">
-    <div>
-        <h1 class="text-2xl font-semibold">
-            Сотрудники
-        </h1>
-
-        <p class="mt-1 text-sm text-zinc-500">
-            Сотрудники, доступные вам
-            в текущей компании
-        </p>
-    </div>
-
 
     @if (state() === 'loading') {
     <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500" data-testid="members-loading">

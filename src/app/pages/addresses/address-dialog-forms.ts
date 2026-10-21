@@ -7,7 +7,7 @@ import {
 import { FormsModule } from '@angular/forms';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCircleAlert } from '@ng-icons/lucide';
+import { lucideCircleAlert, lucideMapPin } from '@ng-icons/lucide';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
@@ -20,6 +20,8 @@ import type {
     AddressType,
     Entrance,
 } from '../../core/addresses/address.models';
+import type { BrnDialog } from '@spartan-ng/brain/dialog';
+import { MapCoordinatePicker } from '../../features/map/components/map-coordinate-picker/map-coordinate-picker';
 import {
     normalizeCoordinateScalar,
     parseCoordinatePair,
@@ -85,8 +87,9 @@ export class AddressObjectDialogForm {
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
+        MapCoordinatePicker,
     ],
-    providers: [provideIcons({ lucideCircleAlert })],
+    providers: [provideIcons({ lucideCircleAlert, lucideMapPin })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './building-dialog-form.html',
 })
@@ -144,6 +147,17 @@ export class BuildingDialogForm {
                 'Не удалось однозначно распознать координаты',
             );
         }
+    }
+
+    applyMapCoordinates(
+        pair: CoordinatePair | null,
+        dialog: BrnDialog,
+    ): void {
+        if (!pair) {
+            return;
+        }
+        this.coordinatePairChange.emit(pair);
+        dialog.close({});
     }
 
     submit(): void {

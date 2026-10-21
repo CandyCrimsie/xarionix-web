@@ -12,6 +12,26 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+The development proxy sends `/api/**` to FastAPI on `127.0.0.1:3000` and
+`/map/**` to the dedicated tile proxy on `127.0.0.1:8088`. Start and configure
+the backend infrastructure before opening the map on `/addresses`.
+
+## Address map deployment
+
+MapLibre and its copied stylesheet are loaded only after the user opens the map.
+The Angular bundle contains neither the Yandex Tiles API key nor the tile-signing
+secret. In production, route paths without changing their public origin:
+
+```text
+/api/v1/*     -> FastAPI
+/map/tiles/*  -> xarionix_map_proxy:8080
+```
+
+Do not expose the proxy's internal origin listener or rewrite the relative tile
+URL to a Docker hostname in frontend configuration. The Yandex logo stored in
+`public/yandex-logo-ru.svg` is the unmodified Russian asset from the official
+Tiles API logo pack.
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
