@@ -52,6 +52,7 @@ import {
 import {
     PermissionService,
 } from '../../../core/permissions/permission.service';
+import { toast } from '@spartan-ng/brain/sonner';
 
 
 describe(
@@ -205,6 +206,9 @@ describe(
 
         beforeEach(async () => {
             vi.clearAllMocks();
+            vi.spyOn(toast, 'success').mockImplementation(() => 0);
+            vi.spyOn(toast, 'error').mockImplementation(() => 0);
+            vi.spyOn(toast, 'warning').mockImplementation(() => 0);
 
 
             permissions
@@ -466,8 +470,8 @@ describe(
                 );
 
                 expect(
-                    component.saved(),
-                ).toBe(true);
+                    toast.success,
+                ).toHaveBeenCalledWith('Права роли сохранены');
 
                 expect(
                     component.saving(),
@@ -559,8 +563,8 @@ describe(
 
 
                 expect(
-                    component.saveError(),
-                ).toBe(
+                    toast.error,
+                ).toHaveBeenCalledWith(
                     'Набор доступных прав изменился. '
                     + 'Обновите редактор и повторите попытку',
                 );
@@ -637,24 +641,14 @@ describe(
 
 
                 expect(
-                    component.saved(),
-                ).toBe(true);
-
-                expect(
                     component.saving(),
                 ).toBe(false);
 
 
                 expect(
-                    component.saveError(),
-                ).toContain(
-                    'Права роли сохранены',
-                );
-
-                expect(
-                    component.saveError(),
-                ).toContain(
-                    'не удалось обновить',
+                    toast.warning,
+                ).toHaveBeenCalledWith(
+                    expect.stringContaining('Права роли сохранены, но не удалось обновить'),
                 );
             },
         );

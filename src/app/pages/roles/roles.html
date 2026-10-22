@@ -50,13 +50,6 @@
                 </hlm-field-group>
 
 
-                @if (createError(); as error) {
-                <p class="text-sm text-destructive" data-testid="create-role-error">
-                    {{ error }}
-                </p>
-                }
-
-
                 <hlm-dialog-footer>
                     <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="creating()"
                         (click)="resetCreateForm()">
@@ -249,7 +242,7 @@
 
                                         <app-role-delegation-editor [role]="role" [roles]="roles()" [canManage]="
                                                             canManageRoles()
-                                                        " />
+                                                        " (saved)="ctx.close()" />
                                     </hlm-dialog-content>
                                 </hlm-dialog>
                                 }
@@ -327,13 +320,9 @@
 
                                             <hlm-field>
                                                 <label class="flex items-center gap-3">
-                                                    <input type="checkbox" data-testid="edit-role-active" [checked]="
-                                                                        editActive()
-                                                                    " (change)="
-                                                                        setEditActive(
-                                                                            $event
-                                                                        )
-                                                                    " />
+                                                    <hlm-checkbox data-testid="edit-role-active"
+                                                        [checked]="editActive()"
+                                                        (checkedChange)="editActive.set($event)" />
 
                                                     <span>
                                                         Роль активна
@@ -341,16 +330,6 @@
                                                 </label>
                                             </hlm-field>
                                         </hlm-field-group>
-
-
-                                        @if (
-                                        editError();
-                                        as error
-                                        ) {
-                                        <p class="text-sm text-destructive" data-testid="edit-role-error">
-                                            {{ error }}
-                                        </p>
-                                        }
 
 
                                         <hlm-dialog-footer>

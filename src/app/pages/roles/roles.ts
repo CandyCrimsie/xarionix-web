@@ -12,6 +12,8 @@ import {
 import {
     HlmButtonImports,
 } from '@spartan-ng/helm/button';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
     HlmTableImports,
@@ -95,6 +97,7 @@ type RolesState =
         HlmInputImports,
         HlmBadgeImports,
         HlmButtonImports,
+        HlmCheckboxImports,
         HlmTableImports,
         RolePermissionEditor,
         RoleDelegationEditor,
@@ -155,12 +158,6 @@ export class Roles {
     readonly creating =
         signal(false);
 
-    readonly createError =
-        signal<string | null>(
-            null,
-        );
-
-
     readonly selectedRole =
         signal<Role | null>(
             null,
@@ -177,12 +174,6 @@ export class Roles {
 
     readonly updating =
         signal(false);
-
-    readonly editError =
-        signal<string | null>(
-            null,
-        );
-
 
     constructor() {
         effect(onCleanup => {
@@ -288,7 +279,7 @@ export class Roles {
             this.createDescription().trim();
 
         if (!name) {
-            this.createError.set(
+            toast.error(
                 'Укажите название роли',
             );
 
@@ -296,7 +287,7 @@ export class Roles {
         }
 
         if (name.length > 100) {
-            this.createError.set(
+            toast.error(
                 'Название роли не должно превышать 100 символов',
             );
 
@@ -306,7 +297,7 @@ export class Roles {
         if (
             descriptionValue.length > 500
         ) {
-            this.createError.set(
+            toast.error(
                 'Описание не должно превышать 500 символов',
             );
 
@@ -314,7 +305,6 @@ export class Roles {
         }
 
         this.creating.set(true);
-        this.createError.set(null);
 
         this.roleApi
             .create({
@@ -327,6 +317,8 @@ export class Roles {
             .subscribe({
                 next: () => {
                     this.creating.set(false);
+
+                    toast.success('Роль создана');
 
                     this.resetCreateForm();
 
@@ -346,7 +338,7 @@ export class Roles {
                 error: error => {
                     this.creating.set(false);
 
-                    this.createError.set(
+                    toast.error(
                         this.getCreateRoleError(
                             error,
                         ),
@@ -359,7 +351,6 @@ export class Roles {
     resetCreateForm(): void {
         this.createName.set('');
         this.createDescription.set('');
-        this.createError.set(null);
     }
 
 
@@ -389,9 +380,6 @@ export class Roles {
             role.is_active,
         );
 
-        this.editError.set(
-            null,
-        );
     }
 
 
@@ -419,7 +407,7 @@ export class Roles {
 
 
         if (!name) {
-            this.editError.set(
+            toast.error(
                 'Укажите название роли',
             );
 
@@ -427,7 +415,7 @@ export class Roles {
         }
 
         if (name.length > 100) {
-            this.editError.set(
+            toast.error(
                 'Название роли не должно превышать 100 символов',
             );
 
@@ -437,7 +425,7 @@ export class Roles {
         if (
             descriptionValue.length > 500
         ) {
-            this.editError.set(
+            toast.error(
                 'Описание не должно превышать 500 символов',
             );
 
@@ -448,11 +436,6 @@ export class Roles {
         this.updating.set(
             true,
         );
-
-        this.editError.set(
-            null,
-        );
-
 
         this.roleApi
             .update(
@@ -489,6 +472,8 @@ export class Roles {
                                     false,
                                 );
 
+                                toast.success('Роль сохранена');
+
                                 this.resetEditForm();
 
                                 dialog.close({});
@@ -507,7 +492,7 @@ export class Roles {
                                     false,
                                 );
 
-                                this.editError.set(
+                                toast.warning(
                                     (
                                         'Роль сохранена, '
                                         + 'но не удалось обновить '
@@ -524,24 +509,13 @@ export class Roles {
                         false,
                     );
 
-                    this.editError.set(
+                    toast.error(
                         this.getEditRoleError(
                             error,
                         ),
                     );
                 },
             });
-    }
-
-
-    setEditActive(
-        event: Event,
-    ): void {
-        const input = event.target as HTMLInputElement;
-
-        this.editActive.set(
-            input.checked,
-        );
     }
 
 
@@ -557,9 +531,6 @@ export class Roles {
             true,
         );
 
-        this.editError.set(
-            null,
-        );
     }
 
 

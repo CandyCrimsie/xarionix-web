@@ -28,6 +28,9 @@ import {
 import {
     HlmButtonImports,
 } from '@spartan-ng/helm/button';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
     PermissionApiService,
@@ -89,6 +92,8 @@ const SCOPE_ORDER:
     imports: [
         NgIcon,
         HlmButtonImports,
+        HlmCheckboxImports,
+        HlmSelectImports,
     ],
 
     providers: [
@@ -155,13 +160,8 @@ export class RolePermissionEditor {
     readonly saving =
         signal(false);
 
-    readonly saveError =
-        signal<string | null>(
-            null,
-        );
-
-    readonly saved =
-        signal(false);
+    readonly scopeToString = (scope: PermissionScope): string =>
+        this.scopeLabel(scope);
 
 
     readonly isReadOnly =
@@ -247,15 +247,6 @@ export class RolePermissionEditor {
                 this._assignments.set(
                     new Map(),
                 );
-
-                this.saveError.set(
-                    null,
-                );
-
-                this.saved.set(
-                    false,
-                );
-
 
                 const subscription =
                     forkJoin({
@@ -374,8 +365,6 @@ export class RolePermissionEditor {
                 assignments,
             );
 
-            this.markChanged();
-
             return;
         }
 
@@ -410,7 +399,6 @@ export class RolePermissionEditor {
             assignments,
         );
 
-        this.markChanged();
     }
 
 
@@ -418,10 +406,12 @@ export class RolePermissionEditor {
         permission:
             PermissionCatalogItem,
 
-        scope: PermissionScope,
+        scope: PermissionScope | null | undefined,
     ): void {
         if (
-            this.isReadOnly()
+            scope === null
+            || scope === undefined
+            || this.isReadOnly()
             || !permission.is_active
             || !this.isAssigned(
                 permission.id,
@@ -450,7 +440,6 @@ export class RolePermissionEditor {
             assignments,
         );
 
-        this.markChanged();
     }
 
 
@@ -496,15 +485,6 @@ export class RolePermissionEditor {
             true,
         );
 
-        this.saveError.set(
-            null,
-        );
-
-        this.saved.set(
-            false,
-        );
-
-
         this.rolePermissionApi
             .replace(
                 role.id,
@@ -544,9 +524,7 @@ export class RolePermissionEditor {
                                     false,
                                 );
 
-                                this.saved.set(
-                                    true,
-                                );
+                                toast.success('Права роли сохранены');
                             },
 
                             error: () => {
@@ -561,11 +539,7 @@ export class RolePermissionEditor {
                                     false,
                                 );
 
-                                this.saved.set(
-                                    true,
-                                );
-
-                                this.saveError.set(
+                                toast.warning(
                                     (
                                         'Права роли сохранены, '
                                         + 'но не удалось обновить '
@@ -582,7 +556,7 @@ export class RolePermissionEditor {
                         false,
                     );
 
-                    this.saveError.set(
+                    toast.error(
                         this.getSaveError(
                             error,
                         ),
@@ -653,17 +627,6 @@ export class RolePermissionEditor {
                         ),
             )
             ?? null
-        );
-    }
-
-
-    private markChanged(): void {
-        this.saved.set(
-            false,
-        );
-
-        this.saveError.set(
-            null,
         );
     }
 

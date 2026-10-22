@@ -31,6 +31,7 @@ import type {
 import {
     RoleDelegationEditor,
 } from './role-delegation-editor';
+import { toast } from '@spartan-ng/brain/sonner';
 
 
 describe(
@@ -126,6 +127,9 @@ describe(
 
         beforeEach(async () => {
             vi.clearAllMocks();
+            vi.spyOn(toast, 'success').mockImplementation(() => 0);
+            vi.spyOn(toast, 'error').mockImplementation(() => 0);
+            vi.spyOn(toast, 'warning').mockImplementation(() => 0);
 
 
             delegationApi
@@ -278,6 +282,9 @@ describe(
         it(
             'should replace complete delegation set',
             () => {
+                const close = vi.fn();
+                component.saved.subscribe(close);
+
                 component.toggleRole(
                     managerRole,
                     true,
@@ -328,12 +335,14 @@ describe(
                 );
 
                 expect(
-                    component.saved(),
-                ).toBe(true);
+                    toast.success,
+                ).toHaveBeenCalledWith('Настройки делегирования сохранены');
 
                 expect(
                     component.saving(),
                 ).toBe(false);
+
+                expect(close).toHaveBeenCalledTimes(1);
             },
         );
 
@@ -414,6 +423,9 @@ describe(
         it(
             'should show invalid assignable roles error',
             () => {
+                const close = vi.fn();
+                component.saved.subscribe(close);
+
                 delegationApi
                     .replace
                     .mockReturnValue(
@@ -431,8 +443,8 @@ describe(
 
 
                 expect(
-                    component.saveError(),
-                ).toBe(
+                    toast.error,
+                ).toHaveBeenCalledWith(
                     'Список доступных ролей изменился. '
                     + 'Обновите редактор и повторите попытку',
                 );
@@ -440,6 +452,8 @@ describe(
                 expect(
                     component.saving(),
                 ).toBe(false);
+
+                expect(close).not.toHaveBeenCalled();
             },
         );
     },

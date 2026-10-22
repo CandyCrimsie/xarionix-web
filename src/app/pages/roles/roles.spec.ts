@@ -48,6 +48,7 @@ import {
 import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
+import { toast } from '@spartan-ng/brain/sonner';
 
 
 describe(
@@ -177,6 +178,9 @@ describe(
 
         beforeEach(async () => {
             vi.clearAllMocks();
+            vi.spyOn(toast, 'success').mockImplementation(() => 0);
+            vi.spyOn(toast, 'error').mockImplementation(() => 0);
+            vi.spyOn(toast, 'warning').mockImplementation(() => 0);
 
             permissions
                 .reloadCurrentCompany
@@ -551,6 +555,8 @@ describe(
                     close,
                 ).toHaveBeenCalledTimes(1);
 
+                expect(toast.success).toHaveBeenCalledWith('Роль создана');
+
                 expect(
                     component.createName(),
                 ).toBe('');
@@ -597,8 +603,8 @@ describe(
                 ).not.toHaveBeenCalled();
 
                 expect(
-                    component.createError(),
-                ).toBe(
+                    toast.error,
+                ).toHaveBeenCalledWith(
                     'Укажите название роли',
                 );
             },
@@ -643,8 +649,8 @@ describe(
                 ).not.toHaveBeenCalled();
 
                 expect(
-                    component.createError(),
-                ).toBe(
+                    toast.error,
+                ).toHaveBeenCalledWith(
                     'Роль с таким названием уже существует',
                 );
 
@@ -796,6 +802,8 @@ describe(
 
                 fixture.detectChanges();
 
+                expect(toast.success).toHaveBeenCalledWith('Роль сохранена');
+
                 expect(
                     permissions
                         .reloadCurrentCompany,
@@ -892,8 +900,8 @@ describe(
                 ).not.toHaveBeenCalled();
 
                 expect(
-                    component.editError(),
-                ).toBe(
+                    toast.error,
+                ).toHaveBeenCalledWith(
                     'Роль с таким названием уже существует',
                 );
 
@@ -1027,9 +1035,8 @@ describe(
 
 
                 /*
-                 * Dialog пока оставляем открытым,
-                 * чтобы пользователь увидел
-                 * проблему синхронизации.
+                 * При ошибке синхронизации сохраняем
+                 * открытый редактор и показываем уведомление.
                  */
                 expect(
                     close,
@@ -1042,15 +1049,9 @@ describe(
 
 
                 expect(
-                    component.editError(),
-                ).toContain(
-                    'Роль сохранена',
-                );
-
-                expect(
-                    component.editError(),
-                ).toContain(
-                    'не удалось обновить',
+                    toast.warning,
+                ).toHaveBeenCalledWith(
+                    expect.stringContaining('Роль сохранена, но не удалось обновить'),
                 );
 
 

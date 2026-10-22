@@ -1,5 +1,5 @@
 @if (state() === 'loading') {
-<div class="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500"
+<div class="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"
     data-testid="delegation-editor-loading">
     <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
@@ -7,7 +7,7 @@
 </div>
 } @else if (state() === 'error') {
 <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="delegation-editor-error">
-    <span class="text-sm text-zinc-500">
+    <span class="text-sm text-muted-foreground">
         Не удалось загрузить настройки делегирования
     </span>
 
@@ -20,7 +20,7 @@
 } @else {
 <div class="flex flex-col gap-4">
     @if (isReadOnly()) {
-    <div class="rounded-md border bg-zinc-50 px-4 py-3 text-sm text-zinc-600" data-testid="delegation-editor-readonly">
+    <div class="rounded-md border bg-muted px-4 py-3 text-sm text-muted-foreground" data-testid="delegation-editor-readonly">
         @if (role().is_system) {
         Делегирование системной роли
         управляется системой и доступно
@@ -44,25 +44,10 @@
         <label class="flex items-center justify-between gap-4 border-b px-4 py-3 last:border-b-0"
             [class.opacity-60]="!candidate.is_active">
             <div class="flex min-w-0 items-center gap-3">
-                <input type="checkbox" [checked]="
-                                isDelegated(
-                                    candidate.id
-                                )
-                            " [disabled]="
-                                !canToggleRole(
-                                    candidate
-                                )
-                            " [attr.data-testid]="
-                                'delegation-toggle-'
-                                + candidate.id
-                            " (change)="
-                                toggleRole(
-                                    candidate,
-                                    $any(
-                                        $event.target
-                                    ).checked
-                                )
-                            " />
+                <hlm-checkbox [checked]="isDelegated(candidate.id)"
+                    [disabled]="!canToggleRole(candidate)"
+                    [attr.data-testid]="'delegation-toggle-' + candidate.id"
+                    (checkedChange)="toggleRole(candidate, $event)" />
 
 
                 <div class="flex min-w-0 flex-col">
@@ -74,7 +59,7 @@
                     candidate.id
                     === role().id
                     ) {
-                    <span class="text-xs text-zinc-500">
+                    <span class="text-xs text-muted-foreground">
                         Эта же роль
                     </span>
                     }
@@ -85,7 +70,7 @@
                     candidate.id
                     )
                     ) {
-                    <span class="text-xs text-zinc-500">
+                    <span class="text-xs text-muted-foreground">
                         Роль отключена —
                         существующее делегирование
                         можно только удалить
@@ -110,24 +95,11 @@
             </div>
         </label>
         } @empty {
-        <div class="px-4 py-8 text-center text-sm text-zinc-500">
+        <div class="px-4 py-8 text-center text-sm text-muted-foreground">
             Нет доступных ролей
         </div>
         }
     </div>
-
-
-    @if (saveError(); as error) {
-    <p class="text-sm text-destructive" data-testid="delegation-editor-save-error">
-        {{ error }}
-    </p>
-    }
-
-    @if (saved()) {
-    <p class="text-sm text-zinc-500" data-testid="delegation-editor-saved">
-        Настройки делегирования сохранены
-    </p>
-    }
 
 
     @if (!isReadOnly()) {

@@ -4,6 +4,7 @@ import {
     effect,
     inject,
     input,
+    output,
     signal,
 } from '@angular/core';
 
@@ -28,6 +29,8 @@ import {
 import {
     HlmButtonImports,
 } from '@spartan-ng/helm/button';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
     RoleDelegationApiService,
@@ -56,6 +59,7 @@ type EditorState =
         NgIcon,
         HlmBadgeImports,
         HlmButtonImports,
+        HlmCheckboxImports,
     ],
 
     providers: [
@@ -82,6 +86,8 @@ export class RoleDelegationEditor {
 
     readonly canManage =
         input(false);
+
+    readonly saved = output<void>();
 
 
     private readonly delegationApi =
@@ -111,15 +117,6 @@ export class RoleDelegationEditor {
 
     readonly saving =
         signal(false);
-
-    readonly saveError =
-        signal<string | null>(
-            null,
-        );
-
-    readonly saved =
-        signal(false);
-
 
     readonly isReadOnly =
         computed(
@@ -163,15 +160,6 @@ export class RoleDelegationEditor {
                 this._delegatedRoleIds.set(
                     new Set(),
                 );
-
-                this.saveError.set(
-                    null,
-                );
-
-                this.saved.set(
-                    false,
-                );
-
 
                 const subscription =
                     this.delegationApi
@@ -311,13 +299,6 @@ export class RoleDelegationEditor {
             delegatedRoleIds,
         );
 
-        this.saved.set(
-            false,
-        );
-
-        this.saveError.set(
-            null,
-        );
     }
 
 
@@ -350,15 +331,6 @@ export class RoleDelegationEditor {
             true,
         );
 
-        this.saved.set(
-            false,
-        );
-
-        this.saveError.set(
-            null,
-        );
-
-
         this.delegationApi
             .replace(
                 role.id,
@@ -377,9 +349,8 @@ export class RoleDelegationEditor {
                         delegations,
                     );
 
-                    this.saved.set(
-                        true,
-                    );
+                    toast.success('Настройки делегирования сохранены');
+                    this.saved.emit();
                 },
 
                 error: error => {
@@ -387,7 +358,7 @@ export class RoleDelegationEditor {
                         false,
                     );
 
-                    this.saveError.set(
+                    toast.error(
                         this.getSaveError(
                             error,
                         ),
