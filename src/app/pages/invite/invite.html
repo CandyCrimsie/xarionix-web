@@ -32,13 +32,19 @@
                     <label class="text-sm font-medium" for="created-invitation-link">
                         Ссылка приглашения
                     </label>
-                    <input hlmInput id="created-invitation-link" readonly [value]="link"
-                        data-testid="created-invitation-link" />
+                    <input #createdLinkInput hlmInput id="created-invitation-link" readonly [value]="link"
+                        data-testid="created-invitation-link" (click)="createdLinkInput.select()"
+                        [attr.aria-describedby]="linkCopyError() ? 'invitation-copy-error' : null" />
                     <button hlmBtn type="button" variant="secondary" data-testid="copy-invitation-link"
-                        (click)="copyCreatedLink()">
-                        <ng-icon [name]="linkCopied() ? 'lucideCheck' : 'lucideCopy'" />
-                        {{ linkCopied() ? 'Скопировано' : 'Копировать ссылку' }}
+                        [disabled]="linkCopying()" (click)="copyCreatedLink(createdLinkInput)">
+                        <ng-icon [name]="linkCopying() ? 'lucideLoaderCircle' : (linkCopied() ? 'lucideCheck' : 'lucideCopy')"
+                            [class.animate-spin]="linkCopying()" />
+                        {{ linkCopying() ? 'Копируем...' : (linkCopied() ? 'Скопировано' : 'Копировать ссылку') }}
                     </button>
+                    @if (linkCopyError(); as error) {
+                    <p id="invitation-copy-error" class="text-sm text-destructive" role="alert"
+                        data-testid="invitation-copy-error">{{ error }}</p>
+                    }
                 </div>
                 } @else {
                 @if (invitationPolicy(); as policy) {

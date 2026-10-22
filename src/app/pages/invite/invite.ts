@@ -8,6 +8,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Clipboard } from '@angular/cdk/clipboard';
 
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -99,6 +100,7 @@ const birthDateMonths = [
 })
 export class Invite {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly clipboard = inject(Clipboard);
   private createRequestGeneration = 0;
   private previousCompanyId: number | null | undefined;
   private birthDateParseFailed = false;
@@ -158,6 +160,8 @@ export class Invite {
   readonly createError = signal<string | null>(null);
   readonly createdLink = signal<string | null>(null);
   readonly linkCopied = signal(false);
+  readonly linkCopying = signal(false);
+  readonly linkCopyError = signal<string | null>(null);
   readonly revokingId = signal<number | null>(null);
   readonly revokeError = signal<string | null>(null);
 
@@ -245,6 +249,8 @@ export class Invite {
     this.createError.set(null);
     this.createdLink.set(null);
     this.linkCopied.set(false);
+    this.linkCopying.set(false);
+    this.linkCopyError.set(null);
   }
 
 
@@ -373,20 +379,44 @@ export class Invite {
   }
 
 
-  async copyCreatedLink(): Promise<void> {
+  async copyCreatedLink(input?: HTMLInputElement): Promise<void> {
     const link = this.createdLink();
 
-    if (link === null) {
+    if (link === null || this.linkCopying()) {
       return;
     }
 
+    const generation = this.createRequestGeneration;
+    const isCurrent = () => !this.destroyRef.destroyed
+      && generation === this.createRequestGeneration && link === this.createdLink();
+    this.linkCopied.set(false);
+    this.linkCopyError.set(null);
+    this.linkCopying.set(true);
+
     try {
-      await navigator.clipboard.writeText(link);
-      this.linkCopied.set(true);
-    } catch {
-      this.createError.set(
-        'Не удалось скопировать ссылку',
-      );
+      let copied = false;
+      try {
+        // Async Clipboard is unavailable on HTTP LAN origins and may also be
+        // denied on HTTPS. CDK's selection-based copy supports the former.
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(link);
+          copied = true;
+        }
+      } catch {
+        // Try the synchronous fallback without logging the secret link.
+      }
+      if (!isCurrent()) return;
+      if (!copied) copied = this.clipboard.copy(link);
+      this.linkCopied.set(copied);
+      if (!copied) {
+        if (input?.isConnected && input.value === link) {
+          input.focus();
+          input.select();
+        }
+        this.linkCopyError.set('Браузер запретил автоматическое копирование. Скопируйте ссылку из поля вручную: Ctrl+C или через меню копирования.');
+      }
+    } finally {
+      if (isCurrent()) this.linkCopying.set(false);
     }
   }
 

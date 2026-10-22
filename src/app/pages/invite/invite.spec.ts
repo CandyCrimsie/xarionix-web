@@ -7,6 +7,7 @@ import {
 import { of, Subject, throwError } from 'rxjs';
 
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
@@ -46,6 +47,8 @@ const pendingInvitation: CompanyInvitation = {
 describe('Invite', () => {
   let component: Invite;
   let fixture: ComponentFixture<Invite>;
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  const originalExecCommand = Object.getOwnPropertyDescriptor(document, 'execCommand');
 
   const canManage = signal(true);
   const activeCompanyId = signal<number | null>(1);
@@ -71,6 +74,7 @@ describe('Invite', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
     canManage.set(true);
     activeCompanyId.set(1);
     invitationApi.list.mockReturnValue(
@@ -102,6 +106,15 @@ describe('Invite', () => {
     fixture = TestBed.createComponent(Invite);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+    else Reflect.deleteProperty(navigator, 'clipboard');
+    if (originalExecCommand) Object.defineProperty(document, 'execCommand', originalExecCommand);
+    else Reflect.deleteProperty(document, 'execCommand');
   });
 
 
@@ -236,6 +249,133 @@ describe('Invite', () => {
       'https://erp.test/invite#token',
     );
     expect(component.linkCopied()).toBe(true);
+    expect(component.linkCopyError()).toBeNull();
+    expect(component.linkCopying()).toBe(false);
+  });
+
+
+  it('copies through Angular CDK from the actual dialog when Clipboard API is unavailable on HTTP', async () => {
+    const dialog = await openCreateDialog();
+    const link = 'http://erp.lan:4200/invite#test-secret';
+    component.createdLink.set(link);
+    fixture.detectChanges();
+    const execCommand = vi.fn((command: string) => {
+      expect(command).toBe('copy');
+      const textarea = document.body.querySelector<HTMLTextAreaElement>('textarea[aria-hidden="true"]')!;
+      expect(textarea.value).toBe(link);
+      expect(textarea.selectionStart).toBe(0);
+      expect(textarea.selectionEnd).toBe(link.length);
+      return true;
+    });
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+    dialog.querySelector<HTMLButtonElement>('[data-testid="copy-invitation-link"]')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(execCommand).toHaveBeenCalledOnce();
+    expect(dialog.textContent).toContain('Скопировано');
+    expect(document.body.querySelector('textarea[aria-hidden="true"]')).toBeNull();
+    expect(component.createdLink()).toBe(link);
+    expect(component.createError()).toBeNull();
+    expect(invitationApi.create).not.toHaveBeenCalled();
+  });
+
+
+  it('falls back to CDK when the modern clipboard API rejects the request', async () => {
+    const writeText = vi.fn(() => Promise.reject(new DOMException('Blocked', 'NotAllowedError')));
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const execCommand = vi.fn(() => true);
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+    component.createdLink.set('https://erp.test/invite#test-secret');
+    await component.copyCreatedLink();
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(execCommand).toHaveBeenCalledExactlyOnceWith('copy');
+    expect(component.linkCopied()).toBe(true);
+    expect(component.linkCopyError()).toBeNull();
+    expect(component.createError()).toBeNull();
+  });
+
+
+  it.each(['denied', 'throws', 'unsupported'])('keeps the one-time link and selects it for manual copying if fallback %s', async mode => {
+    if (mode !== 'unsupported') {
+      Object.defineProperty(document, 'execCommand', {
+        configurable: true,
+        value: () => {
+          if (mode === 'throws') throw new DOMException('Blocked', 'NotAllowedError');
+          return false;
+        },
+      });
+    }
+    const dialog = await openCreateDialog();
+    const link = 'http://erp.lan:4200/invite#test-secret';
+    component.createdLink.set(link);
+    fixture.detectChanges();
+    const input = dialog.querySelector<HTMLInputElement>('[data-testid="created-invitation-link"]')!;
+    dialog.querySelector<HTMLButtonElement>('[data-testid="copy-invitation-link"]')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.linkCopied()).toBe(false);
+    expect(component.linkCopying()).toBe(false);
+    expect(dialog.querySelector('[data-testid="invitation-copy-error"]')?.textContent).toContain('Ctrl+C');
+    expect(input.value).toBe(link);
+    expect(input.readOnly).toBe(true);
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(link.length);
+    expect(document.body.querySelector('textarea[aria-hidden="true"]')).toBeNull();
+    expect(component.createError()).toBeNull();
+    expect(invitationApi.create).not.toHaveBeenCalled();
+  });
+
+
+  it('clears a previous copy error after a successful retry', async () => {
+    component.createdLink.set('http://erp.lan/invite#test-secret');
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: () => false });
+    await component.copyCreatedLink();
+    expect(component.linkCopyError()).not.toBeNull();
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: () => true });
+    await component.copyCreatedLink();
+    expect(component.linkCopied()).toBe(true);
+    expect(component.linkCopyError()).toBeNull();
+  });
+
+
+  it.each([false, true])('ignores a late clipboard result after switching company (rejected: %s)', async rejected => {
+    let resolve!: () => void;
+    let reject!: (error: Error) => void;
+    const pending = new Promise<void>((success, failure) => { resolve = success; reject = failure; });
+    const writeText = vi.fn(() => pending);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const execCommand = vi.fn(() => true);
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+    component.createdLink.set('https://erp.test/invite#old-company-secret');
+    const copying = component.copyCreatedLink();
+    expect(component.linkCopying()).toBe(true);
+    activeCompanyId.set(2);
+    fixture.detectChanges();
+    if (rejected) reject(new Error('late permission denial'));
+    else resolve();
+    await copying;
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(component.createdLink()).toBeNull();
+    expect(component.linkCopyError()).toBeNull();
+    expect(component.linkCopied()).toBe(false);
+    expect(component.linkCopying()).toBe(false);
+  });
+
+
+  it('prevents overlapping copy requests and does nothing without a created link', async () => {
+    let resolve!: () => void;
+    const writeText = vi.fn(() => new Promise<void>(success => { resolve = success; }));
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    await component.copyCreatedLink();
+    expect(writeText).not.toHaveBeenCalled();
+    component.createdLink.set('https://erp.test/invite#test-secret');
+    const copying = component.copyCreatedLink();
+    await component.copyCreatedLink();
+    expect(writeText).toHaveBeenCalledOnce();
+    resolve();
+    await copying;
+    expect(component.linkCopying()).toBe(false);
   });
 
 
