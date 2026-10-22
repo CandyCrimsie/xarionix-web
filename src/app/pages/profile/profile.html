@@ -1,0 +1,41 @@
+<section class="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pb-4">
+    <header>
+        <h1 class="text-2xl font-semibold">Профиль</h1>
+        <p class="mt-1 text-sm text-muted-foreground">Ваши данные сотрудника в текущей компании</p>
+    </header>
+    @if (state() === 'loading') {
+    <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground" data-testid="profile-loading">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" /> Загружаем профиль...
+    </div>
+    } @else if (state() === 'error') {
+    <div class="flex min-h-40 flex-col items-center justify-center gap-3" data-testid="profile-error">
+        <p class="text-sm text-destructive">Не удалось загрузить профиль</p>
+        <button hlmBtn type="button" variant="outline" data-testid="profile-retry" (click)="retry()">
+            <ng-icon name="lucideRefreshCw" /> Повторить
+        </button>
+    </div>
+    } @else if (profile(); as employee) {
+    <section hlmCard data-testid="profile-details">
+        <header hlmCardHeader>
+            <h2 hlmCardTitle>{{ displayName(employee, employee.username) }}</h2>
+            <p hlmCardDescription>{{ employee.username }} · {{ employee.company_name }}</p>
+        </header>
+        <div hlmCardContent class="grid gap-6">
+            <app-employee-details [details]="employee" />
+            <dl class="grid gap-5 border-t pt-5 sm:grid-cols-2">
+                <div>
+                    <dt class="text-sm text-muted-foreground">Дата создания учётной записи</dt>
+                    <dd class="mt-1" data-testid="profile-created-at">{{ employee.account_created_at | date:'dd.MM.yyyy HH:mm' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted-foreground">Дата присоединения к компании</dt>
+                    <dd class="mt-1" data-testid="profile-joined-at">{{ employee.joined_at | date:'dd.MM.yyyy HH:mm' }}</dd>
+                </div>
+            </dl>
+            <p class="text-xs text-muted-foreground">Данные сотрудника хранятся отдельно для каждой компании.</p>
+        </div>
+    </section>
+    } @else {
+    <p class="rounded-lg border bg-muted p-4 text-sm text-muted-foreground">Выберите компанию, чтобы открыть профиль сотрудника.</p>
+    }
+</section>

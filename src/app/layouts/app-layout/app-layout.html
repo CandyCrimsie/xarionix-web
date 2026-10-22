@@ -238,7 +238,7 @@
                 </div>
 
                 <div class="flex flex-col">
-                    <span class="font-semibold text-xs">candy</span>
+                    <span class="font-semibold text-xs">Учётная запись</span>
                     <span class="text-xs">{{ user.username }}</span>
                 </div>
 
@@ -263,7 +263,7 @@
                             </div>
 
                             <div class="flex flex-col">
-                                <span class="text-sm font-semibold">candy</span>
+                                <span class="text-sm font-semibold">Учётная запись</span>
                                 <span class="text-xs">{{user.username}}</span>
                             </div>
                         </hlm-dropdown-menu-label>
@@ -271,10 +271,10 @@
                         <hlm-dropdown-menu-separator />
 
                         <!-- Кнопки -->
-                        <button hlmDropdownMenuItem>
+                        <a hlmDropdownMenuItem routerLink="/profile" data-testid="profile-nav-item">
                             <ng-icon name="lucideUserRound" />
                             <span>Профиль</span>
-                        </button>
+                        </a>
 
                         <button hlmDropdownMenuItem>
                             <ng-icon name="lucideSettings2" />

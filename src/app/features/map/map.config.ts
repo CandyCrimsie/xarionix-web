@@ -1,7 +1,7 @@
 export const MAP_SOURCE_ID = 'yandex-map';
 export const MAP_BUILDINGS_SOURCE_ID = 'xarionix-buildings';
 export const MAP_MARKERS_SOURCE_ID = 'xarionix-custom-markers';
-export const MAP_BUILDING_FOCUS_ZOOM = 17;
+export const MAP_BUILDING_FOCUS_ZOOM = 13;
 export const MAP_VIEWPORT_DEBOUNCE_MS = 300;
 export const MAP_SESSION_REFRESH_MARGIN_SECONDS = 60;
 

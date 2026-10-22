@@ -49,6 +49,7 @@ export type MapMarkerShape = 'circle' | 'rounded' | 'pill' | 'icon';
 
 export interface MapMarkerPayload {
     building_id: number | null;
+    sync_building_coordinates: boolean;
     name: string;
     description: string | null;
     latitude: number;

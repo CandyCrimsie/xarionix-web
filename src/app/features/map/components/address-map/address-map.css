@@ -17,6 +17,12 @@
     border-bottom-color: var(--popover);
 }
 
+:host ::ng-deep .address-marker-popup .maplibregl-popup-content {
+    border-radius: var(--radius-xl);
+    padding: 0;
+    font-family: var(--font-sans);
+}
+
 :host ::ng-deep .maplibregl-popup-close-button {
     color: var(--muted-foreground);
 }

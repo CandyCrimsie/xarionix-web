@@ -1,9 +1,10 @@
 import type {
     OrganizationalUnitType,
 } from '../organizational-units/organizational-unit.models';
+import type { EmployeeDetails } from '../profile/profile.models';
 
 
-export interface CompanyMembership {
+export interface CompanyMembership extends EmployeeDetails {
     id: number;
 
     user_id: number;
@@ -16,7 +17,7 @@ export interface CompanyMembership {
 }
 
 
-export interface CompanyMemberSummary {
+export interface CompanyMemberSummary extends EmployeeDetails {
     id: number;
 
     user_id: number;

@@ -73,6 +73,17 @@ describe('InviteTable', () => {
     expect(element.textContent).not.toContain('Устройство');
   });
 
+  it('shows the designated employee next to the invitation without exposing a birth date in the list', () => {
+    fixture.componentRef.setInput('invitations', [{
+      ...invitation(1, 'pending'), first_name: 'Иван', last_name: 'Иванов', middle_name: 'Иванович', email: 'ivan@example.com',
+      phone_number: '+79991234567', date_of_birth: '1992-07-15',
+    }]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Иван Иванов');
+    expect(fixture.nativeElement.textContent).toContain('ivan@example.com');
+    expect(fixture.nativeElement.textContent).not.toContain('1992-07-15');
+  });
+
 
   it('should show revoke only for pending invitations with permission', () => {
     fixture.componentRef.setInput('canManage', true);

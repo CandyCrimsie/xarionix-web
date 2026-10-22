@@ -3,6 +3,7 @@ import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CompanyContextService } from '../../../../core/company/company-context.service';
+import { AddressApiService } from '../../../../core/addresses/address-api.service';
 import type { AddressObject, Building } from '../../../../core/addresses/address.models';
 import type { MapBuildingFeatureCollection, MapMarker } from '../../models/map.models';
 import { MapDataService } from '../../services/map-data.service';
@@ -132,14 +133,30 @@ class FakeMap {
 
 
 class FakePopup {
+    private readonly closeListeners: Array<() => void> = [];
+    private removed = false;
+
+    constructor(readonly options: Record<string, unknown> = {}) {
+        latestPopup = this;
+    }
+
     setLngLat(): this { return this; }
     setDOMContent(content: HTMLElement): this {
         latestPopupContent = content;
         return this;
     }
     addTo(): this { return this; }
+    on(type: string, listener: () => void): this {
+        if (type === 'close') {
+            this.closeListeners.push(listener);
+        }
+        return this;
+    }
     remove(): void {
-        // No-op.
+        if (!this.removed) {
+            this.removed = true;
+            this.closeListeners.forEach(listener => listener());
+        }
     }
 }
 
@@ -168,6 +185,7 @@ class FakeMarker {
 
 
 let latestPopupContent: HTMLElement | null = null;
+let latestPopup: FakePopup | null = null;
 let latestMapOptions: Record<string, unknown> | null = null;
 
 
@@ -182,6 +200,7 @@ describe('AddressMap', () => {
         id: 7,
         company_id: 1,
         building_id: null,
+        sync_building_coordinates: false,
         name: 'Узел связи №1',
         description: 'Магистральный узел',
         latitude: 55.577276,
@@ -204,6 +223,26 @@ describe('AddressMap', () => {
         marker_shape: 'rounded',
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
+    };
+    const house: Building = {
+        id: 42, address_object_id: 12, number: '53', corpus: null, structure: null,
+        latitude: marker.latitude, longitude: marker.longitude,
+        full_address: 'Раменское, ул. Гагарина, д. 53',
+        created_at: marker.created_at, updated_at: marker.updated_at,
+    };
+    const linkedMarker: MapMarker = {
+        ...marker, building_id: house.id, sync_building_coordinates: true,
+    };
+    const houseFeatures: MapBuildingFeatureCollection = {
+        type: 'FeatureCollection',
+        features: [{
+            type: 'Feature', id: house.id,
+            geometry: { type: 'Point', coordinates: [marker.longitude, marker.latitude] },
+            properties: {
+                id: house.id, address_object_id: house.address_object_id, number: house.number,
+                corpus: null, structure: null, full_address: house.full_address,
+            },
+        }],
     };
 
     const mapData = {
@@ -234,6 +273,7 @@ describe('AddressMap', () => {
         mapData.getAddressObjectBounds.mockReset();
         loader.load.mockReset();
         latestPopupContent = null;
+        latestPopup = null;
         latestMapOptions = null;
         FakeMarker.latest = null;
         mapData.createTileSession.mockReturnValue(of({
@@ -294,6 +334,7 @@ describe('AddressMap', () => {
         await TestBed.configureTestingModule({
             imports: [AddressMap],
             providers: [
+                { provide: AddressApiService, useValue: { search: vi.fn(), getBuilding: vi.fn() } },
                 { provide: MapDataService, useValue: mapData },
                 { provide: MapLibreLoaderService, useValue: loader },
                 {
@@ -319,6 +360,21 @@ describe('AddressMap', () => {
         fixture.detectChanges();
     }
 
+    function clickCustomMarker(id = marker.id): HTMLElement {
+        fakeMap.emitLayer('click', 'custom-marker-points', {
+            features: [{
+                geometry: { type: 'Point', coordinates: [marker.longitude, marker.latitude] },
+                properties: { id },
+            }],
+        });
+        fixture.detectChanges();
+        const content = latestPopupContent?.querySelector<HTMLElement>(
+            '[data-testid="map-marker-popup"]',
+        );
+        expect(content).not.toBeNull();
+        return content!;
+    }
+
     it('keeps the MapLibre container at the full height of the map panel', () => {
         fixture.detectChanges();
 
@@ -328,6 +384,85 @@ describe('AddressMap', () => {
         expect(container.classList.contains('h-full')).toBe(true);
         expect(container.classList.contains('w-full')).toBe(true);
         expect(container.classList.contains('absolute')).toBe(false);
+    });
+
+    it('groups the map toolbar actions with Spartan button group', () => {
+        fixture.componentRef.setInput('canManage', true);
+        fixture.detectChanges();
+
+        const group = fixture.nativeElement.querySelector(
+            '[data-testid="map-toolbar-button-group"]',
+        ) as HTMLElement | null;
+
+        expect(group).not.toBeNull();
+        expect(group?.getAttribute('role')).toBe('group');
+        expect(group?.getAttribute('aria-label')).toBe('Управление картой');
+        expect(group?.classList.contains('bg-background')).toBe(true);
+        expect(group?.classList.contains('shadow-md')).toBe(true);
+        expect(group?.parentElement?.classList.contains('isolate')).toBe(true);
+
+        const directButtons = Array.from(group?.children ?? [])
+            .filter(element => element.tagName === 'BUTTON') as HTMLButtonElement[];
+
+        expect(directButtons.map(button => button.dataset['testid'])).toEqual([
+            'close-address-map',
+            'add-map-marker',
+        ]);
+        expect(directButtons[0]?.getAttribute('aria-label')).toBe('Закрыть карту');
+        expect(directButtons.every(button => button.classList.contains('border-border'))).toBe(true);
+        expect(directButtons.some(button => button.classList.contains('border-transparent'))).toBe(false);
+        expect(directButtons.every(button => button.classList.contains('bg-background'))).toBe(true);
+        expect(directButtons.every(button => button.classList.contains('dark:bg-background'))).toBe(true);
+    });
+
+    it('opens the marker editor in the overlay, switches settings and cancels without saving', async () => {
+        vi.useRealTimers();
+        fixture.componentRef.setInput('canManage', true);
+        await initialize();
+
+        (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+            '[data-testid="add-map-marker"]',
+        )!.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const dialog = document.body.querySelector<HTMLElement>(
+            '[data-testid="map-marker-dialog"]',
+        )!;
+        expect(dialog).not.toBeNull();
+        expect(dialog.closest('[role="dialog"]')).not.toBeNull();
+        expect(dialog.textContent).toContain('Новый маркер');
+        expect(dialog.querySelector('[data-testid="marker-live-preview"]')).not.toBeNull();
+
+        const panels = Array.from(dialog.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
+        expect(panels.filter(panel => !panel.hidden)).toHaveLength(1);
+        expect(panels.find(panel => !panel.hidden)?.querySelector('#marker-name')).not.toBeNull();
+
+        const tabs = Array.from(dialog.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+        tabs.find(tab => tab.textContent?.trim() === 'Иконка')!.click();
+        fixture.detectChanges();
+        expect(panels.filter(panel => !panel.hidden)).toHaveLength(1);
+        expect(panels.find(panel => !panel.hidden)?.querySelector(
+            '[data-testid="marker-icon-search"]',
+        )).not.toBeNull();
+
+        tabs.find(tab => tab.textContent?.trim() === 'Оформление')!.click();
+        fixture.detectChanges();
+        expect(panels.filter(panel => !panel.hidden)).toHaveLength(1);
+        const appearance = panels.find(panel => !panel.hidden)!;
+        expect(appearance.querySelector('#marker-icon-color')).not.toBeNull();
+        expect(appearance.querySelector('label[for="marker-background"]')?.getAttribute('for'))
+            .toBe(appearance.querySelector('[role="switch"]')?.id);
+
+        const cancel = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button'))
+            .find(button => button.textContent?.trim() === 'Отмена')!;
+        cancel.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(document.body.querySelector('[data-testid="map-marker-dialog"]')).toBeNull();
+        expect(mapData.createMarker).not.toHaveBeenCalled();
     });
 
     it('loads MapLibre only when the map component is actually created', async () => {
@@ -347,7 +482,9 @@ describe('AddressMap', () => {
         });
     });
 
-    it('focuses a selected building at a useful street-level zoom', async () => {
+    it.each([8, 18])('opens directly at the selected house at zoom 13, regardless of previous zoom %s', async previousZoom => {
+        vi.spyOn(fakeMap, 'getZoom').mockReturnValue(previousZoom);
+        const addSource = vi.spyOn(fakeMap, 'addSource');
         const selected: Building = {
             id: 42,
             address_object_id: 12,
@@ -365,8 +502,45 @@ describe('AddressMap', () => {
 
         expect(fakeMap.easeTo).toHaveBeenCalledWith({
             center: [38.245099, 55.577276],
-            zoom: 17,
+            zoom: 13,
         });
+        expect(latestMapOptions).toMatchObject({ center: [38.245099, 55.577276], zoom: 13 });
+        // This source is deliberately not clustered, so the selected house is
+        // visible at zoom 13 without waiting for the viewport HTTP response.
+        expect(addSource).toHaveBeenCalledWith('xarionix-selected-building', {
+            type: 'geojson', data: EMPTY_FEATURES,
+        });
+        expect(fakeMap.layerDefinitions.get('selected-building-marker')).toMatchObject({
+            source: 'xarionix-selected-building', type: 'symbol',
+        });
+        const source = fakeMap.sources.get('xarionix-selected-building');
+        expect(source?.setData).toHaveBeenLastCalledWith(expect.objectContaining({
+            features: [expect.objectContaining({
+                id: selected.id,
+                geometry: { type: 'Point', coordinates: [38.245099, 55.577276] },
+            })],
+        }));
+
+        fixture.componentRef.setInput('selectedBuilding', { ...selected, id: 43, longitude: 38.3 });
+        fixture.detectChanges();
+        expect(fakeMap.easeTo).toHaveBeenLastCalledWith({ center: [38.3, 55.577276], zoom: 13 });
+        expect(source?.setData).toHaveBeenLastCalledWith(expect.objectContaining({
+            features: [expect.objectContaining({ id: 43 })],
+        }));
+        fixture.componentRef.setInput('selectedBuilding', null);
+        fixture.detectChanges();
+        expect(source?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+    });
+
+    it('does not interpret missing building coordinates as a point at zero latitude and longitude', async () => {
+        fixture.componentRef.setInput('selectedBuilding', {
+            id: 42, latitude: null, longitude: null,
+        } as Building);
+        await initialize();
+        expect(latestMapOptions).toMatchObject({ center: [37.6176, 55.7558], zoom: 10 });
+        expect(fakeMap.easeTo).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.coordinateNotice()).toBe('Для выбранного здания координаты ещё не заданы.');
+        expect(fakeMap.sources.get('xarionix-selected-building')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
     });
 
     it('cancels a stale viewport response and keeps the newest marker data', async () => {
@@ -377,6 +551,7 @@ describe('AddressMap', () => {
         expect(mapData.getBuildings).toHaveBeenCalledTimes(2);
         expect(firstViewport.observed).toBe(false);
         const source = fakeMap.sources.get('xarionix-buildings');
+        source?.setData?.mockClear();
         firstViewport.next(EMPTY_FEATURES);
         expect(source?.setData).not.toHaveBeenCalled();
 
@@ -398,6 +573,98 @@ describe('AddressMap', () => {
         };
         secondViewport.next(latest);
         expect(source?.setData).toHaveBeenCalledWith(latest);
+    });
+
+    it.each(['buildings first', 'markers first'])('replaces the standard house pin with its custom marker: %s', async order => {
+        const markers = new Subject<MapMarker[]>();
+        mapData.getMarkers.mockReturnValue(markers);
+        await initialize();
+        if (order === 'buildings first') {
+            firstViewport.next(houseFeatures);
+            markers.next([linkedMarker]);
+        } else {
+            markers.next([linkedMarker]);
+            firstViewport.next(houseFeatures);
+        }
+        expect(fakeMap.sources.get('xarionix-buildings')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        expect(fakeMap.sources.get('xarionix-custom-markers')?.setData).toHaveBeenLastCalledWith(
+            expect.objectContaining({ features: [expect.objectContaining({ id: marker.id })] }),
+        );
+        expect(fakeMap.sources.get('xarionix-selected-building')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+    });
+
+    it('keeps the selected custom house marker visible at zoom 13 without a second standard pin or cluster entry', async () => {
+        fixture.componentRef.setInput('selectedBuilding', house);
+        mapData.getMarkers.mockReturnValue(of([linkedMarker]));
+        await initialize();
+        firstViewport.next(houseFeatures);
+        expect(latestMapOptions).toMatchObject({ zoom: 13 });
+        expect(fakeMap.sources.get('xarionix-buildings')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        expect(fakeMap.sources.get('xarionix-custom-markers')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        expect(fakeMap.sources.get('xarionix-selected-building')?.setData).toHaveBeenLastCalledWith(
+            expect.objectContaining({ features: [expect.objectContaining({
+                id: marker.id,
+                properties: expect.objectContaining({
+                    marker_id: marker.id, image_key: expect.stringContaining('xarionix-marker-'),
+                    label_text: marker.label_text, marker_opacity: marker.marker_opacity,
+                }),
+            })] }),
+        );
+        // Clicking this selected point opens the custom marker controls, not a
+        // second building popup sitting underneath the user's annotation.
+        fakeMap.emitLayer('click', 'selected-building-marker', {
+            features: [{
+                geometry: houseFeatures.features[0].geometry,
+                properties: { id: marker.id, marker_id: marker.id, full_address: house.full_address },
+            }],
+        });
+        fixture.detectChanges();
+        expect(latestPopupContent?.querySelector('[data-testid="map-marker-popup"]')?.textContent).toContain(marker.name);
+    });
+
+    it('restores the standard house pin after unlinking or deleting its custom marker', async () => {
+        mapData.getMarkers.mockReturnValue(of([linkedMarker]));
+        mapData.updateMarker.mockReturnValue(of({ ...marker, building_id: null }));
+        mapData.deleteMarker.mockReturnValue(of(null));
+        await initialize();
+        firstViewport.next(houseFeatures);
+        expect(fakeMap.sources.get('xarionix-buildings')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        fixture.componentInstance.editingMarker.set(linkedMarker);
+        fixture.componentInstance.markerDraft.set({ ...marker, building_id: null });
+        fixture.componentInstance.saveMarker();
+        expect(fakeMap.sources.get('xarionix-buildings')?.setData).toHaveBeenLastCalledWith(houseFeatures);
+        expect(fakeMap.sources.get('xarionix-custom-markers')?.setData).toHaveBeenLastCalledWith(
+            expect.objectContaining({ features: [expect.objectContaining({ id: marker.id })] }),
+        );
+        fixture.componentInstance.markerToDelete.set(marker);
+        fixture.componentInstance.deleteMarker();
+        expect(fakeMap.sources.get('xarionix-buildings')?.setData).toHaveBeenLastCalledWith(houseFeatures);
+        expect(fakeMap.sources.get('xarionix-custom-markers')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+    });
+
+    it('does not hide a physical house for an informational marker at another point or an unlinked marker', async () => {
+        mapData.getMarkers.mockReturnValue(of([
+            { ...linkedMarker, sync_building_coordinates: false, latitude: 56 },
+            { ...marker, id: 8 },
+        ]));
+        await initialize();
+        firstViewport.next(houseFeatures);
+        expect(fakeMap.sources.get('xarionix-buildings')?.setData).toHaveBeenLastCalledWith(houseFeatures);
+    });
+
+    it('removes old company marker overrides when switching companies', async () => {
+        fixture.componentRef.setInput('selectedBuilding', house);
+        mapData.getMarkers.mockReturnValue(of([linkedMarker]));
+        await initialize();
+        firstViewport.next(houseFeatures);
+        companyChanged.next(2);
+        expect(fixture.componentInstance.markers()).toEqual([]);
+        expect(fakeMap.sources.get('xarionix-custom-markers')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        expect(fakeMap.sources.get('xarionix-selected-building')?.setData).toHaveBeenLastCalledWith(
+            expect.objectContaining({ features: [expect.objectContaining({
+                id: house.id, properties: expect.not.objectContaining({ marker_id: marker.id }),
+            })] }),
+        );
     });
 
     it('invalidates marker data and refreshes the tile permission on company change', async () => {
@@ -527,6 +794,106 @@ describe('AddressMap', () => {
         });
     });
 
+    it('renders marker details below an icon-only Spartan button group', async () => {
+        fixture.componentRef.setInput('canManage', true);
+        mapData.getMarkers.mockReturnValue(of([marker]));
+        await initialize();
+
+        const content = clickCustomMarker();
+        const header = content.querySelector('header')!;
+        const group = header.querySelector('[data-testid="marker-popup-actions"]')!;
+        const buttons = Array.from(group.querySelectorAll('button'));
+        expect(group.getAttribute('role')).toBe('group');
+        expect(buttons.map(button => button.getAttribute('aria-label'))).toEqual([
+            'Редактировать маркер',
+            'Удалить маркер',
+            'Закрыть карточку метки',
+        ]);
+        expect(buttons.every(button => button.getAttribute('data-slot') === 'button')).toBe(true);
+        expect(buttons.every(button => button.querySelector('ng-icon') !== null)).toBe(true);
+        expect(buttons.every(button => button.textContent?.trim() === '')).toBe(true);
+        expect(header.nextElementSibling?.textContent).toContain(marker.name);
+        expect(content.textContent).toContain(marker.description);
+        expect(content.textContent).toContain(marker.label_text);
+        expect(content.textContent).toContain('55.577276, 38.245099');
+        expect(latestPopup?.options['closeButton']).toBe(false);
+    });
+
+    it('opens the existing editor from the marker popup edit icon', async () => {
+        vi.useRealTimers();
+        fixture.componentRef.setInput('canManage', true);
+        mapData.getMarkers.mockReturnValue(of([marker]));
+        await initialize();
+        const content = clickCustomMarker();
+        content.querySelector<HTMLButtonElement>('[data-testid="edit-marker-popup"]')!.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(fixture.componentInstance.editingMarker()).toEqual(marker);
+        const dialog = document.body.querySelector('[data-testid="map-marker-dialog"]')!;
+        expect(dialog.textContent).toContain('Редактирование маркера');
+        expect((dialog.querySelector('#marker-name') as HTMLInputElement).value).toBe(marker.name);
+        expect(latestPopupContent?.querySelector('[data-testid="map-marker-popup"]')).toBeNull();
+    });
+
+    it('requires confirmation when the marker popup delete icon is clicked', async () => {
+        vi.useRealTimers();
+        fixture.componentRef.setInput('canManage', true);
+        mapData.getMarkers.mockReturnValue(of([marker]));
+        await initialize();
+        const content = clickCustomMarker();
+        content.querySelector<HTMLButtonElement>('[data-testid="delete-marker-popup"]')!.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(fixture.componentInstance.markerToDelete()).toEqual(marker);
+        const dialog = document.body.querySelector('[role="alertdialog"]');
+        expect(dialog?.textContent).toContain('Удалить маркер?');
+        expect(dialog?.textContent).toContain(marker.name);
+        expect(mapData.deleteMarker).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.markers()).toEqual([marker]);
+    });
+
+    it('hides marker mutation icons from readers and closes only the popup', async () => {
+        mapData.getMarkers.mockReturnValue(of([marker]));
+        await initialize();
+        const closeMap = vi.fn();
+        fixture.componentInstance.closeRequested.subscribe(closeMap);
+        const content = clickCustomMarker();
+        expect(content.querySelector('[data-testid="edit-marker-popup"]')).toBeNull();
+        expect(content.querySelector('[data-testid="delete-marker-popup"]')).toBeNull();
+        expect(content.textContent).toContain(marker.name);
+
+        content.querySelector<HTMLButtonElement>('[data-testid="close-marker-popup"]')!.click();
+        fixture.detectChanges();
+        expect(latestPopupContent?.querySelector('[data-testid="map-marker-popup"]')).toBeNull();
+        expect(closeMap).not.toHaveBeenCalled();
+        expect(fakeMap.remove).not.toHaveBeenCalled();
+    });
+
+    it('releases marker popup content on replacement, company change and map teardown', async () => {
+        mapData.getMarkers.mockReturnValue(of([marker]));
+        await initialize();
+        clickCustomMarker();
+        const first = latestPopupContent!;
+        clickCustomMarker();
+        expect(first.querySelector('[data-testid="map-marker-popup"]')).toBeNull();
+        const second = latestPopupContent!;
+
+        mapData.getMarkers.mockReturnValue(of([{ ...marker, company_id: 2 }]));
+        companyChanged.next(2);
+        fixture.detectChanges();
+        expect(second.querySelector('[data-testid="map-marker-popup"]')).toBeNull();
+
+        await vi.advanceTimersByTimeAsync(0);
+        clickCustomMarker();
+        const last = latestPopupContent!;
+        fixture.destroy();
+        expect(last.querySelector('[data-testid="map-marker-popup"]')).toBeNull();
+    });
+
     it('creates a marker and hides management controls from readers', async () => {
         mapData.createMarker.mockReturnValue(of(marker));
         await initialize();
@@ -566,5 +933,49 @@ describe('AddressMap', () => {
         fixture.componentInstance.confirmPointSelection();
         expect(FakeMarker.latest?.remove).toHaveBeenCalledOnce();
         expect(fixture.componentInstance.placingMarker()).toBe(false);
+    });
+
+    it('notifies the address page and reloads the viewport only after a synchronized marker is saved', async () => {
+        const saved = { ...marker, building_id: 20, sync_building_coordinates: true };
+        const pending = new Subject<MapMarker>();
+        mapData.createMarker.mockReturnValue(pending);
+        mapData.getMarkers.mockReturnValue(of([saved]));
+        await initialize();
+        const changed = vi.fn();
+        fixture.componentInstance.buildingCoordinatesChanged.subscribe(changed);
+        const previousReads = mapData.getBuildings.mock.calls.length;
+        fixture.componentInstance.markerDraft.set(saved);
+        fixture.componentInstance.saveMarker();
+        expect(changed).not.toHaveBeenCalled();
+        pending.next(saved);
+        expect(changed).toHaveBeenCalledExactlyOnceWith({
+            id: 20, latitude: marker.latitude, longitude: marker.longitude,
+        });
+        expect(mapData.getBuildings.mock.calls.length).toBe(previousReads + 1);
+        expect(fixture.componentInstance.markers()).toEqual([saved]);
+    });
+
+    it('does not publish a stale coordinate update after switching companies', async () => {
+        const pending = new Subject<MapMarker>();
+        mapData.createMarker.mockReturnValue(pending);
+        await initialize();
+        const changed = vi.fn();
+        fixture.componentInstance.buildingCoordinatesChanged.subscribe(changed);
+        fixture.componentInstance.saveMarker();
+        companyChanged.next(2);
+        pending.next({ ...marker, building_id: 20, sync_building_coordinates: true });
+        expect(changed).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.markers()).toEqual([]);
+    });
+
+    it('sends only changed fields when renaming a linked marker, not stale coordinate snapshots', async () => {
+        const saved = { ...marker, building_id: 20, sync_building_coordinates: true };
+        mapData.updateMarker.mockReturnValue(of({ ...saved, name: 'Новая подпись' }));
+        await initialize();
+        fixture.componentInstance.editingMarker.set(saved);
+        fixture.componentInstance.markerDraft.set(saved);
+        fixture.componentInstance.markerDraft.update(current => ({ ...current, name: 'Новая подпись' }));
+        fixture.componentInstance.saveMarker();
+        expect(mapData.updateMarker).toHaveBeenCalledWith(saved.id, { name: 'Новая подпись' });
     });
 });

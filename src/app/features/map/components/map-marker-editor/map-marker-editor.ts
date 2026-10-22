@@ -6,6 +6,7 @@ import {
     model,
     output,
     signal,
+    viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -22,6 +23,9 @@ import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
+
+import { BuildingAddressPicker } from '../../../../shared/building-address-picker/building-address-picker';
+import type { Building } from '../../../../core/addresses/address.models';
 
 import {
     createDefaultMapMarker,
@@ -60,6 +64,7 @@ type OpacityField =
         HlmTabsImports,
         HlmTextareaImports,
         HlmTooltipImports,
+        BuildingAddressPicker,
     ],
     providers: [provideIcons({
         ...MAP_MARKER_ICON_PROVIDERS,
@@ -68,6 +73,9 @@ type OpacityField =
         lucideSearch,
     })],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    host: {
+        class: 'flex h-[min(48rem,calc(100dvh-4rem))] min-h-0 min-w-0 w-full flex-col gap-5',
+    },
     templateUrl: './map-marker-editor.html',
 })
 export class MapMarkerEditor {
@@ -77,6 +85,7 @@ export class MapMarkerEditor {
     readonly error = input<string | null>(null);
     readonly saveRequested = output<void>();
     readonly pointRequested = output<void>();
+    readonly buildingPicker = viewChild(BuildingAddressPicker);
 
     readonly iconSearch = signal('');
     readonly icons = computed(() => {
@@ -120,11 +129,13 @@ export class MapMarkerEditor {
             marker.border_color,
         ].every(color => /^#[0-9a-f]{6}$/i.test(color));
         return Boolean(marker.name.trim())
+            && (this.buildingPicker()?.selectionValid() ?? true)
             && marker.name.trim().length <= 120
             && colorsValid
             && marker.border_width >= 0
             && marker.border_width <= 8
             && (marker.building_id === null || marker.building_id > 0)
+            && (!marker.sync_building_coordinates || marker.building_id !== null)
             && Number.isFinite(marker.latitude)
             && marker.latitude >= -90
             && marker.latitude <= 90
@@ -138,7 +149,11 @@ export class MapMarkerEditor {
         field: K,
         value: MapMarkerPayload[K],
     ): void {
-        this.draft.update(current => ({ ...current, [field]: value }));
+        this.draft.update(current => ({
+            ...current,
+            [field]: value,
+            ...(field === 'building_id' && value === null ? { sync_building_coordinates: false } : {}),
+        }));
     }
 
 
@@ -150,14 +165,48 @@ export class MapMarkerEditor {
     }
 
 
+    selectBuilding(building: Building | null): void {
+        this.draft.update(current => ({
+            ...current,
+            building_id: building?.id ?? null,
+            sync_building_coordinates: building !== null,
+        }));
+        if (building) {
+            this.useBuildingCoordinates(building);
+        }
+    }
+
+
+    setBuildingSync(enabled: boolean): void {
+        this.update('sync_building_coordinates', enabled && this.draft().building_id !== null);
+        const building = this.buildingPicker()?.selectedBuilding();
+        if (enabled && building) {
+            this.useBuildingCoordinates(building);
+        }
+    }
+
+
+    private useBuildingCoordinates(building: Building): void {
+        if (
+            building.latitude !== null && building.longitude !== null
+            && Number.isFinite(Number(building.latitude))
+            && Number.isFinite(Number(building.longitude))
+        ) {
+            // Selecting an already positioned house must not move it to the
+            // map centre. The user can choose a different point afterwards.
+            this.draft.update(current => ({
+                ...current,
+                latitude: Number(building.latitude),
+                longitude: Number(building.longitude),
+            }));
+        }
+    }
+
+
     updateNumber(
-        field: 'latitude' | 'longitude' | 'border_width' | 'building_id',
+        field: 'latitude' | 'longitude' | 'border_width',
         value: string,
     ): void {
-        if (field === 'building_id' && !value.trim()) {
-            this.update('building_id', null);
-            return;
-        }
         const parsed = Number(value.replace(',', '.'));
         if (Number.isFinite(parsed)) {
             this.update(field, parsed as never);

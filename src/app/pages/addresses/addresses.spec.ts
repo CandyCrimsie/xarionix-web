@@ -26,6 +26,7 @@ import { Addresses } from './addresses';
 describe('Addresses', () => {
     let fixture: ComponentFixture<Addresses>;
     let component: Addresses;
+    const panelLayoutKey = 'xarionix.addresses.panel-layout.v1';
 
     const activeCompanyId = signal<number | null>(1);
     const canRead = signal(true);
@@ -202,6 +203,7 @@ describe('Addresses', () => {
 
     beforeEach(async () => {
         vi.clearAllMocks();
+        localStorage.removeItem(panelLayoutKey);
         activeCompanyId.set(1);
         canRead.set(true);
         canManage.set(true);
@@ -373,6 +375,108 @@ describe('Addresses', () => {
     });
 
 
+    it('should resize panels with the keyboard and restore their widths when the page is reopened', async () => {
+        createComponent();
+        await fixture.whenStable();
+        component.selectObject(street);
+        fixture.detectChanges();
+        const rootRequests = addressApi.listObjects.mock.calls.length;
+        const handle = fixture.nativeElement.querySelector(
+            '[data-testid="address-panel-resize-handle"]',
+        ) as HTMLElement;
+        expect(handle.getAttribute('role')).toBe('separator');
+        expect(handle.getAttribute('aria-orientation')).toBe('vertical');
+        handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(component.addressPanelLayout()).toEqual([27, 73]);
+        expect(JSON.parse(localStorage.getItem(panelLayoutKey)!)).toEqual([27, 73]);
+        expect(component.selectedObject()).toEqual(street);
+        expect(addressApi.listObjects.mock.calls).toHaveLength(rootRequests);
+
+        fixture.destroy();
+        createComponent();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        const treePanel = fixture.nativeElement.querySelector('#address-tree-panel') as HTMLElement;
+        const detailsPanel = fixture.nativeElement.querySelector('#address-details-panel') as HTMLElement;
+        // jsdom does not parse Spartan's unitless-zero flex shorthand; check its rendered size metadata.
+        expect(treePanel.getAttribute('data-panel-size')).toBe('27');
+        expect(detailsPanel.getAttribute('data-panel-size')).toBe('73');
+        expect(treePanel.querySelector('[data-testid="address-tree"]')).not.toBeNull();
+    });
+
+
+    it('should persist widths after dragging the actual Spartan separator', async () => {
+        createComponent();
+        await fixture.whenStable();
+        const group = fixture.nativeElement.querySelector(
+            '[data-testid="address-panel-group"]',
+        ) as HTMLElement;
+        Object.defineProperty(group, 'offsetWidth', { configurable: true, value: 1000 });
+        const handle = group.querySelector<HTMLElement>('[data-testid="address-panel-resize-handle"]')!;
+        handle.dispatchEvent(new MouseEvent('mousedown', { clientX: 280, bubbles: true, cancelable: true }));
+        document.dispatchEvent(new MouseEvent('mousemove', { clientX: 200 }));
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        document.dispatchEvent(new MouseEvent('mouseup'));
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(component.addressPanelLayout()).toEqual([20, 80]);
+        expect(JSON.parse(localStorage.getItem(panelLayoutKey)!)).toEqual([20, 80]);
+        expect(group.querySelector('#address-tree-panel')?.getAttribute('data-panel-size')).toBe('20');
+        expect(document.body.style.cursor).toBe('default');
+    });
+
+
+    it('should keep both panels usable at the resize limits without collapsing them', async () => {
+        createComponent();
+        await fixture.whenStable();
+        const handle = fixture.nativeElement.querySelector(
+            '[data-testid="address-panel-resize-handle"]',
+        ) as HTMLElement;
+        for (const key of ['Home', 'ArrowLeft', 'Enter']) {
+            handle.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+        }
+        fixture.detectChanges();
+        expect(component.addressPanelLayout()).toEqual([16, 84]);
+        for (const key of ['End', 'ArrowRight']) {
+            handle.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+        }
+        fixture.detectChanges();
+        expect(component.addressPanelLayout()).toEqual([45, 55]);
+    });
+
+
+    it.each(['invalid-json', 'null', '[0,100]', '[46,54]', '[20,20]', '["20",80]', '[20,80,1]'])(
+        'should fall back to the default panel widths for invalid storage: %s',
+        async stored => {
+            localStorage.setItem(panelLayoutKey, stored);
+            createComponent();
+            await fixture.whenStable();
+            expect(component.addressPanelLayout()).toEqual([28, 72]);
+            const panel = fixture.nativeElement.querySelector('#address-tree-panel') as HTMLElement;
+            expect(panel.getAttribute('data-panel-size')).toBe('28');
+        },
+    );
+
+
+    it('should render and resize even when browser preference storage is unavailable', async () => {
+        vi.spyOn(localStorage, 'getItem').mockImplementation(() => { throw new Error('storage denied'); });
+        vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('storage denied'); });
+        createComponent();
+        await fixture.whenStable();
+        const handle = fixture.nativeElement.querySelector(
+            '[data-testid="address-panel-resize-handle"]',
+        ) as HTMLElement;
+        handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+        fixture.detectChanges();
+        expect(component.addressPanelLayout()).toEqual([27, 73]);
+        expect(component.state()).toBe('ready');
+    });
+
+
     it('should load roots and lazy children', () => {
         createComponent();
         expect(fixture.nativeElement.querySelector('[data-testid="address-object-10"]')).not.toBeNull();
@@ -428,6 +532,10 @@ describe('Addresses', () => {
         ) as HTMLButtonElement | null;
         expect(mapAction).not.toBeNull();
         expect(mapAction?.disabled).toBe(false);
+        expect(mapAction?.classList.contains('md:opacity-0')).toBe(true);
+        expect(mapAction?.classList.contains('md:group-hover:opacity-100')).toBe(true);
+        expect(mapAction?.classList.contains('md:group-focus-within:opacity-100')).toBe(true);
+        expect(mapAction?.parentElement?.classList.contains('group')).toBe(true);
         mapAction?.click();
 
         expect(component.mapOpen()).toBe(true);
@@ -436,7 +544,7 @@ describe('Addresses', () => {
     });
 
 
-    it('should disable the building map action when coordinates are missing', () => {
+    it('should hide building map actions in the list and details when coordinates are missing', () => {
         createComponent();
         component.selectObject(street);
         fixture.detectChanges();
@@ -444,9 +552,71 @@ describe('Addresses', () => {
         const mapAction = fixture.nativeElement.querySelector(
             `[data-testid="building-map-${building.id}"]`,
         ) as HTMLButtonElement | null;
+        expect(mapAction).toBeNull();
+        component.selectBuilding(building);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-details-map"]')).toBeNull();
+    });
+
+
+    it('shows coordinates and map actions immediately after setting a house point through the map', () => {
+        createComponent();
+        component.toggleNode(component.roots()[0]);
+        const streetNode = component.roots()[0].children.find(node => node.id === street.id)!;
+        component.toggleNode(streetNode);
+        component.selectTreeBuilding(building, street);
+        component.searchResults.set([buildingSearchItem(building)]);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-details-map"]')).toBeNull();
+
+        component.onBuildingCoordinatesChanged({ id: building.id, latitude: 55.577276, longitude: 38.245099 });
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-details-map"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="tree-building-map-20"]')).not.toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('55.577276, 38.245099');
+        expect(component.searchResults()[0]).toEqual(expect.objectContaining({
+            building: expect.objectContaining({ latitude: 55.577276, longitude: 38.245099 }),
+        }));
+        component.backToAddressObject();
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-map-20"]')).not.toBeNull();
+    });
+
+
+    it('ignores a pre-save building response that still has empty coordinates', () => {
+        createComponent();
+        const stale = new Subject<Building[]>();
+        const updated = { ...building, latitude: 55.577276, longitude: 38.245099 };
+        addressApi.listBuildings.mockReturnValueOnce(stale).mockReturnValue(of([updated]));
+        component.selectObject(street);
+        component.onBuildingCoordinatesChanged(updated);
+        stale.next([building]);
+        fixture.detectChanges();
+        expect(component.buildings()).toEqual([updated]);
+        expect(fixture.nativeElement.querySelector('[data-testid="building-map-20"]')).not.toBeNull();
+    });
+
+
+    it('should show map actions in the tree and details only for geocoded buildings', () => {
+        const geocodedBuilding = { ...building, latitude: 55.577276, longitude: 38.245099 };
+        addressApi.listBuildings.mockReturnValue(of([geocodedBuilding]));
+        addressApi.getBuilding.mockReturnValue(of(geocodedBuilding));
+        createComponent();
+        component.toggleNode(component.roots()[0]);
+        const streetNode = component.roots()[0].children.find(node => node.id === street.id)!;
+        component.toggleNode(streetNode);
+        fixture.detectChanges();
+
+        const mapAction = fixture.nativeElement.querySelector(
+            `[data-testid="tree-building-map-${building.id}"]`,
+        ) as HTMLButtonElement;
         expect(mapAction).not.toBeNull();
-        expect(mapAction?.disabled).toBe(true);
-        expect(mapAction?.getAttribute('aria-label')).toBe('У дома не заданы координаты');
+        expect(mapAction.classList.contains('md:group-hover:opacity-100')).toBe(true);
+        expect(mapAction.classList.contains('md:group-focus-within:opacity-100')).toBe(true);
+
+        component.selectTreeBuilding(geocodedBuilding, street);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[data-testid="building-details-map"]')).not.toBeNull();
     });
 
 
@@ -1946,6 +2116,11 @@ describe('Addresses', () => {
         ) as HTMLElement;
         expect(handle.classList.contains('opacity-0')).toBe(true);
         expect(handle.classList.contains('group-hover:opacity-100')).toBe(true);
+
+        const mapAction = fixture.nativeElement.querySelector(
+            `[data-testid="tree-building-map-${building.id}"]`,
+        ) as HTMLElement;
+        expect(mapAction).toBeNull();
 
         component.endTreeDrag();
         fixture.detectChanges();

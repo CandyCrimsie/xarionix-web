@@ -93,6 +93,7 @@ export function createDefaultMapMarker(
 ): MapMarkerPayload {
     return {
         building_id: null,
+        sync_building_coordinates: false,
         name: '',
         description: null,
         latitude,

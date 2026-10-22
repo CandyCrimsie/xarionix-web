@@ -83,4 +83,21 @@ describe('MapDataService', () => {
         expect(remove.request.method).toBe('DELETE');
         remove.flush(null);
     });
+
+    it('explicitly sends the house-coordinate synchronization mode when saving a map binding', () => {
+        service.createMarker({
+            ...createDefaultMapMarker(55.577276, 38.245099),
+            name: 'Дом 53', building_id: 20, sync_building_coordinates: true,
+        }).subscribe();
+        const create = http.expectOne('/api/v1/map/markers');
+        expect(create.request.body).toEqual(expect.objectContaining({
+            building_id: 20, sync_building_coordinates: true,
+            latitude: 55.577276, longitude: 38.245099,
+        }));
+        create.flush({ id: 1, ...create.request.body });
+        service.updateMarker(1, { sync_building_coordinates: false }).subscribe();
+        const update = http.expectOne('/api/v1/map/markers/1');
+        expect(update.request.body).toEqual({ sync_building_coordinates: false });
+        update.flush({ id: 1, ...create.request.body, sync_building_coordinates: false });
+    });
 });

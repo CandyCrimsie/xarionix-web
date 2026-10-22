@@ -48,6 +48,18 @@ describe(
             http.verify();
         });
 
+        it('sends manager-provided employee details only in the protected create request body', () => {
+            const payload = {
+                expires_in_hours: 24, first_name: 'Иван', last_name: 'Иванов', middle_name: null, email: 'ivan@example.com',
+                phone_number: '+79991234567', date_of_birth: '1992-07-15',
+            };
+            service.create(7, payload).subscribe();
+            const request = http.expectOne('/api/v1/companies/7/invitations');
+            expect(request.request.body).toEqual(payload);
+            expect(request.request.urlWithParams).not.toContain('ivan');
+            request.flush({});
+        });
+
 
         it(
             'should use company-scoped management endpoints',

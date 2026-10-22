@@ -145,6 +145,24 @@ describe(
                 vi.fn(),
         };
 
+        it('shows employee details from the scoped API in a real profile dialog', async () => {
+            memberApi.list.mockReturnValue(of([{
+                ...member, first_name: 'Иван', last_name: 'Иванов', middle_name: 'Иванович', email: 'ivan@example.com',
+                phone_number: '+79991234567', date_of_birth: '1992-07-15',
+            }]));
+            component.retry();
+            fixture.detectChanges();
+            expect(fixture.nativeElement.textContent).toContain('Иван Иванов');
+            fixture.nativeElement.querySelector('[data-testid="member-profile-action-15"]').click();
+            fixture.detectChanges();
+            await fixture.whenStable();
+            fixture.detectChanges();
+            const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+            expect(dialog.textContent).toContain('ivan@example.com');
+            expect(dialog.textContent).toContain('+79991234567');
+            expect(dialog.querySelector('[data-testid="employee-birth-date"]')?.textContent).toBe('15.07.1992');
+        });
+
 
         const companyContext = {
             activeCompanyId:

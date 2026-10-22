@@ -12,6 +12,13 @@ import {
 describe(
     'application routes',
     () => {
+        it('exposes the self profile inside the authenticated layout without requiring members.manage', async () => {
+            const app = routes.find(route => route.path === '');
+            const profile = app?.children?.find(route => route.path === 'profile');
+            expect(app?.canActivate).toBeDefined();
+            expect(profile?.canActivate).toBeUndefined();
+            expect(await profile?.loadComponent?.()).toBeDefined();
+        });
         it(
             'should protect addresses route with company read permission',
             () => {

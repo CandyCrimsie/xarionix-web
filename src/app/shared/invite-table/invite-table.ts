@@ -18,6 +18,7 @@ import {
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmTableImports } from '@spartan-ng/helm/table';
+import { employeeDisplayName } from '../../core/profile/profile.models';
 
 import type {
   CompanyInvitation,
@@ -48,6 +49,7 @@ import type {
   styleUrl: './invite-table.css',
 })
 export class InviteTable {
+  readonly displayName = employeeDisplayName;
   readonly invitations =
     input<readonly CompanyInvitation[]>([]);
 

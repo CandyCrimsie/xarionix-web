@@ -18,7 +18,8 @@
                 Создать приглашение
             </button>
 
-            <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+            <hlm-dialog-content *hlmDialogPortal="let ctx" class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
+                <form class="grid gap-4" (ngSubmit)="createInvitation()" data-testid="create-invite-form">
                 <hlm-dialog-header>
                     <h3 hlmDialogTitle>Создание приглашения</h3>
                     <p hlmDialogDescription>
@@ -41,10 +42,68 @@
                 </div>
                 } @else {
                 @if (invitationPolicy(); as policy) {
+                <p class="text-sm text-muted-foreground">
+                    Данные сотрудника необязательны. Они сохранятся в профиле компании при принятии приглашения;
+                    сотруднику не потребуется заполнять их повторно.
+                </p>
                 <hlm-field-group>
                     <hlm-field>
+                        <label hlmFieldLabel for="invitation-last-name">Фамилия</label>
+                        <input hlmInput id="invitation-last-name" name="lastName" maxlength="100"
+                            autocomplete="off" placeholder="Иванов" [disabled]="createSaving()"
+                            data-testid="invitation-last-name" [ngModel]="createLastName()"
+                            (ngModelChange)="createLastName.set($event)" />
+                    </hlm-field>
+                    <hlm-field>
+                        <label hlmFieldLabel for="invitation-first-name">Имя</label>
+                        <input hlmInput id="invitation-first-name" name="firstName" maxlength="100"
+                            autocomplete="off" placeholder="Иван" [disabled]="createSaving()"
+                            data-testid="invitation-first-name" [ngModel]="createFirstName()"
+                            (ngModelChange)="createFirstName.set($event)" />
+                    </hlm-field>
+                    <hlm-field>
+                        <label hlmFieldLabel for="invitation-middle-name">Отчество (если есть)</label>
+                        <input hlmInput id="invitation-middle-name" name="middleName" maxlength="100"
+                            autocomplete="off" placeholder="Иванович" [disabled]="createSaving()"
+                            data-testid="invitation-middle-name" [ngModel]="createMiddleName()"
+                            (ngModelChange)="createMiddleName.set($event)" />
+                    </hlm-field>
+                    <div class="grid min-w-0 gap-4 sm:grid-cols-2">
+                        <hlm-field class="min-w-0">
+                            <label hlmFieldLabel for="invitation-email">Email</label>
+                            <input hlmInput id="invitation-email" name="email" type="email" maxlength="254"
+                                autocomplete="off" placeholder="employee@example.com" [disabled]="createSaving()"
+                                data-testid="invitation-email" [ngModel]="createEmail()"
+                                (ngModelChange)="createEmail.set($event)" />
+                        </hlm-field>
+                        <hlm-field class="min-w-0">
+                            <label hlmFieldLabel for="invitation-phone">Номер телефона</label>
+                            <input hlmInput id="invitation-phone" name="phoneNumber" type="tel" maxlength="50"
+                                autocomplete="off" placeholder="+7 (999) 123-45-67" [disabled]="createSaving()"
+                                data-testid="invitation-phone" [ngModel]="createPhoneNumber()"
+                                (ngModelChange)="createPhoneNumber.set($event)" />
+                        </hlm-field>
+                    </div>
+                    <hlm-field>
+                        <label hlmFieldLabel for="invitation-birth-date">Дата рождения</label>
+                        @for (version of [birthDateInputVersion()]; track version) {
+                        <hlm-date-picker captionLayout="dropdown" name="dateOfBirth" class="w-full"
+                            [maxDate]="maxBirthDate" [defaultFocusedDate]="defaultBirthDateFocus"
+                            [formatDate]="formatBirthDate" [disabled]="createSaving()"
+                            [ngModel]="birthDateSelection()" (ngModelChange)="selectBirthDate($event)">
+                            <hlm-date-picker-input inputId="invitation-birth-date" placeholder="дд.ММ.гггг"
+                                class="w-full" [parseDate]="parseBirthDate" [formatInputDate]="formatBirthDate"
+                                [forceInvalid]="birthDateError() !== null" (input)="readBirthDateInput($event)"
+                                clearAriaLabel="Очистить дату" calendarAriaLabel="Открыть календарь" />
+                        </hlm-date-picker>
+                        }
+                        @if (birthDateError(); as error) {
+                        <p class="text-sm text-destructive" role="alert">{{ error }}</p>
+                        }
+                    </hlm-field>
+                    <hlm-field>
                         <label hlmFieldLabel for="invitation-expires-hours">Срок действия, часов</label>
-                        <input hlmInput id="invitation-expires-hours" type="number" min="1"
+                        <input hlmInput id="invitation-expires-hours" name="expiresHours" type="number" min="1"
                             [max]="policy.max_expire_hours"
                             data-testid="invitation-expires-hours" [ngModel]="createExpiresHours()"
                             (ngModelChange)="createExpiresHours.set($event)" />
@@ -82,9 +141,8 @@
                     </button>
 
                     @if (!createdLink()) {
-                    <button hlmBtn type="button" data-testid="create-invite-submit"
-                        [disabled]="createSaving() || invitationPolicy() === null"
-                        (click)="createInvitation()">
+                    <button hlmBtn type="submit" data-testid="create-invite-submit"
+                        [disabled]="createSaving() || invitationPolicy() === null">
                         @if (createSaving()) {
                         <ng-icon name="lucideLoaderCircle" class="animate-spin" />
                         Создаём...
@@ -94,6 +152,7 @@
                     </button>
                     }
                 </hlm-dialog-footer>
+                </form>
             </hlm-dialog-content>
             </hlm-dialog>
             }

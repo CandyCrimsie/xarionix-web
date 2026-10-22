@@ -1,6 +1,7 @@
 import type {
     User,
 } from '../auth/auth.models';
+import type { EmployeeDetails } from '../profile/profile.models';
 
 
 export type InvitationScope =
@@ -15,7 +16,7 @@ export type InvitationStatus =
     | 'revoked';
 
 
-export interface CompanyInvitation {
+export interface CompanyInvitation extends EmployeeDetails {
     id: number;
     company_id: number;
     token_prefix: string;
@@ -29,7 +30,7 @@ export interface CompanyInvitation {
 }
 
 
-export interface CompanyInvitationCreate {
+export interface CompanyInvitationCreate extends Omit<EmployeeDetails, 'full_name'> {
     expires_in_hours?: number;
 }
 

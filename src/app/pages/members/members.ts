@@ -15,6 +15,8 @@ import {
     lucideLoaderCircle,
     lucideRefreshCw,
 } from '@ng-icons/lucide';
+import { EmployeeDetails } from '../../shared/employee-details/employee-details';
+import { employeeDisplayName } from '../../core/profile/profile.models';
 
 import {
     HlmBadgeImports,
@@ -82,6 +84,7 @@ type MembersState =
 
     imports: [
         NgIcon,
+        EmployeeDetails,
         HlmBadgeImports,
         HlmButtonImports,
         HlmTableImports,
@@ -105,6 +108,7 @@ type MembersState =
         './members.css',
 })
 export class Members {
+    readonly displayName = employeeDisplayName;
     private readonly memberApi =
         inject(MemberApiService);
 

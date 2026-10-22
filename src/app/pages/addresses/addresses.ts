@@ -49,6 +49,7 @@ import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
+import { HlmResizableImports } from '@spartan-ng/helm/resizable';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import type { BrnDialog } from '@spartan-ng/brain/dialog';
 
@@ -131,6 +132,8 @@ type TreeDropTarget =
 
 const SEARCH_PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
+const ADDRESS_PANEL_LAYOUT_KEY = 'xarionix.addresses.panel-layout.v1';
+const DEFAULT_ADDRESS_PANEL_LAYOUT = [28, 72];
 
 
 @Component({
@@ -145,6 +148,7 @@ const SEARCH_DEBOUNCE_MS = 300;
         HlmButtonImports,
         HlmButtonGroupImports,
         HlmDialogImports,
+        HlmResizableImports,
         HlmSelectImports,
         HlmSeparatorImports,
         AddressObjectDialogForm,
@@ -198,6 +202,7 @@ export class Addresses {
     );
 
     readonly state = signal<LoadState>('idle');
+    readonly addressPanelLayout = signal(this.restoreAddressPanelLayout());
     readonly types = signal<AddressType[]>([]);
     readonly roots = signal<AddressTreeNode[]>([]);
     readonly selectedObject = signal<AddressObject | null>(null);
@@ -381,6 +386,46 @@ export class Addresses {
 
     retry(): void {
         this.reloadVersion.update(value => value + 1);
+    }
+
+
+    onAddressPanelLayoutChange(layout: number[]): void {
+        if (
+            !this.isValidAddressPanelLayout(layout)
+            || layout.every((size, index) => Math.abs(size - this.addressPanelLayout()[index]) < 1e-9)
+        ) {
+            return;
+        }
+        this.addressPanelLayout.set([...layout]);
+        try {
+            localStorage.setItem(ADDRESS_PANEL_LAYOUT_KEY, JSON.stringify(layout));
+        } catch {
+            // Resizing remains available when the browser disallows saving preferences.
+        }
+    }
+
+
+    private restoreAddressPanelLayout(): number[] {
+        try {
+            const stored = localStorage.getItem(ADDRESS_PANEL_LAYOUT_KEY);
+            const layout: unknown = stored === null ? null : JSON.parse(stored);
+            if (this.isValidAddressPanelLayout(layout)) {
+                return [...layout];
+            }
+        } catch {
+            // Use the default layout if storage is unavailable or its value is malformed.
+        }
+        return [...DEFAULT_ADDRESS_PANEL_LAYOUT];
+    }
+
+
+    private isValidAddressPanelLayout(layout: unknown): layout is number[] {
+        return Array.isArray(layout)
+            && layout.length === 2
+            && layout.every(size => typeof size === 'number' && Number.isFinite(size))
+            && layout[0] >= 16 && layout[0] <= 45
+            && layout[1] >= 55 && layout[1] <= 84
+            && Math.abs(layout[0] + layout[1] - 100) < 1e-6;
     }
 
 
@@ -889,6 +934,44 @@ export class Addresses {
 
     closeMap(): void {
         this.mapOpen.set(false);
+    }
+
+
+    onBuildingCoordinatesChanged(point: Pick<Building, 'id' | 'latitude' | 'longitude'>): void {
+        const replace = (building: Building): Building => (
+            building.id === point.id ? { ...building, ...point } : building
+        );
+        const updateNodes = (nodes: AddressTreeNode[]): AddressTreeNode[] => nodes.map(node => ({
+            ...node,
+            buildings: node.buildings.map(replace),
+            children: updateNodes(node.children),
+        }));
+        this.roots.update(updateNodes);
+        this.buildings.update(buildings => buildings.map(replace));
+        this.selectedBuilding.update(building => building ? replace(building) : null);
+        this.searchResults.update(items => items.map(item => item.kind === 'building'
+            ? { ...item, building: replace(item.building) }
+            : item));
+        this.selectedSearchResult.update(item => item?.kind === 'building'
+            ? { ...item, building: replace(item.building) }
+            : item);
+        this.searchResultRequestGeneration += 1;
+        this.mapBuildingRequestGeneration += 1;
+        if (this.searchState() === 'loading' || this.searchLoadingMore()) {
+            this.executeSearch(this.searchQuery().trim(), false);
+        }
+
+        // Earlier list/tree requests may contain the old null coordinates.
+        // Supersede them with fresh reads, preserving the current selection.
+        for (const [nodeId] of this.childRequestGenerations) {
+            if (this.findTreeNode(nodeId)?.loading) {
+                this.loadTreeNode(nodeId, true);
+            }
+        }
+        const parent = this.selectedObject();
+        if (parent && this.buildingsState() === 'loading') {
+            this.loadBuildings(parent.id, this.selectedBuilding()?.id);
+        }
     }
 
 

@@ -1,0 +1,79 @@
+<hlm-field>
+    <label hlmFieldLabel [for]="inputId">Дом</label>
+    <hlm-autocomplete class="w-full" autoHighlight [disabled]="disabled()"
+        [state]="overlayState()" (stateChanged)="overlayState.set($event)"
+        [search]="query()" (searchChange)="onQueryChange($event)"
+        [value]="selectedBuilding()" (valueChange)="selectBuilding($event)"
+        [itemToString]="buildingToString">
+        <hlm-autocomplete-input class="w-full" [inputId]="inputId" showClear
+            placeholder="Введите адрес дома" data-testid="marker-building-search" (keydown.enter)="onEnter()" />
+        <hlm-autocomplete-content *hlmAutocompletePortal data-testid="marker-building-results">
+            @if (state() === 'loading') {
+            <hlm-autocomplete-status>
+                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                Ищем дома...
+            </hlm-autocomplete-status>
+            } @else if (state() === 'error') {
+            <div class="flex items-center justify-between gap-3 p-2">
+                <p class="text-sm text-destructive">Не удалось найти дома</p>
+                <button hlmBtn variant="outline" size="sm" type="button" (click)="retrySearch()"
+                    data-testid="marker-building-retry" [disabled]="disabled()">
+                    <ng-icon name="lucideRefreshCw" />
+                    Повторить
+                </button>
+            </div>
+            } @else if (state() === 'ready') {
+                @if (results().length === 0) {
+                <hlm-autocomplete-empty>
+                    <span>
+                        @if (hasMore()) { Уточните адрес дома или покажите ещё результаты }
+                        @else { Дома не найдены. Укажите город, улицу и номер дома }
+                    </span>
+                </hlm-autocomplete-empty>
+                } @else {
+                <div hlmAutocompleteList aria-label="Найденные дома">
+                    @for (building of results(); track building.id) {
+                    <hlm-autocomplete-item [value]="building"
+                        [attr.data-testid]="'marker-building-result-' + building.id">
+                        <ng-icon name="lucideHouse" class="shrink-0 text-muted-foreground" />
+                        <span class="min-w-0 whitespace-normal break-words">{{ building.full_address }}</span>
+                    </hlm-autocomplete-item>
+                    }
+                </div>
+                }
+                @if (pageError()) {
+                <div class="flex items-center justify-between gap-3 border-t p-2">
+                    <p class="text-sm text-destructive">Не удалось загрузить ещё дома</p>
+                    <button hlmBtn variant="outline" size="sm" type="button" (click)="retrySearch()"
+                        data-testid="marker-building-page-retry" [disabled]="disabled()">Повторить</button>
+                </div>
+                } @else if (hasMore()) {
+                <div class="border-t p-2">
+                    <button hlmBtn variant="outline" size="sm" type="button" class="w-full"
+                        data-testid="marker-building-load-more" [disabled]="loadingMore() || disabled()"
+                        (click)="loadMore()">
+                        @if (loadingMore()) { <ng-icon name="lucideLoaderCircle" class="animate-spin" /> }
+                        Показать ещё
+                    </button>
+                </div>
+                }
+            }
+        </hlm-autocomplete-content>
+    </hlm-autocomplete>
+    @if (query().trim().length > 255) {
+    <p class="text-sm text-destructive" role="alert">Адрес для поиска не должен превышать 255 символов</p>
+    }
+    @if (linkedBuildingState() === 'loading') {
+    <p hlmFieldDescription role="status">Загружаем привязанный дом...</p>
+    } @else if (linkedBuildingState() === 'error') {
+    <div class="flex flex-wrap items-center gap-2" role="alert">
+        <p class="text-sm text-destructive">Не удалось загрузить привязанный дом</p>
+        <button hlmBtn variant="outline" size="sm" type="button" [disabled]="disabled()"
+            data-testid="marker-building-lookup-retry" (click)="retryLinkedBuilding()">Повторить</button>
+    </div>
+    }
+    <p hlmFieldDescription>
+        Необязательно. Выберите дом из подсказок или оставьте поле пустым.
+        Чтобы убрать привязку, очистите поле крестиком и сохраните маркер.
+    </p>
+</hlm-field>

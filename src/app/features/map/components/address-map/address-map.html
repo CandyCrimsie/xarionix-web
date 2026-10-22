@@ -24,35 +24,42 @@
     </div>
     }
 
-    <div class="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
-        <button hlmBtn variant="secondary" size="sm" type="button"
-            data-testid="close-address-map" (click)="closeRequested.emit()">
-            <ng-icon name="lucideX" />
-            Закрыть карту
-        </button>
+    <hlm-dialog #markerDialog="hlmDialog">
+        <div class="absolute left-3 top-3 z-10 isolate">
+            <div hlmButtonGroup
+                class="rounded-lg bg-background shadow-md"
+                aria-label="Управление картой"
+                data-testid="map-toolbar-button-group">
+                <button hlmBtn variant="outline" size="icon" type="button" aria-label="Закрыть карту"
+                    class="bg-background dark:bg-background dark:hover:bg-muted"
+                    data-testid="close-address-map" (click)="closeRequested.emit()">
+                    <ng-icon name="lucideX" />
+                </button>
+
+                @if (canManage()) {
+                <button hlmDialogTrigger hlmBtn variant="outline" type="button" data-testid="add-map-marker"
+                    class="bg-background dark:bg-background dark:hover:bg-muted"
+                    (click)="startCreateMarker()">
+                    <ng-icon name="lucideMapPinPlus" />
+                    Добавить маркер
+                </button>
+                }
+            </div>
+        </div>
 
         @if (canManage()) {
-        <hlm-dialog #markerDialog="hlmDialog">
-            <button hlmDialogTrigger hlmBtn size="sm" type="button"
-                data-testid="add-map-marker" (click)="startCreateMarker()">
-                <ng-icon name="lucideMapPinPlus" />
-                Добавить маркер
-            </button>
-            <hlm-dialog-content *hlmDialogPortal="let ctx" class="w-[min(72rem,calc(100vw-2rem))] max-w-none">
-                <app-map-marker-editor
-                    [(draft)]="markerDraft"
-                    [editing]="editingMarker() !== null"
-                    [saving]="markerSaving()"
-                    [error]="markerError()"
-                    (pointRequested)="startPointSelection()"
+            <hlm-dialog-content *hlmDialogPortal="let ctx"
+                class="w-[calc(100vw-2rem)] min-w-0 max-w-none overflow-hidden sm:max-w-6xl"
+                data-testid="map-marker-dialog">
+                <app-map-marker-editor [(draft)]="markerDraft" [editing]="editingMarker() !== null"
+                    [saving]="markerSaving()" [error]="markerError()" (pointRequested)="startPointSelection()"
                     (saveRequested)="saveMarker()" />
             </hlm-dialog-content>
-        </hlm-dialog>
         }
-    </div>
+    </hlm-dialog>
 
     @if (placingMarker()) {
-    <div class="absolute left-1/2 top-16 z-10 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-md"
+    <div class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-md"
         data-testid="marker-placement-controls">
         <span class="px-2 text-sm">Нажмите на карту или перетащите метку</span>
         <button hlmBtn variant="outline" size="sm" type="button" (click)="cancelPointSelection()">Отмена</button>
@@ -72,8 +79,8 @@
             </hlm-alert-dialog-header>
             <hlm-alert-dialog-footer>
                 <button hlmAlertDialogCancel type="button" [disabled]="markerDeleting()">Отмена</button>
-                <button hlmAlertDialogAction variant="destructive" type="button"
-                    [disabled]="markerDeleting()" (click)="deleteMarker()">
+                <button hlmAlertDialogAction variant="destructive" type="button" [disabled]="markerDeleting()"
+                    (click)="deleteMarker()">
                     <ng-icon name="lucideTrash2" />
                     {{ markerDeleting() ? 'Удаляем...' : 'Удалить' }}
                 </button>
@@ -96,14 +103,15 @@
     }
 
     @if (coordinateNotice(); as message) {
-    <hlm-alert class="absolute bottom-12 left-1/2 z-10 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 bg-background/95">
+    <hlm-alert
+        class="absolute bottom-12 left-1/2 z-10 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 bg-background/95">
         <ng-icon name="lucideBuilding2" />
         <h4 hlmAlertTitle>Нет координат</h4>
         <div hlmAlertDescription>{{ message }}</div>
     </hlm-alert>
     }
 
-    <div class="absolute bottom-0 left-0 z-10 flex items-end">
+    <!-- <div class="absolute bottom-0 left-0 z-10 flex items-end">
         <a [href]="yandexMapsUrl()" target="_blank" rel="noopener noreferrer"
             aria-label="Открыть эту область в Яндекс Картах">
             <img [src]="yandexLogoUrl" alt="Яндекс" class="h-12 w-[88px]" />
@@ -114,5 +122,62 @@
             rel="noopener noreferrer">Открыть в Картах</a>
         <a class="underline underline-offset-2" [href]="yandexTermsUrl" target="_blank"
             rel="noopener noreferrer">Условия использования</a>
-    </div>
+    </div> -->
 </div>
+
+<ng-template #markerPopup let-marker>
+    <section hlmCard class="max-h-[min(28rem,calc(100dvh-6rem))] w-[min(20rem,calc(100vw-3rem))] bg-popover text-popover-foreground ring-0"
+        aria-label="Информация о метке" data-testid="map-marker-popup">
+        <header hlmCardHeader class="flex shrink-0 flex-row items-center justify-between gap-3 border-b">
+            <span class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <ng-icon name="lucideMapPin" />
+                Метка на карте
+            </span>
+            <div hlmButtonGroup aria-label="Действия с меткой" data-testid="marker-popup-actions">
+                @if (canManage()) {
+                <button hlmBtn variant="outline" size="icon-sm" type="button"
+                    aria-label="Редактировать маркер" hlmTooltip="Редактировать"
+                    data-testid="edit-marker-popup" (click)="startEditMarker(marker)">
+                    <ng-icon name="lucidePencil" />
+                </button>
+                <button hlmBtn variant="outline" size="icon-sm" type="button"
+                    class="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10"
+                    aria-label="Удалить маркер" hlmTooltip="Удалить"
+                    data-testid="delete-marker-popup" (click)="requestDeleteMarker(marker)">
+                    <ng-icon name="lucideTrash2" />
+                </button>
+                }
+                <button hlmBtn variant="outline" size="icon-sm" type="button"
+                    aria-label="Закрыть карточку метки" hlmTooltip="Закрыть"
+                    data-testid="close-marker-popup" (click)="closePopup()">
+                    <ng-icon name="lucideX" />
+                </button>
+            </div>
+        </header>
+        <div hlmCardContent class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain">
+            <div class="space-y-1">
+                <h3 hlmCardTitle class="break-words">{{ marker.name }}</h3>
+                @if (marker.label_text) {
+                <p class="break-words text-sm text-muted-foreground">{{ marker.label_text }}</p>
+                }
+            </div>
+            @if (marker.description) {
+            <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">{{ marker.description }}</p>
+            }
+            <dl class="grid gap-3 border-t pt-3 text-xs">
+                <div class="grid gap-1">
+                    <dt class="text-muted-foreground">Координаты</dt>
+                    <dd class="font-mono tabular-nums">
+                        {{ marker.latitude.toFixed(6) }}, {{ marker.longitude.toFixed(6) }}
+                    </dd>
+                </div>
+                @if (marker.building_id !== null) {
+                <div class="flex items-center justify-between gap-3">
+                    <dt class="text-muted-foreground">Здание</dt>
+                    <dd class="font-medium">#{{ marker.building_id }}</dd>
+                </div>
+                }
+            </dl>
+        </div>
+    </section>
+</ng-template>

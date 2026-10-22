@@ -4,6 +4,7 @@
             <thead hlmTHead>
                 <tr hlmTr>
                     <th hlmTh>Код</th>
+                    <th hlmTh>Сотрудник</th>
                     <th hlmTh>Создано</th>
                     <th hlmTh>Истекает</th>
                     <th hlmTh>Статус</th>
@@ -22,6 +23,13 @@
                         <span class="font-mono text-sm">
                             {{ invitation.token_prefix }}…
                         </span>
+                    </td>
+                    <td hlmTd>
+                        <div class="flex min-w-0 flex-col gap-1">
+                            <span>{{ displayName(invitation, 'Не указан') }}</span>
+                            @if (invitation.email) { <span class="text-xs text-muted-foreground">{{ invitation.email }}</span> }
+                            @if (invitation.phone_number) { <span class="text-xs text-muted-foreground">{{ invitation.phone_number }}</span> }
+                        </div>
                     </td>
                     <td hlmTd>{{ invitation.created_at | date:'dd.MM.yyyy HH:mm' }}</td>
                     <td hlmTd>{{ invitation.expires_at | date:'dd.MM.yyyy HH:mm' }}</td>
@@ -65,7 +73,7 @@
                 </tr>
                 } @empty {
                 <tr hlmTr>
-                    <td hlmTd class="h-24 text-center text-muted-foreground" [attr.colspan]="canManage() ? 6 : 5">
+                    <td hlmTd class="h-24 text-center text-muted-foreground" [attr.colspan]="canManage() ? 7 : 6">
                         Приглашения не найдены
                     </td>
                 </tr>

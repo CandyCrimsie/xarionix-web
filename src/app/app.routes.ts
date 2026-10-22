@@ -146,6 +146,10 @@ export const routes:
                     component:
                         Home,
                 },
+                {
+                    path: 'profile',
+                    loadComponent: () => import('./pages/profile/profile').then(module => module.Profile),
+                },
 
                 {
                     path:

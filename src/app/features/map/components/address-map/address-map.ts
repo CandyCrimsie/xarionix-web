@@ -9,19 +9,24 @@ import {
     input,
     output,
     signal,
+    untracked,
+    TemplateRef,
     viewChild,
+    ViewContainerRef,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import type { FeatureCollection, Point } from 'geojson';
+import type { Feature, FeatureCollection, Point } from 'geojson';
 import { toast } from '@spartan-ng/brain/sonner';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
     lucideBuilding2,
+    lucideMapPin,
     lucideMapPinPlus,
     lucideLoaderCircle,
+    lucidePencil,
     lucideRefreshCw,
     lucideTrash2,
     lucideTriangleAlert,
@@ -30,7 +35,10 @@ import {
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmAlertDialog, HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
+import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmDialog, HlmDialogImports } from '@spartan-ng/helm/dialog';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import type { AddressObject, Building } from '../../../../core/addresses/address.models';
 import { CompanyContextService } from '../../../../core/company/company-context.service';
@@ -76,6 +84,7 @@ const EMPTY_FEATURES: MapBuildingFeatureCollection = {
     features: [],
 };
 const BUILDING_MARKER_IMAGE = 'xarionix-building-marker';
+const SELECTED_BUILDING_SOURCE_ID = 'xarionix-selected-building';
 interface CustomMarkerFeatureProperties {
     id: number;
     image_key: string;
@@ -99,13 +108,18 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         HlmAlertImports,
         HlmAlertDialogImports,
         HlmButtonImports,
+        HlmButtonGroupImports,
+        HlmCardImports,
         HlmDialogImports,
+        HlmTooltipImports,
         MapMarkerEditor,
     ],
     providers: [provideIcons({
         lucideBuilding2,
+        lucideMapPin,
         lucideMapPinPlus,
         lucideLoaderCircle,
+        lucidePencil,
         lucideRefreshCw,
         lucideTrash2,
         lucideTriangleAlert,
@@ -120,16 +134,19 @@ export class AddressMap implements AfterViewInit {
     private readonly mapLibreLoader = inject(MapLibreLoaderService);
     private readonly companyContext = inject(CompanyContextService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly popupViews = inject(ViewContainerRef);
 
     readonly selectedObject = input<AddressObject | null>(null);
     readonly selectedBuilding = input<Building | null>(null);
     readonly canManage = input(false);
     readonly buildingSelected = output<number>();
+    readonly buildingCoordinatesChanged = output<Pick<Building, 'id' | 'latitude' | 'longitude'>>();
     readonly closeRequested = output<void>();
 
     readonly mapContainer = viewChild.required<ElementRef<HTMLElement>>('mapContainer');
     readonly markerDialog = viewChild<HlmDialog>('markerDialog');
     readonly deleteMarkerDialog = viewChild<HlmAlertDialog>('deleteMarkerDialog');
+    readonly markerPopup = viewChild.required<TemplateRef<{ $implicit: MapMarker }>>('markerPopup');
     readonly state = signal<MapLoadState>('loading');
     readonly setupError = signal<string | null>(null);
     readonly viewportError = signal<string | null>(null);
@@ -148,6 +165,7 @@ export class AddressMap implements AfterViewInit {
 
     private mapLibre: MapLibreModule | null = null;
     private map: MapInstance | null = null;
+    private viewportBuildings: MapBuildingFeatureCollection = EMPTY_FEATURES;
     private popup: MapPopup | null = null;
     private destroyed = false;
     private initializationGeneration = 0;
@@ -182,6 +200,7 @@ export class AddressMap implements AfterViewInit {
             this.viewportSubscription?.unsubscribe();
             this.markerViewportSubscription?.unsubscribe();
             this.focusSubscription?.unsubscribe();
+            this.closePopup();
             this.setBuildingData(EMPTY_FEATURES);
             this.markers.set([]);
             this.setMarkerData([]);
@@ -197,7 +216,7 @@ export class AddressMap implements AfterViewInit {
             if (!this.map) {
                 return;
             }
-            this.updateSelectedBuildingLayer(selectedBuilding?.id ?? null);
+            untracked(() => this.setMarkerData(this.markers()));
             this.focusSelection(selectedObject, selectedBuilding);
         });
     }
@@ -232,10 +251,13 @@ export class AddressMap implements AfterViewInit {
             }
             this.destroyCurrentMap();
             this.mapLibre = mapLibre;
+            const buildingCenter = this.buildingCenter(this.selectedBuilding());
             const map = new mapLibre.Map({
                 container: this.mapContainer().nativeElement,
-                center: [session.default_longitude, session.default_latitude],
-                zoom: session.default_zoom,
+                center: buildingCenter ?? [session.default_longitude, session.default_latitude],
+                zoom: buildingCenter
+                    ? Math.min(session.max_zoom, Math.max(session.min_zoom, MAP_BUILDING_FOCUS_ZOOM))
+                    : session.default_zoom,
                 minZoom: session.min_zoom,
                 maxZoom: session.max_zoom,
                 attributionControl: false,
@@ -269,6 +291,7 @@ export class AddressMap implements AfterViewInit {
                     return;
                 }
                 this.addBuildingLayers(map);
+                this.updateSelectedBuildingLayer(this.selectedBuilding()?.id ?? null);
                 this.addCustomMarkerLayers(map);
                 this.state.set('ready');
                 this.scheduleSessionRefresh(session);
@@ -308,6 +331,9 @@ export class AddressMap implements AfterViewInit {
             clusterMaxZoom: 14,
             clusterRadius: 48,
         });
+        // Keep the selected house visible even at zoom levels where the shared
+        // building source combines its point with neighbouring houses.
+        map.addSource(SELECTED_BUILDING_SOURCE_ID, { type: 'geojson', data: EMPTY_FEATURES });
         map.addLayer({
             id: 'building-clusters',
             type: 'circle',
@@ -336,8 +362,8 @@ export class AddressMap implements AfterViewInit {
         map.addLayer({
             id: 'selected-building-point',
             type: 'circle',
-            source: MAP_BUILDINGS_SOURCE_ID,
-            filter: ['==', ['get', 'id'], -1],
+            source: SELECTED_BUILDING_SOURCE_ID,
+            filter: ['all', ['==', ['get', 'id'], -1], ['!', ['has', 'marker_id']]],
             paint: {
                 'circle-color': '#ef4444',
                 'circle-radius': 14,
@@ -356,6 +382,35 @@ export class AddressMap implements AfterViewInit {
                 'icon-allow-overlap': true,
             },
         });
+        map.addLayer({
+            id: 'selected-building-marker',
+            type: 'symbol',
+            source: SELECTED_BUILDING_SOURCE_ID,
+            layout: {
+                'icon-image': ['coalesce', ['get', 'image_key'], BUILDING_MARKER_IMAGE],
+                'icon-size': 0.8,
+                'icon-allow-overlap': true,
+            },
+            paint: { 'icon-opacity': ['coalesce', ['get', 'marker_opacity'], 1] },
+        });
+        map.addLayer({
+            id: 'selected-building-marker-label',
+            type: 'symbol',
+            source: SELECTED_BUILDING_SOURCE_ID,
+            layout: {
+                'text-field': ['coalesce', ['get', 'label_text'], ''],
+                'text-size': 13,
+                'text-anchor': 'top',
+                'text-offset': [0, 2.2],
+                'text-allow-overlap': false,
+            },
+            paint: {
+                'text-color': ['coalesce', ['get', 'text_color'], '#ffffff'],
+                'text-opacity': ['coalesce', ['get', 'text_opacity'], 1],
+                'text-halo-color': 'rgba(0, 0, 0, 0.65)',
+                'text-halo-width': 1,
+            },
+        });
         map.on('click', 'building-clusters', event => {
             const feature = event.features?.[0];
             const clusterId = Number(feature?.properties?.['cluster_id']);
@@ -370,23 +425,33 @@ export class AddressMap implements AfterViewInit {
                 map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom });
             });
         });
-        map.on('click', 'building-points', event => {
-            const feature = event.features?.[0];
-            if (!feature || feature.geometry.type !== 'Point') {
-                return;
-            }
-            const id = Number(feature.properties?.['id']);
-            const fullAddress = String(feature.properties?.['full_address'] ?? '');
-            if (!Number.isInteger(id) || !fullAddress) {
-                return;
-            }
-            this.showBuildingPopup(
-                feature.geometry.coordinates as [number, number],
-                id,
-                fullAddress,
-            );
-        });
-        for (const layerId of ['building-clusters', 'building-points']) {
+        for (const layerId of ['building-points', 'selected-building-marker']) {
+            map.on('click', layerId, event => {
+                const feature = event.features?.[0];
+                if (!feature || feature.geometry.type !== 'Point') {
+                    return;
+                }
+                const markerId = feature.properties?.['marker_id'];
+                if (markerId !== undefined) {
+                    const marker = this.markers().find(item => item.id === Number(markerId));
+                    if (marker) {
+                        this.showCustomMarkerPopup(feature.geometry.coordinates as [number, number], marker);
+                    }
+                    return;
+                }
+                const id = Number(feature.properties?.['id']);
+                const fullAddress = String(feature.properties?.['full_address'] ?? '');
+                if (!Number.isInteger(id) || !fullAddress) {
+                    return;
+                }
+                this.showBuildingPopup(
+                    feature.geometry.coordinates as [number, number],
+                    id,
+                    fullAddress,
+                );
+            });
+        }
+        for (const layerId of ['building-clusters', 'building-points', 'selected-building-marker']) {
             map.on('mouseenter', layerId, () => {
                 map.getCanvas().style.cursor = 'pointer';
             });
@@ -550,30 +615,55 @@ export class AddressMap implements AfterViewInit {
         if (!map || !source) {
             return;
         }
+        const selectedMarkerId = this.selectedBuildingMarker()?.id;
         const data: FeatureCollection<Point, CustomMarkerFeatureProperties> = {
             type: 'FeatureCollection',
-            features: markers.map(marker => {
-                const imageKey = this.markerImageKey(marker);
-                this.prepareMarkerImage(map, marker, imageKey);
-                return {
-                    type: 'Feature',
-                    id: marker.id,
-                    geometry: {
-                        type: 'Point',
-                        coordinates: [marker.longitude, marker.latitude],
-                    },
-                    properties: {
-                        id: marker.id,
-                        image_key: imageKey,
-                        label_text: marker.label_text ?? '',
-                        text_color: marker.text_color,
-                        text_opacity: marker.text_opacity * marker.marker_opacity,
-                        marker_opacity: marker.marker_opacity,
-                    },
-                };
-            }),
+            features: markers
+                .filter(marker => marker.id !== selectedMarkerId)
+                .map(marker => this.markerFeature(marker)),
         };
         source.setData(data);
+        this.renderBuildingData();
+        this.updateSelectedBuildingLayer(this.selectedBuilding()?.id ?? null);
+    }
+
+
+    private markerFeature(marker: MapMarker): Feature<Point, CustomMarkerFeatureProperties> {
+        const imageKey = this.markerImageKey(marker);
+        if (this.map) {
+            this.prepareMarkerImage(this.map, marker, imageKey);
+        }
+        return {
+            type: 'Feature',
+            id: marker.id,
+            geometry: { type: 'Point', coordinates: [marker.longitude, marker.latitude] },
+            properties: {
+                id: marker.id,
+                image_key: imageKey,
+                label_text: marker.label_text ?? '',
+                text_color: marker.text_color,
+                text_opacity: marker.text_opacity * marker.marker_opacity,
+                marker_opacity: marker.marker_opacity,
+            },
+        };
+    }
+
+
+    private markerRepresentsBuilding(marker: MapMarker, id: number, center: number[]): boolean {
+        return marker.building_id === id && marker.marker_opacity > 0 && (
+            marker.sync_building_coordinates
+            || (Math.abs(marker.longitude - center[0]) <= 0.0000001
+                && Math.abs(marker.latitude - center[1]) <= 0.0000001)
+        );
+    }
+
+
+    private selectedBuildingMarker(): MapMarker | undefined {
+        const building = this.selectedBuilding();
+        const center = this.buildingCenter(building);
+        return building && center
+            ? this.markers().find(marker => this.markerRepresentsBuilding(marker, building.id, center))
+            : undefined;
     }
 
 
@@ -740,44 +830,29 @@ export class AddressMap implements AfterViewInit {
             return;
         }
         this.popup?.remove();
+        const view = this.popupViews.createEmbeddedView(this.markerPopup(), { $implicit: marker });
+        view.detectChanges();
         const container = document.createElement('div');
-        container.className = 'grid min-w-52 gap-2';
-        const title = document.createElement('p');
-        title.className = 'text-sm font-medium';
-        title.textContent = marker.name;
-        container.append(title);
-        if (marker.description) {
-            const description = document.createElement('p');
-            description.className = 'text-xs text-muted-foreground';
-            description.textContent = marker.description;
-            container.append(description);
-        }
-        const coordinatesText = document.createElement('p');
-        coordinatesText.className = 'text-xs tabular-nums text-muted-foreground';
-        coordinatesText.textContent = (
-            `${marker.latitude.toFixed(6)} / ${marker.longitude.toFixed(6)}`
-        );
-        container.append(coordinatesText);
-        if (this.canManage()) {
-            const actions = document.createElement('div');
-            actions.className = 'flex gap-3 pt-1 text-sm';
-            const edit = document.createElement('button');
-            edit.type = 'button';
-            edit.className = 'underline underline-offset-4';
-            edit.textContent = 'Редактировать';
-            edit.addEventListener('click', () => this.startEditMarker(marker));
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.className = 'text-destructive underline underline-offset-4';
-            remove.textContent = 'Удалить';
-            remove.addEventListener('click', () => this.requestDeleteMarker(marker));
-            actions.append(edit, remove);
-            container.append(actions);
-        }
-        this.popup = new this.mapLibre.Popup({ closeButton: true, maxWidth: '320px' })
+        container.append(...view.rootNodes);
+        const popup = new this.mapLibre.Popup({
+            closeButton: false,
+            maxWidth: 'none',
+            className: 'address-marker-popup',
+        })
             .setLngLat(coordinates)
-            .setDOMContent(container)
-            .addTo(this.map);
+            .setDOMContent(container);
+        popup.on('close', () => {
+            view.destroy();
+            if (this.popup === popup) {
+                this.popup = null;
+            }
+        });
+        this.popup = popup.addTo(this.map);
+    }
+
+
+    closePopup(): void {
+        this.popup?.remove();
     }
 
 
@@ -812,10 +887,13 @@ export class AddressMap implements AfterViewInit {
         const generation = ++this.markerMutationGeneration;
         const editing = this.editingMarker();
         const draft = this.markerDraft();
+        const changes = editing ? Object.fromEntries(
+            Object.entries(draft).filter(([key, value]) => value !== editing[key as keyof MapMarkerPayload]),
+        ) : draft;
         this.markerSaving.set(true);
         this.markerError.set(null);
         const request = editing
-            ? this.mapData.updateMarker(editing.id, draft)
+            ? this.mapData.updateMarker(editing.id, changes)
             : this.mapData.createMarker(draft);
         request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: saved => {
@@ -830,6 +908,16 @@ export class AddressMap implements AfterViewInit {
                 this.setMarkerData(this.markers());
                 this.markerDialog()?.close({});
                 this.editingMarker.set(null);
+                if (saved.sync_building_coordinates && saved.building_id !== null) {
+                    this.buildingCoordinatesChanged.emit({
+                        id: saved.building_id,
+                        latitude: saved.latitude,
+                        longitude: saved.longitude,
+                    });
+                    // Invalidate old viewport responses and reload the canonical
+                    // building point plus any other synchronized annotations.
+                    this.loadViewport();
+                }
                 toast.success(editing ? 'Маркер изменён' : 'Маркер создан');
             },
             error: () => {
@@ -1019,8 +1107,43 @@ export class AddressMap implements AfterViewInit {
 
 
     private setBuildingData(data: MapBuildingFeatureCollection): void {
+        this.viewportBuildings = data;
+        this.renderBuildingData();
+    }
+
+
+    private renderBuildingData(): void {
         const source = this.map?.getSource(MAP_BUILDINGS_SOURCE_ID) as GeoJSONSource | undefined;
-        source?.setData(data);
+        const selected = this.selectedBuilding();
+        const selectedId = this.buildingCenter(selected) ? selected?.id : null;
+        const linked = new Map<number, MapMarker[]>();
+        for (const marker of this.markers()) {
+            if (marker.building_id !== null) {
+                linked.set(marker.building_id, [...(linked.get(marker.building_id) ?? []), marker]);
+            }
+        }
+        source?.setData({
+            ...this.viewportBuildings,
+            features: this.viewportBuildings.features.filter(feature => (
+                feature.properties.id !== selectedId
+                && !linked.get(feature.properties.id)?.some(marker => this.markerRepresentsBuilding(
+                    marker, feature.properties.id, feature.geometry.coordinates,
+                ))
+            )),
+        });
+    }
+
+
+    private buildingCenter(building: Building | null): [number, number] | null {
+        if (!building || building.latitude === null || building.longitude === null) {
+            return null;
+        }
+        const latitude = Number(building.latitude);
+        const longitude = Number(building.longitude);
+        return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
+            && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+            ? [longitude, latitude]
+            : null;
     }
 
 
@@ -1032,26 +1155,14 @@ export class AddressMap implements AfterViewInit {
         if (!map || !map.isStyleLoaded()) {
             return;
         }
-        const latitude = Number(building?.latitude);
-        const longitude = Number(building?.longitude);
-        if (
-            building
-            && Number.isFinite(latitude)
-            && latitude >= -90
-            && latitude <= 90
-            && Number.isFinite(longitude)
-            && longitude >= -180
-            && longitude <= 180
-        ) {
+        const center = this.buildingCenter(building);
+        if (center) {
             this.coordinateNotice.set(null);
             this.focusGeneration += 1;
             this.focusSubscription?.unsubscribe();
             map.easeTo({
-                center: [longitude, latitude],
-                zoom: Math.min(
-                    map.getMaxZoom(),
-                    Math.max(map.getZoom(), MAP_BUILDING_FOCUS_ZOOM),
-                ),
+                center,
+                zoom: Math.min(map.getMaxZoom(), MAP_BUILDING_FOCUS_ZOOM),
             });
             return;
         }
@@ -1104,8 +1215,39 @@ export class AddressMap implements AfterViewInit {
         }
         this.map.setFilter(
             'selected-building-point',
-            ['==', ['get', 'id'], buildingId ?? -1],
+            ['all', ['==', ['get', 'id'], buildingId ?? -1], ['!', ['has', 'marker_id']]],
         );
+        const source = this.map.getSource(SELECTED_BUILDING_SOURCE_ID) as GeoJSONSource | undefined;
+        const building = this.selectedBuilding();
+        const center = this.buildingCenter(building);
+        const marker = this.selectedBuildingMarker();
+        if (building && marker) {
+            const feature = this.markerFeature(marker);
+            source?.setData({
+                type: 'FeatureCollection',
+                features: [{
+                    ...feature,
+                    properties: { ...feature.properties, marker_id: marker.id, full_address: building.full_address },
+                }],
+            });
+            return;
+        }
+        source?.setData(building && building.id === buildingId && center ? {
+            type: 'FeatureCollection',
+            features: [{
+                type: 'Feature',
+                id: building.id,
+                geometry: { type: 'Point', coordinates: center },
+                properties: {
+                    id: building.id,
+                    address_object_id: building.address_object_id,
+                    number: building.number,
+                    corpus: building.corpus,
+                    structure: building.structure,
+                    full_address: building.full_address,
+                },
+            }],
+        } : EMPTY_FEATURES);
     }
 
 

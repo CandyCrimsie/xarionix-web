@@ -133,6 +133,14 @@ describe('InvitationAcceptance', () => {
     ).toContain('Main Company');
   });
 
+  it('only asks for login credentials, never asks the invitee to refill personal details', () => {
+    const inputs = Array.from(fixture.nativeElement.querySelectorAll('input')) as HTMLInputElement[];
+    expect(inputs.map(input => input.getAttribute('formControlName'))).toEqual([
+      'username', 'password', 'confirmPassword',
+    ]);
+    expect(inputs.some(input => input.type === 'email' || input.type === 'date' || input.type === 'tel')).toBe(false);
+  });
+
 
   it('should expose validation error and retry', () => {
     invitationApi.resolve.mockReturnValue(
