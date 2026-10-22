@@ -19,7 +19,7 @@ import {
     lucidePencil,
     lucidePower,
     lucidePowerOff,
-    lucideMoveRight,
+    lucideChevronsUpDown,
 } from '@ng-icons/lucide';
 
 import {
@@ -83,6 +83,10 @@ import {
     HlmNativeSelectImports,
 } from '@spartan-ng/helm/native-select';
 
+import {
+    HlmSelectImports,
+} from '@spartan-ng/helm/select';
+
 import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
@@ -97,6 +101,11 @@ type CompaniesState =
     | 'loading'
     | 'ready'
     | 'error';
+
+
+type CompanyCreateMode =
+    | 'child'
+    | 'root';
 
 
 interface CompanyTreeRow {
@@ -123,6 +132,7 @@ interface CompanyTreeRow {
         HlmInputImports,
         HlmAlertDialogImports,
         HlmNativeSelectImports,
+        HlmSelectImports,
     ],
 
     providers: [
@@ -134,7 +144,7 @@ interface CompanyTreeRow {
             lucidePencil,
             lucidePower,
             lucidePowerOff,
-            lucideMoveRight,
+            lucideChevronsUpDown,
         }),
     ],
 
@@ -204,17 +214,13 @@ export class Companies {
         );
 
 
-    readonly rootCreateName =
-        signal('');
+    readonly createMode =
+        signal<CompanyCreateMode>(
+            'child',
+        );
 
-    readonly rootCreateShortName =
-        signal('');
-
-    readonly rootCreating =
-        signal(false);
-
-    readonly rootCreateError =
-        signal<string | null>(
+    readonly createParentId =
+        signal<number | null>(
             null,
         );
 
@@ -291,6 +297,14 @@ export class Companies {
         );
 
 
+    readonly canCreateCompany =
+        computed(
+            () =>
+                this.canManageCompanies()
+                || this.canCreateRootCompany(),
+        );
+
+
     readonly rows =
         computed(
             () => {
@@ -305,6 +319,18 @@ export class Companies {
                     tree,
                 );
             },
+        );
+
+
+    readonly createParentOptions =
+        computed(
+            () =>
+                this.rows()
+                    .filter(
+                        row =>
+                            row.company
+                                .is_active,
+                    ),
         );
 
 
@@ -338,6 +364,25 @@ export class Companies {
 
 
     resetCreateForm(): void {
+        const canCreateChild =
+            this.canManageCompanies()
+            && this.companyContext
+                .activeCompanyId()
+            !== null;
+
+        this.createMode.set(
+            canCreateChild
+                ? 'child'
+                : 'root',
+        );
+
+        this.createParentId.set(
+            canCreateChild
+                ? this.companyContext
+                    .activeCompanyId()
+                : null,
+        );
+
         this.createName.set(
             '',
         );
@@ -356,22 +401,51 @@ export class Companies {
     }
 
 
-    resetRootCreateForm(): void {
-        this.rootCreateName.set(
-            '',
-        );
+    setCreateMode(
+        value: string | null | undefined,
+    ): void {
+        const mode: CompanyCreateMode =
+            value === 'root'
+                ? 'root'
+                : 'child';
 
-        this.rootCreateShortName.set(
-            '',
-        );
+        if (
+            mode === 'root'
+            && !this.canCreateRootCompany()
+        ) {
+            return;
+        }
 
-        this.rootCreating.set(
-            false,
-        );
+        if (
+            mode === 'child'
+            && !this.canManageCompanies()
+        ) {
+            return;
+        }
 
-        this.rootCreateError.set(
-            null,
+        this.createMode.set(mode);
+        this.createParentId.set(
+            mode === 'child'
+                ? this.companyContext
+                    .activeCompanyId()
+                : null,
         );
+        this.createError.set(null);
+    }
+
+
+    setCreateParent(
+        value: string | null | undefined,
+    ): void {
+        const parentId = Number(value);
+
+        this.createParentId.set(
+            Number.isInteger(parentId)
+                && parentId > 0
+                ? parentId
+                : null,
+        );
+        this.createError.set(null);
     }
 
 
@@ -464,7 +538,7 @@ export class Companies {
 
 
     setMoveParent(
-        value: string | null | undefined,
+        value: number | string | null | undefined,
     ): void {
         if (!value) {
             this.moveParentId.set(
@@ -492,7 +566,7 @@ export class Companies {
     }
 
 
-    getMoveParentLabel(
+    getCompanyOptionLabel(
         row: CompanyTreeRow,
     ): string {
         return (
@@ -504,133 +578,52 @@ export class Companies {
     }
 
 
-    createRoot(
+    readonly moveParentToString = (
+        companyId: number,
+    ): string => {
+        const row =
+            this.moveParentOptions()
+                .find(
+                    option =>
+                        option.company.id
+                        === companyId,
+                );
+
+        return row === undefined
+            ? ''
+            : this.getCompanyOptionLabel(
+                row,
+            );
+    };
+
+
+    createCompany(
         dialog: BrnDialog,
     ): void {
-        if (
-            this.rootCreating()
-            || !this.canCreateRootCompany()
-        ) {
-            return;
-        }
-
-
-        const name =
-            this.rootCreateName()
-                .trim();
-
-        const shortName =
-            this.rootCreateShortName()
-                .trim();
-
-
-        if (!name) {
-            this.rootCreateError.set(
-                'Укажите название компании',
-            );
-
-            return;
-        }
-
-
-        if (name.length > 255) {
-            this.rootCreateError.set(
-                'Название не должно превышать 255 символов',
-            );
-
-            return;
-        }
-
-
-        if (
-            shortName.length > 100
-        ) {
-            this.rootCreateError.set(
-                'Короткое название не должно превышать 100 символов',
-            );
-
-            return;
-        }
-
-
-        this.rootCreating.set(
-            true,
-        );
-
-        this.rootCreateError.set(
-            null,
-        );
-
-
-        this.companyApi
-            .createRoot({
-                name,
-
-                short_name:
-                    shortName || null,
-            })
-            .subscribe({
-                next: () => {
-                    this.resetRootCreateForm();
-
-                    dialog.close({});
-
-
-                    /*
-                     * Root-компания не входит
-                     * в дерево текущей компании.
-                     *
-                     * Поэтому tree перечитывать
-                     * не нужно.
-                     *
-                     * Обновляем только список
-                     * доступных пользователю
-                     * компаний для switcher.
-                     */
-                    this.companyContext
-                        .loadAvailableCompanies()
-                        .subscribe({
-                            error: () => {
-                                /*
-                                 * Компания уже создана.
-                                 *
-                                 * Ошибка обновления
-                                 * switcher не должна
-                                 * превращаться в ошибку
-                                 * создания и провоцировать
-                                 * повторный POST.
-                                 */
-                            },
-                        });
-                },
-
-                error: error => {
-                    this.rootCreating.set(
-                        false,
-                    );
-
-                    this.rootCreateError.set(
-                        this.getRootCreateError(
-                            error,
-                        ),
-                    );
-                },
-            });
-    }
-
-
-    createChild(
-        dialog: BrnDialog,
-    ): void {
-        const companyId =
+        const rootCompanyId =
             this.companyContext
                 .activeCompanyId();
 
+        const mode =
+            this.createMode();
+
+        const parentCompanyId =
+            this.createParentId();
+
 
         if (
-            companyId === null
-            || this.creating()
-            || !this.canManageCompanies()
+            this.creating()
+            || (
+                mode === 'root'
+                && !this.canCreateRootCompany()
+            )
+            || (
+                mode === 'child'
+                && (
+                    rootCompanyId === null
+                    || !this.canManageCompanies()
+                )
+            )
         ) {
             return;
         }
@@ -674,6 +667,26 @@ export class Companies {
         }
 
 
+        if (
+            mode === 'child'
+            && (
+                parentCompanyId === null
+                || !this.createParentOptions()
+                    .some(
+                        row =>
+                            row.company.id
+                            === parentCompanyId,
+                    )
+            )
+        ) {
+            this.createError.set(
+                'Выберите родительскую компанию',
+            );
+
+            return;
+        }
+
+
         this.creating.set(
             true,
         );
@@ -683,38 +696,56 @@ export class Companies {
         );
 
 
-        this.companyApi
-            .createChild(
-                companyId,
-                {
-                    name,
+        const data = {
+            name,
 
-                    short_name:
-                        shortName || null,
-                },
-            )
+            short_name:
+                shortName || null,
+        };
+
+        const request =
+            mode === 'root'
+                ? this.companyApi
+                    .createRoot(data)
+                : this.companyApi
+                    .createChildInTree(
+                        rootCompanyId!,
+                        parentCompanyId!,
+                        data,
+                    );
+
+
+        request
             .subscribe({
-                next: () => {
+                next: createdCompany => {
                     this.resetCreateForm();
 
                     dialog.close({});
 
 
-                    /*
-                     * Обновляем дерево текущей компании.
-                     */
-                    this.retry();
+                    if (mode === 'child') {
+                        this.retry();
+                    }
 
-
-                    /*
-                     * Создатель получил membership
-                     * в новой дочерней компании,
-                     * поэтому она должна сразу
-                     * появиться в company switcher.
-                     */
                     this.companyContext
                         .loadAvailableCompanies()
                         .subscribe({
+                            next: companies => {
+                                if (
+                                    mode === 'root'
+                                    && companies.some(
+                                        company =>
+                                            company.id
+                                            === createdCompany.id,
+                                    )
+                                ) {
+                                    this.companyContext
+                                        .switchCompany(
+                                            createdCompany.id,
+                                        );
+                                }
+                            },
+
                             error: () => {
                                 /*
                                  * Компания уже создана.
@@ -732,9 +763,13 @@ export class Companies {
                     );
 
                     this.createError.set(
-                        this.getCreateError(
-                            error,
-                        ),
+                        mode === 'root'
+                            ? this.getRootCreateError(
+                                error,
+                            )
+                            : this.getCreateError(
+                                error,
+                            ),
                     );
                 },
             });
@@ -884,7 +919,7 @@ export class Companies {
         if (
             rootCompanyId === null
             || this.activationSavingCompanyId()
-                !== null
+            !== null
             || !this.canManageCompanies()
             || (
                 company.id
@@ -1094,7 +1129,7 @@ export class Companies {
             ) {
                 const detail =
                     typeof error.error
-                    ?.detail === 'string'
+                        ?.detail === 'string'
                         ? error.error.detail
                         : '';
 

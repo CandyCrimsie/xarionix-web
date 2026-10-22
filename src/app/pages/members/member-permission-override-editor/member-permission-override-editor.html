@@ -117,41 +117,32 @@
                     </div>
 
 
-                    <select
-                        class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        [value]="
-                                        modeFor(
-                                            permission.id
-                                        )
-                                    " [disabled]="
-                                        isReadOnly()
-                                        || !permission.is_active
-                                        || isSaving(
-                                            permission.id
-                                        )
-                                    " [attr.data-testid]="
-                                        'override-mode-'
-                                        + permission.id
-                                    " (change)="
-                                        changeMode(
-                                            permission,
-                                            $any(
-                                                $event.target
-                                            ).value
-                                        )
-                                    ">
-                        <option value="inherit">
-                            Наследовать из ролей
-                        </option>
+                    <hlm-select [value]="modeFor(permission.id)" [itemToString]="modeToString" [disabled]="
+                            isReadOnly()
+                            || !permission.is_active
+                            || isSaving(permission.id)
+                        " (valueChange)="selectMode(permission, $event)">
+                        <hlm-select-trigger class="w-full" [attr.data-testid]="
+                                'override-mode-'
+                                + permission.id
+                            ">
+                            <hlm-select-value placeholder="Выберите режим" />
+                        </hlm-select-trigger>
 
-                        <option value="allow">
-                            Разрешить
-                        </option>
+                        <hlm-select-content *hlmSelectPortal>
+                            <hlm-select-group>
+                                <hlm-select-label>
+                                    Режим доступа
+                                </hlm-select-label>
 
-                        <option value="deny">
-                            Запретить
-                        </option>
-                    </select>
+                                @for (option of overrideModeOptions; track option.value) {
+                                <hlm-select-item [value]="option.value">
+                                    {{ option.label }}
+                                </hlm-select-item>
+                                }
+                            </hlm-select-group>
+                        </hlm-select-content>
+                    </hlm-select>
 
 
                     @if (
@@ -159,42 +150,31 @@
                     permission.id
                     ) === 'allow'
                     ) {
-                    <select
-                        class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        [value]="
-                                            scopeFor(
-                                                permission.id
-                                            )
-                                        " [disabled]="
-                                            isReadOnly()
-                                            || isSaving(
-                                                permission.id
-                                            )
-                                        " [attr.data-testid]="
-                                            'override-scope-'
-                                            + permission.id
-                                        " (change)="
-                                            changeScope(
-                                                permission,
-                                                $any(
-                                                    $event.target
-                                                ).value
-                                            )
-                                        ">
-                        @for (
-                        scope
-                        of permission.allowed_scopes;
-                        track scope
-                        ) {
-                        <option [value]="scope">
-                            {{
-                            scopeLabel(
-                            scope
-                            )
-                            }}
-                        </option>
-                        }
-                    </select>
+                    <hlm-select [value]="scopeFor(permission.id)" [itemToString]="scopeToString" [disabled]="
+                            isReadOnly()
+                            || isSaving(permission.id)
+                        " (valueChange)="selectScope(permission, $event)">
+                        <hlm-select-trigger class="w-full" [attr.data-testid]="
+                                'override-scope-'
+                                + permission.id
+                            ">
+                            <hlm-select-value placeholder="Выберите область" />
+                        </hlm-select-trigger>
+
+                        <hlm-select-content *hlmSelectPortal>
+                            <hlm-select-group>
+                                <hlm-select-label>
+                                    Область действия
+                                </hlm-select-label>
+
+                                @for (scope of permission.allowed_scopes; track scope) {
+                                <hlm-select-item [value]="scope">
+                                    {{ scopeLabel(scope) }}
+                                </hlm-select-item>
+                                }
+                            </hlm-select-group>
+                        </hlm-select-content>
+                    </hlm-select>
                     } @else if (
                     modeFor(
                     permission.id

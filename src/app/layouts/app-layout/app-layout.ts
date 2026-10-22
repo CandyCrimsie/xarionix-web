@@ -25,6 +25,7 @@ import {
   lucideRefreshCw,
   lucideTriangleAlert,
   lucideMapPin,
+  lucideKeyRound
 } from '@ng-icons/lucide';
 
 import {
@@ -62,6 +63,7 @@ import { PermissionService } from '../../core/permissions/permission.service';
       lucideRefreshCw,
       lucideTriangleAlert,
       lucideMapPin,
+      lucideKeyRound,
     }),
   ],
   templateUrl: './app-layout.html',

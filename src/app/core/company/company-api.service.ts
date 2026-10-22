@@ -75,6 +75,23 @@ export class CompanyApiService {
     }
 
 
+    createChildInTree(
+        rootCompanyId: number,
+        parentCompanyId: number,
+        data: CompanyChildCreate,
+    ): Observable<Company> {
+        return this.http.post<Company>(
+            (
+                `${API_BASE_URL}`
+                + `/companies/${rootCompanyId}`
+                + `/tree/${parentCompanyId}`
+                + '/children'
+            ),
+            data,
+        );
+    }
+
+
     update(
         companyId: number,
         data: CompanyUpdate,

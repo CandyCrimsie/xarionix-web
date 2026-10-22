@@ -303,6 +303,109 @@ describe(
 
 
         it(
+            'should edit mode and scope through Spartan selects',
+            async () => {
+                const modeTrigger =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="override-mode-8"]',
+                        ) as HTMLElement | null;
+
+                expect(modeTrigger).not.toBeNull();
+                expect(modeTrigger?.tagName).toBe(
+                    'HLM-SELECT-TRIGGER',
+                );
+                expect(
+                    modeTrigger
+                        ?.querySelector('select'),
+                ).toBeNull();
+
+
+                modeTrigger
+                    ?.querySelector('button')
+                    ?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+
+                const allowOption =
+                    Array.from(
+                        document.body
+                            .querySelectorAll(
+                                'hlm-select-item',
+                            ),
+                    )
+                        .find(
+                            option =>
+                                option.textContent
+                                    ?.trim()
+                                === 'Разрешить',
+                        ) as HTMLElement | undefined;
+
+                expect(allowOption).not.toBeUndefined();
+                allowOption?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+                expect(
+                    component.modeFor(
+                        permission.id,
+                    ),
+                ).toBe('allow');
+
+
+                const scopeTrigger =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="override-scope-8"]',
+                        ) as HTMLElement | null;
+
+                expect(scopeTrigger).not.toBeNull();
+                expect(scopeTrigger?.tagName).toBe(
+                    'HLM-SELECT-TRIGGER',
+                );
+
+
+                scopeTrigger
+                    ?.querySelector('button')
+                    ?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+
+                const companyOption =
+                    Array.from(
+                        document.body
+                            .querySelectorAll(
+                                'hlm-select-item',
+                            ),
+                    )
+                        .find(
+                            option =>
+                                option.textContent
+                                    ?.trim()
+                                === 'Вся компания',
+                        ) as HTMLElement | undefined;
+
+                expect(companyOption).not.toBeUndefined();
+                companyOption?.click();
+                fixture.detectChanges();
+
+                expect(
+                    component.scopeFor(
+                        permission.id,
+                    ),
+                ).toBe(
+                    PermissionScope.Company,
+                );
+            },
+        );
+
+
+        it(
             'should save allow override',
             () => {
                 component.changeMode(

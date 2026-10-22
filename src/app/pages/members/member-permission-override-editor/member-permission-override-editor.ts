@@ -45,6 +45,10 @@ import {
 } from '@spartan-ng/helm/button';
 
 import {
+    HlmSelectImports,
+} from '@spartan-ng/helm/select';
+
+import {
     MembershipPermissionOverrideApiService,
 } from '../../../core/members/membership-permission-override-api.service';
 
@@ -111,6 +115,26 @@ const SCOPE_ORDER:
     ];
 
 
+const OVERRIDE_MODE_OPTIONS:
+    ReadonlyArray<{
+        label: string;
+        value: OverrideMode;
+    }> = [
+        {
+            label: 'Наследовать из ролей',
+            value: 'inherit',
+        },
+        {
+            label: 'Разрешить',
+            value: 'allow',
+        },
+        {
+            label: 'Запретить',
+            value: 'deny',
+        },
+    ];
+
+
 @Component({
     selector:
         'app-member-permission-override-editor',
@@ -119,6 +143,7 @@ const SCOPE_ORDER:
         NgIcon,
         HlmBadgeImports,
         HlmButtonImports,
+        HlmSelectImports,
     ],
 
     providers: [
@@ -232,6 +257,27 @@ export class MemberPermissionOverrideEditor {
 
     readonly state =
         this._state.asReadonly();
+
+
+    readonly overrideModeOptions =
+        OVERRIDE_MODE_OPTIONS;
+
+
+    readonly modeToString = (
+        mode: OverrideMode,
+    ): string => (
+        OVERRIDE_MODE_OPTIONS.find(
+            option =>
+                option.value === mode,
+        )?.label
+        ?? ''
+    );
+
+
+    readonly scopeToString = (
+        scope: PermissionScope,
+    ): string =>
+        this.scopeLabel(scope);
 
 
     readonly isReadOnly =
@@ -469,6 +515,24 @@ export class MemberPermissionOverrideEditor {
     }
 
 
+    selectMode(
+        permission:
+            PermissionCatalogItem,
+
+        mode:
+            OverrideMode | null | undefined,
+    ): void {
+        if (mode === null || mode === undefined) {
+            return;
+        }
+
+        this.changeMode(
+            permission,
+            mode,
+        );
+    }
+
+
     changeScope(
         permission:
             PermissionCatalogItem,
@@ -513,6 +577,24 @@ export class MemberPermissionOverrideEditor {
 
         this.markChanged(
             permission.id,
+        );
+    }
+
+
+    selectScope(
+        permission:
+            PermissionCatalogItem,
+
+        scope:
+            PermissionScope | null | undefined,
+    ): void {
+        if (scope === null || scope === undefined) {
+            return;
+        }
+
+        this.changeScope(
+            permission,
+            scope,
         );
     }
 

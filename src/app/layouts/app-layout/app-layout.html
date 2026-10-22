@@ -185,27 +185,15 @@
                     </li>
                     }
 
-
                     @if (canReadUnits()) {
                     <li hlmSidebarMenuItem>
                         <a hlmSidebarMenuButton routerLink="/organizational-units" routerLinkActive
                             #rla="routerLinkActive" [isActive]="rla.isActive"
                             data-testid="organizational-units-nav-item">
-                            <ng-icon name="lucideBriefcaseBusiness" />
+                            <ng-icon name="lucideKeyRound" />
 
                             <span>
-                                Оргструктура
-                            </span>
-                        </a>
-                    </li>
-                    } @if (canManageMembers()) {
-                    <li hlmSidebarMenuItem>
-                        <a hlmSidebarMenuButton routerLink="/invitations" routerLinkActive #rla="routerLinkActive"
-                            [isActive]="rla.isActive" data-testid="invite-nav-item">
-                            <ng-icon name="lucideUserRoundPlus" />
-
-                            <span>
-                                Пригласить
+                                Права и доступ
                             </span>
                         </a>
                     </li>
@@ -219,6 +207,19 @@
 
                             <span>
                                 Роли
+                            </span>
+                        </a>
+                    </li>
+                    }
+
+                    @if (canManageMembers()) {
+                    <li hlmSidebarMenuItem>
+                        <a hlmSidebarMenuButton routerLink="/invitations" routerLinkActive #rla="routerLinkActive"
+                            [isActive]="rla.isActive" data-testid="invite-nav-item">
+                            <ng-icon name="lucideUserRoundPlus" />
+
+                            <span>
+                                Пригласить
                             </span>
                         </a>
                     </li>

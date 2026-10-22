@@ -82,6 +82,10 @@ import {
     HlmInputImports,
 } from '@spartan-ng/helm/input';
 
+import {
+    HlmSelectImports,
+} from '@spartan-ng/helm/select';
+
 import type {
     BrnDialog,
 } from '@spartan-ng/brain/dialog';
@@ -109,6 +113,15 @@ type EditParentSelection =
     | 'unchanged';
 
 
+const COMPANY_ROOT_PARENT =
+    'company-root' as const;
+
+
+type CreateParentSelection =
+    | number
+    | typeof COMPANY_ROOT_PARENT;
+
+
 @Component({
     selector:
         'app-organizational-units',
@@ -122,6 +135,7 @@ type EditParentSelection =
         HlmDialogImports,
         HlmFieldImports,
         HlmInputImports,
+        HlmSelectImports,
     ],
 
     providers: [
@@ -1442,6 +1456,24 @@ export class OrganizationalUnits {
             null,
         );
 
+    readonly createParentSelection =
+        computed<
+            CreateParentSelection | null
+        >(
+            () => {
+                const parentId =
+                    this.createParentId();
+
+                if (parentId !== null) {
+                    return parentId;
+                }
+
+                return this.canManageCompany()
+                    ? COMPANY_ROOT_PARENT
+                    : null;
+            },
+        );
+
     readonly creating =
         signal(false);
 
@@ -1493,6 +1525,76 @@ export class OrganizationalUnits {
                 'Филиал',
         },
     ] as const;
+
+
+    readonly unitTypeToString = (
+        type: OrganizationalUnitType,
+    ): string => (
+        this.unitTypeOptions.find(
+            option =>
+                option.value === type,
+        )?.label
+        ?? ''
+    );
+
+
+    readonly createParentToString = (
+        value: CreateParentSelection,
+    ): string => {
+        if (value === COMPANY_ROOT_PARENT) {
+            return 'Корень компании';
+        }
+
+        const unit =
+            this.manageableUnits()
+                .find(
+                    candidate =>
+                        candidate.id === value,
+                );
+
+        if (unit === undefined) {
+            return '';
+        }
+
+        return (
+            unit.name
+            + (
+                unit.is_active
+                    ? ''
+                    : ' (отключено)'
+            )
+        );
+    };
+
+
+    setCreateType(
+        type:
+            OrganizationalUnitType | null | undefined,
+    ): void {
+        if (type === null || type === undefined) {
+            return;
+        }
+
+        this.createType.set(type);
+        this.createError.set(null);
+    }
+
+
+    setCreateParent(
+        value:
+            CreateParentSelection | null | undefined,
+    ): void {
+        if (value === null || value === undefined) {
+            return;
+        }
+
+        this.createParentId.set(
+            value === COMPANY_ROOT_PARENT
+                ? null
+                : value,
+        );
+        this.createError.set(null);
+    }
 
 
     private reset(): void {

@@ -1,95 +1,7 @@
 <div class="flex flex-col gap-4 px-4 pb-4">
     <div class="flex items-start justify-between gap-4">
-
         <div class="flex flex-wrap items-center justify-end gap-2">
-            @if (canCreateRootCompany()) {
-            <hlm-dialog #createRootDialog>
-                <button hlmDialogTrigger hlmBtn variant="outline" type="button" data-testid="create-root-company-action"
-                    (click)="resetRootCreateForm()">
-                    <ng-icon name="lucidePlus" />
-
-                    Новая независимая компания
-                </button>
-
-
-                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                    <hlm-dialog-header>
-                        <h3 hlmDialogTitle>
-                            Новая независимая компания
-                        </h3>
-
-                        <p hlmDialogDescription>
-                            Компания будет создана как
-                            отдельная организация верхнего уровня
-                            и не станет дочерней текущей компании.
-                            Вы получите роль Administrator
-                            в новой компании.
-                        </p>
-                    </hlm-dialog-header>
-
-
-                    <hlm-field-group>
-                        <hlm-field>
-                            <label hlmFieldLabel for="create-root-company-name">
-                                Название
-                            </label>
-
-                            <input hlmInput id="create-root-company-name" maxlength="255" autocomplete="off"
-                                data-testid="create-root-company-name" [ngModel]="rootCreateName()"
-                                (ngModelChange)="rootCreateName.set($event)" />
-                        </hlm-field>
-
-
-                        <hlm-field>
-                            <label hlmFieldLabel for="create-root-company-short-name">
-                                Короткое название
-                            </label>
-
-                            <input hlmInput id="create-root-company-short-name" maxlength="100" autocomplete="off"
-                                placeholder="Необязательно" data-testid="create-root-company-short-name"
-                                [ngModel]="rootCreateShortName()" (ngModelChange)="rootCreateShortName.set($event)" />
-
-                            <p class="text-xs text-muted-foreground">
-                                Используется там, где полное
-                                название слишком длинное.
-                            </p>
-                        </hlm-field>
-                    </hlm-field-group>
-
-
-                    @if (
-                    rootCreateError();
-                    as error
-                    ) {
-                    <p class="text-sm text-destructive" data-testid="create-root-company-error">
-                        {{ error }}
-                    </p>
-                    }
-
-
-                    <hlm-dialog-footer>
-                        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="rootCreating()"
-                            (click)="resetRootCreateForm()">
-                            Отмена
-                        </button>
-
-                        <button hlmBtn type="button" data-testid="create-root-company-submit"
-                            [disabled]="rootCreating()" (click)="createRoot(createRootDialog)">
-                            @if (rootCreating()) {
-                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-
-                            Создаём...
-                            } @else {
-                            Создать
-                            }
-                        </button>
-                    </hlm-dialog-footer>
-                </hlm-dialog-content>
-            </hlm-dialog>
-            }
-
-
-            @if (canManageCompanies()) {
+            @if (canCreateCompany()) {
             <hlm-dialog #createDialog>
                 <button hlmDialogTrigger hlmBtn type="button" data-testid="create-company-action"
                     (click)="resetCreateForm()">
@@ -102,78 +14,116 @@
                 <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
                     <hlm-dialog-header>
                         <h3 hlmDialogTitle>
-                            Новая дочерняя компания
+                            Добавить компанию
                         </h3>
 
                         <p hlmDialogDescription>
-                            Компания будет создана
-                            внутри текущей активной компании.
-                            Вы получите роль Administrator
-                            в новой компании.
+                            @if (createMode() === 'root') {
+                            Независимая компания станет отдельной организацией верхнего уровня.
+                            После создания вы переключитесь в неё.
+                            } @else {
+                            Выберите родительскую компанию в текущей структуре.
+                            Новая компания станет её дочерней.
+                            }
                         </p>
                     </hlm-dialog-header>
 
+                    <form class="flex flex-col gap-4" data-testid="create-company-form"
+                        (ngSubmit)="createCompany(createDialog)">
+                        <hlm-field-group>
+                            <hlm-field>
+                                <label hlmFieldLabel for="create-company-type">
+                                    Тип компании
+                                </label>
 
-                    <hlm-field-group>
-                        <hlm-field>
-                            <label hlmFieldLabel for="create-company-name">
-                                Название
-                            </label>
+                                <hlm-native-select selectId="create-company-type" selectClass="w-full"
+                                    data-testid="create-company-type" [value]="createMode()"
+                                    (valueChange)="setCreateMode($event)">
+                                    @if (canManageCompanies()) {
+                                    <option hlmNativeSelectOption value="child">
+                                        Дочерняя компания
+                                    </option>
+                                    }
 
-                            <input hlmInput id="create-company-name" maxlength="255" autocomplete="off"
-                                data-testid="create-company-name" [ngModel]="createName()"
-                                (ngModelChange)="createName.set($event)" />
-                        </hlm-field>
+                                    @if (canCreateRootCompany()) {
+                                    <option hlmNativeSelectOption value="root">
+                                        Независимая компания
+                                    </option>
+                                    }
+                                </hlm-native-select>
+                            </hlm-field>
 
+                            @if (createMode() === 'child') {
+                            <hlm-field>
+                                <label hlmFieldLabel for="create-company-parent">
+                                    Родительская компания
+                                </label>
 
-                        <hlm-field>
-                            <label hlmFieldLabel for="create-company-short-name">
-                                Короткое название
-                            </label>
+                                <hlm-native-select selectId="create-company-parent" selectClass="w-full"
+                                    data-testid="create-company-parent" [value]="createParentId()?.toString() ?? ''"
+                                    (valueChange)="setCreateParent($event)">
+                                    <option hlmNativeSelectOption value="" disabled>
+                                        Выберите компанию
+                                    </option>
 
-                            <input hlmInput id="create-company-short-name" maxlength="100" autocomplete="off"
-                                placeholder="Необязательно" data-testid="create-company-short-name"
-                                [ngModel]="createShortName()" (ngModelChange)="createShortName.set($event)" />
-
-                            <p class="text-xs text-muted-foreground">
-                                Используется там, где полное
-                                название слишком длинное.
-                            </p>
-                        </hlm-field>
-                    </hlm-field-group>
-
-
-                    @if (
-                    createError();
-                    as error
-                    ) {
-                    <p class="text-sm text-destructive" data-testid="create-company-error">
-                        {{ error }}
-                    </p>
-                    }
-
-
-                    <hlm-dialog-footer>
-                        <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="creating()"
-                            (click)="resetCreateForm()">
-                            Отмена
-                        </button>
-
-                        <button hlmBtn type="button" data-testid="create-company-submit" [disabled]="creating()"
-                            (click)="
-                            createChild(
-                                createDialog
-                            )
-                        ">
-                            @if (creating()) {
-                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-
-                            Создаём...
-                            } @else {
-                            Создать
+                                    @for (parentRow of createParentOptions(); track parentRow.company.id) {
+                                    <option hlmNativeSelectOption [value]="parentRow.company.id.toString()">
+                                        {{ getCompanyOptionLabel(parentRow) }}
+                                    </option>
+                                    }
+                                </hlm-native-select>
+                            </hlm-field>
                             }
-                        </button>
-                    </hlm-dialog-footer>
+
+                            <hlm-field>
+                                <label hlmFieldLabel for="create-company-name">
+                                    Название
+                                </label>
+
+                                <input hlmInput id="create-company-name" name="companyName" maxlength="255"
+                                    autocomplete="off" data-testid="create-company-name" [ngModel]="createName()"
+                                    (ngModelChange)="createName.set($event)" />
+                            </hlm-field>
+
+                            <hlm-field>
+                                <label hlmFieldLabel for="create-company-short-name">
+                                    Короткое название
+                                </label>
+
+                                <input hlmInput id="create-company-short-name" name="companyShortName" maxlength="100"
+                                    autocomplete="off" placeholder="Необязательно"
+                                    data-testid="create-company-short-name" [ngModel]="createShortName()"
+                                    (ngModelChange)="createShortName.set($event)" />
+
+                                <p class="text-xs text-muted-foreground">
+                                    Используется там, где полное название слишком длинное.
+                                </p>
+                            </hlm-field>
+                        </hlm-field-group>
+
+                        @if (createError(); as error) {
+                        <p class="text-sm text-destructive" data-testid="create-company-error">
+                            {{ error }}
+                        </p>
+                        }
+
+                        <hlm-dialog-footer>
+                            <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="creating()"
+                                (click)="resetCreateForm()">
+                                Отмена
+                            </button>
+
+                            <button hlmBtn type="submit" data-testid="create-company-submit" [disabled]="creating()">
+                                @if (creating()) {
+                                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+
+                                Создаём...
+                                } @else {
+                                Создать
+                                }
+                            </button>
+                        </hlm-dialog-footer>
+                    </form>
                 </hlm-dialog-content>
             </hlm-dialog>
             }
@@ -305,7 +255,7 @@
                                 Активна
                             </span>
                             } @else {
-                            <span hlmBadge variant="secondary">
+                            <span hlmBadge variant="destructive">
                                 Отключена
                             </span>
                             }
@@ -321,9 +271,9 @@
                         @if (canManageCompanies()) {
                         <td hlmTd class="w-0 whitespace-nowrap">
                             <div class="flex items-center gap-1">
-                            <hlm-dialog #editDialog>
-                                <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                                    [attr.data-testid]="
+                                <hlm-dialog #editDialog>
+                                    <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                        [attr.data-testid]="
                 'edit-company-action-'
                 + row.company.id
             " [attr.aria-label]="
@@ -334,139 +284,140 @@
                     row.company
                 )
             ">
-                                    <ng-icon name="lucidePencil" />
-                                </button>
+                                        <ng-icon name="lucidePencil" />
+                                    </button>
 
 
-                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                                    <hlm-dialog-header>
-                                        <h3 hlmDialogTitle>
-                                            Редактирование компании
-                                        </h3>
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                        <hlm-dialog-header>
+                                            <h3 hlmDialogTitle>
+                                                Редактирование компании
+                                            </h3>
 
-                                        <p hlmDialogDescription>
-                                            Измените название
-                                            и короткое название компании.
-                                            Структура и статус компании
-                                            останутся без изменений.
-                                        </p>
-                                    </hlm-dialog-header>
+                                            <p hlmDialogDescription>
+                                                Измените название
+                                                и короткое название компании.
+                                                Структура и статус компании
+                                                останутся без изменений.
+                                            </p>
+                                        </hlm-dialog-header>
 
 
-                                    <hlm-field-group>
-                                        <hlm-field>
-                                            <label hlmFieldLabel for="edit-company-name">
-                                                Название
-                                            </label>
+                                        <hlm-field-group>
+                                            <hlm-field>
+                                                <label hlmFieldLabel for="edit-company-name">
+                                                    Название
+                                                </label>
 
-                                            <input hlmInput id="edit-company-name" maxlength="255" autocomplete="off"
-                                                data-testid="edit-company-name" [ngModel]="editName()" (ngModelChange)="
+                                                <input hlmInput id="edit-company-name" maxlength="255"
+                                                    autocomplete="off" data-testid="edit-company-name"
+                                                    [ngModel]="editName()" (ngModelChange)="
                             editName.set($event)
                         " />
-                                        </hlm-field>
+                                            </hlm-field>
 
 
-                                        <hlm-field>
-                                            <label hlmFieldLabel for="edit-company-short-name">
-                                                Короткое название
-                                            </label>
+                                            <hlm-field>
+                                                <label hlmFieldLabel for="edit-company-short-name">
+                                                    Короткое название
+                                                </label>
 
-                                            <input hlmInput id="edit-company-short-name" maxlength="100"
-                                                autocomplete="off" placeholder="Необязательно"
-                                                data-testid="edit-company-short-name" [ngModel]="editShortName()"
-                                                (ngModelChange)="
+                                                <input hlmInput id="edit-company-short-name" maxlength="100"
+                                                    autocomplete="off" placeholder="Необязательно"
+                                                    data-testid="edit-company-short-name" [ngModel]="editShortName()"
+                                                    (ngModelChange)="
                             editShortName.set($event)
                         " />
-                                        </hlm-field>
-                                    </hlm-field-group>
+                                            </hlm-field>
+                                        </hlm-field-group>
 
 
-                                    @if (
-                                    editError();
-                                    as error
-                                    ) {
-                                    <p class="text-sm text-destructive" data-testid="edit-company-error">
-                                        {{ error }}
-                                    </p>
-                                    }
+                                        @if (
+                                        editError();
+                                        as error
+                                        ) {
+                                        <p class="text-sm text-destructive" data-testid="edit-company-error">
+                                            {{ error }}
+                                        </p>
+                                        }
 
 
-                                    <hlm-dialog-footer>
-                                        <button hlmBtn variant="outline" type="button" hlmDialogClose
-                                            [disabled]="editSaving()" (click)="resetEditForm()">
-                                            Отмена
-                                        </button>
+                                        <hlm-dialog-footer>
+                                            <button hlmBtn variant="outline" type="button" hlmDialogClose
+                                                [disabled]="editSaving()" (click)="resetEditForm()">
+                                                Отмена
+                                            </button>
 
 
-                                        <button hlmBtn type="button" data-testid="edit-company-submit"
-                                            [disabled]="editSaving()" (click)="
+                                            <button hlmBtn type="button" data-testid="edit-company-submit"
+                                                [disabled]="editSaving()" (click)="
                         saveCompanyMetadata(
                             editDialog
                         )
                     ">
-                                            @if (editSaving()) {
-                                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                                                @if (editSaving()) {
+                                                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
-                                            Сохраняем...
-                                            } @else {
-                                            Сохранить
-                                            }
-                                        </button>
-                                    </hlm-dialog-footer>
-                                </hlm-dialog-content>
-                            </hlm-dialog>
+                                                Сохраняем...
+                                                } @else {
+                                                Сохранить
+                                                }
+                                            </button>
+                                        </hlm-dialog-footer>
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
 
 
-                            @if (
-                            row.company.id
-                            !== tree()?.id
-                            ) {
-                            @if (row.company.is_active) {
-                            <hlm-alert-dialog #deactivateDialog>
-                                <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                                    [disabled]="activationSavingCompanyId() !== null" [attr.data-testid]="
+                                @if (
+                                row.company.id
+                                !== tree()?.id
+                                ) {
+                                @if (row.company.is_active) {
+                                <hlm-alert-dialog #deactivateDialog>
+                                    <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                        [disabled]="activationSavingCompanyId() !== null" [attr.data-testid]="
                 'deactivate-company-action-'
                 + row.company.id
             " [attr.aria-label]="
                 'Отключить '
                 + row.company.name
             " (click)="clearActivationError()">
-                                    <ng-icon name="lucidePowerOff" />
-                                </button>
+                                        <ng-icon name="lucidePower" />
+                                    </button>
 
 
-                                <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
-                                    <hlm-alert-dialog-header>
-                                        <h3 hlmAlertDialogTitle>
-                                            Отключить компанию?
-                                        </h3>
+                                    <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+                                        <hlm-alert-dialog-header>
+                                            <h3 hlmAlertDialogTitle>
+                                                Отключить компанию?
+                                            </h3>
 
-                                        <p hlmAlertDialogDescription>
-                                            Отключение компании также отключит
-                                            все её дочерние компании.
+                                            <p hlmAlertDialogDescription>
+                                                Отключение компании также отключит
+                                                все её дочерние компании.
+                                            </p>
+                                        </hlm-alert-dialog-header>
+
+
+                                        @if (
+                                        activationError();
+                                        as error
+                                        ) {
+                                        <p class="text-sm text-destructive" data-testid="deactivate-company-error">
+                                            {{ error }}
                                         </p>
-                                    </hlm-alert-dialog-header>
+                                        }
 
 
-                                    @if (
-                                    activationError();
-                                    as error
-                                    ) {
-                                    <p class="text-sm text-destructive" data-testid="deactivate-company-error">
-                                        {{ error }}
-                                    </p>
-                                    }
+                                        <hlm-alert-dialog-footer>
+                                            <button hlmAlertDialogCancel type="button"
+                                                [disabled]="activationSavingCompanyId() === row.company.id">
+                                                Отмена
+                                            </button>
 
-
-                                    <hlm-alert-dialog-footer>
-                                        <button hlmAlertDialogCancel type="button"
-                                            [disabled]="activationSavingCompanyId() === row.company.id">
-                                            Отмена
-                                        </button>
-
-                                        <button hlmAlertDialogAction variant="destructive" type="button"
-                                            [disabled]="activationSavingCompanyId() === row.company.id"
-                                            [attr.data-testid]="
+                                            <button hlmAlertDialogAction variant="destructive" type="button"
+                                                [disabled]="activationSavingCompanyId() === row.company.id"
+                                                [attr.data-testid]="
                         'deactivate-company-confirm-'
                         + row.company.id
                     " (click)="
@@ -476,23 +427,23 @@
                             deactivateDialog
                         )
                     ">
-                                            @if (
-                                            activationSavingCompanyId()
-                                            === row.company.id
-                                            ) {
-                                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                                                @if (
+                                                activationSavingCompanyId()
+                                                === row.company.id
+                                                ) {
+                                                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
-                                            Отключаем...
-                                            } @else {
-                                            Отключить
-                                            }
-                                        </button>
-                                    </hlm-alert-dialog-footer>
-                                </hlm-alert-dialog-content>
-                            </hlm-alert-dialog>
-                            } @else {
-                            <button hlmBtn variant="ghost" size="icon" type="button"
-                                [disabled]="activationSavingCompanyId() !== null" [attr.data-testid]="
+                                                Отключаем...
+                                                } @else {
+                                                Отключить
+                                                }
+                                            </button>
+                                        </hlm-alert-dialog-footer>
+                                    </hlm-alert-dialog-content>
+                                </hlm-alert-dialog>
+                                } @else {
+                                <button hlmBtn variant="ghost" size="icon" type="button"
+                                    [disabled]="activationSavingCompanyId() !== null" [attr.data-testid]="
             'activate-company-action-'
             + row.company.id
         " [attr.aria-label]="
@@ -504,26 +455,26 @@
                 true
             )
         ">
-                                @if (
-                                activationSavingCompanyId()
-                                === row.company.id
-                                ) {
-                                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-                                } @else {
-                                <ng-icon name="lucidePower" />
+                                    @if (
+                                    activationSavingCompanyId()
+                                    === row.company.id
+                                    ) {
+                                    <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+                                    } @else {
+                                    <ng-icon name="lucidePowerOff" />
+                                    }
+                                </button>
                                 }
-                            </button>
-                            }
-                            }
+                                }
 
 
-                            @if (
-                            row.company.id
-                            !== tree()?.id
-                            ) {
-                            <hlm-dialog #moveDialog>
-                                <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
-                                    [disabled]="moveSaving()" [attr.data-testid]="
+                                @if (
+                                row.company.id
+                                !== tree()?.id
+                                ) {
+                                <hlm-dialog #moveDialog>
+                                    <button hlmDialogTrigger hlmBtn variant="ghost" size="icon" type="button"
+                                        [disabled]="moveSaving()" [attr.data-testid]="
                 'move-company-action-'
                 + row.company.id
             " [attr.aria-label]="
@@ -534,82 +485,87 @@
                     row.company
                 )
             ">
-                                    <ng-icon name="lucideMoveRight" />
-                                </button>
+                                        <ng-icon name="lucideChevronsUpDown" />
+                                    </button>
 
 
-                                <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
-                                    <hlm-dialog-header>
-                                        <h3 hlmDialogTitle>
-                                            Переместить компанию
-                                        </h3>
+                                    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+                                        <hlm-dialog-header>
+                                            <h3 hlmDialogTitle>
+                                                Переместить компанию
+                                            </h3>
 
-                                        <p hlmDialogDescription>
-                                            Выберите нового родителя
-                                            для компании «{{ row.company.name }}».
+                                            <p hlmDialogDescription>
+                                                Выберите нового родителя
+                                                для компании «{{ row.company.name }}».
+                                            </p>
+                                        </hlm-dialog-header>
+
+
+                                        <hlm-field>
+                                            <label hlmFieldLabel for="move-company-parent">
+                                                Новый родитель
+                                            </label>
+
+                                            <hlm-select [value]="moveParentId()" [itemToString]="moveParentToString"
+                                                [disabled]="moveSaving()" (valueChange)="setMoveParent($event)">
+                                                <hlm-select-trigger buttonId="move-company-parent" class="w-full"
+                                                    data-testid="move-company-parent">
+                                                    <hlm-select-value placeholder="Выберите компанию" />
+                                                </hlm-select-trigger>
+
+                                                <hlm-select-content *hlmSelectPortal>
+                                                    <hlm-select-group>
+                                                        <!-- <hlm-select-label>
+                                                            Компании
+                                                        </hlm-select-label> -->
+
+                                                        @for (
+                                                        parentRow
+                                                        of moveParentOptions();
+                                                        track parentRow.company.id
+                                                        ) {
+                                                        <hlm-select-item [value]="parentRow.company.id">
+                                                            {{ getCompanyOptionLabel(parentRow) }}
+                                                        </hlm-select-item>
+                                                        }
+                                                    </hlm-select-group>
+                                                </hlm-select-content>
+                                            </hlm-select>
+                                        </hlm-field>
+
+
+                                        @if (
+                                        moveError();
+                                        as error
+                                        ) {
+                                        <p class="text-sm text-destructive" data-testid="move-company-error">
+                                            {{ error }}
                                         </p>
-                                    </hlm-dialog-header>
+                                        }
 
 
-                                    <hlm-field>
-                                        <label hlmFieldLabel for="move-company-parent">
-                                            Новый родитель
-                                        </label>
-
-                                        <hlm-native-select selectId="move-company-parent" selectClass="w-full"
-                                            data-testid="move-company-parent" [value]="
-                            moveParentId()
-                                ?.toString()
-                            ?? ''
-                        " (valueChange)="setMoveParent($event)">
-                                            <option hlmNativeSelectOption value="" disabled>
-                                                Выберите компанию
-                                            </option>
-
-                                            @for (
-                                            parentRow
-                                            of moveParentOptions();
-                                            track parentRow.company.id
-                                            ) {
-                                            <option hlmNativeSelectOption [value]="parentRow.company.id.toString()">
-                                                {{ getMoveParentLabel(parentRow) }}
-                                            </option>
-                                            }
-                                        </hlm-native-select>
-                                    </hlm-field>
+                                        <hlm-dialog-footer>
+                                            <button hlmBtn variant="outline" type="button" hlmDialogClose
+                                                [disabled]="moveSaving()" (click)="resetMoveForm()">
+                                                Отмена
+                                            </button>
 
 
-                                    @if (
-                                    moveError();
-                                    as error
-                                    ) {
-                                    <p class="text-sm text-destructive" data-testid="move-company-error">
-                                        {{ error }}
-                                    </p>
-                                    }
+                                            <button hlmBtn type="button" data-testid="move-company-submit"
+                                                [disabled]="moveSaving()" (click)="moveCompany(moveDialog)">
+                                                @if (moveSaving()) {
+                                                <ng-icon name="lucideLoaderCircle" class="animate-spin" />
 
-
-                                    <hlm-dialog-footer>
-                                        <button hlmBtn variant="outline" type="button" hlmDialogClose
-                                            [disabled]="moveSaving()" (click)="resetMoveForm()">
-                                            Отмена
-                                        </button>
-
-
-                                        <button hlmBtn type="button" data-testid="move-company-submit"
-                                            [disabled]="moveSaving()" (click)="moveCompany(moveDialog)">
-                                            @if (moveSaving()) {
-                                            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-
-                                            Перемещаем...
-                                            } @else {
-                                            Переместить
-                                            }
-                                        </button>
-                                    </hlm-dialog-footer>
-                                </hlm-dialog-content>
-                            </hlm-dialog>
-                            }
+                                                Перемещаем...
+                                                } @else {
+                                                Переместить
+                                                }
+                                            </button>
+                                        </hlm-dialog-footer>
+                                    </hlm-dialog-content>
+                                </hlm-dialog>
+                                }
                             </div>
                         </td>
                         }

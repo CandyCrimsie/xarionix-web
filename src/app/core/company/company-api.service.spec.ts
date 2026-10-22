@@ -331,6 +331,73 @@ describe(
 
 
         it(
+            'should create child company under a selected subtree parent',
+            async () => {
+                const data:
+                    CompanyChildCreate = {
+                    name:
+                        'Local Branch',
+
+                    short_name:
+                        'LOCAL',
+                };
+
+                const parentCompanyId =
+                    company.id + 1;
+
+                const child:
+                    Company = {
+                    ...company,
+
+                    id:
+                        12,
+
+                    parent_id:
+                        parentCompanyId,
+
+                    name:
+                        data.name,
+
+                    short_name:
+                        data.short_name,
+                };
+
+                http.post
+                    .mockReturnValue(
+                        of(child),
+                    );
+
+                const result =
+                    await firstValueFrom(
+                        service.createChildInTree(
+                            company.id,
+                            parentCompanyId,
+                            data,
+                        ),
+                    );
+
+                expect(
+                    http.post,
+                ).toHaveBeenCalledWith(
+                    (
+                        `${API_BASE_URL}`
+                        + `/companies/${company.id}`
+                        + `/tree/${parentCompanyId}`
+                        + '/children'
+                    ),
+                    data,
+                );
+
+                expect(
+                    result,
+                ).toEqual(
+                    child,
+                );
+            },
+        );
+
+
+        it(
             'should update company metadata',
             async () => {
                 const data:

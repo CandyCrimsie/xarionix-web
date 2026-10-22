@@ -41,21 +41,27 @@
                             Тип
                         </label>
 
-                        <select id="create-unit-type"
-                            class="h-9 w-full rounded-md border bg-transparent px-3 text-sm outline-none"
-                            data-testid="create-unit-type" [ngModel]="createType()" (ngModelChange)="
-                                createType.set($event)
-                            ">
-                            @for (
-                            option
-                            of unitTypeOptions;
-                            track option.value
-                            ) {
-                            <option [ngValue]="option.value">
-                                {{ option.label }}
-                            </option>
-                            }
-                        </select>
+                        <hlm-select [value]="createType()" [itemToString]="unitTypeToString"
+                            [disabled]="creating()" (valueChange)="setCreateType($event)">
+                            <hlm-select-trigger buttonId="create-unit-type" class="w-full"
+                                data-testid="create-unit-type">
+                                <hlm-select-value placeholder="Выберите тип" />
+                            </hlm-select-trigger>
+
+                            <hlm-select-content *hlmSelectPortal>
+                                <hlm-select-group>
+                                    <hlm-select-label>
+                                        Тип подразделения
+                                    </hlm-select-label>
+
+                                    @for (option of unitTypeOptions; track option.value) {
+                                    <hlm-select-item [value]="option.value">
+                                        {{ option.label }}
+                                    </hlm-select-item>
+                                    }
+                                </hlm-select-group>
+                            </hlm-select-content>
+                        </hlm-select>
                     </hlm-field>
 
 
@@ -64,35 +70,36 @@
                             Родительское подразделение
                         </label>
 
-                        <select id="create-unit-parent"
-                            class="h-9 w-full rounded-md border bg-transparent px-3 text-sm outline-none"
-                            data-testid="create-unit-parent" [ngModel]="createParentId()" (ngModelChange)="
-                                createParentId.set($event)
-                            ">
-                            @if (canManageCompany()) {
-                            <option [ngValue]="null">
-                                Корень компании
-                            </option>
-                            } @else {
-                            <option [ngValue]="null" disabled>
-                                Выберите подразделение
-                            </option>
-                            }
+                        <hlm-select [value]="createParentSelection()" [itemToString]="createParentToString"
+                            [disabled]="creating()" (valueChange)="setCreateParent($event)">
+                            <hlm-select-trigger buttonId="create-unit-parent" class="w-full"
+                                data-testid="create-unit-parent">
+                                <hlm-select-value placeholder="Выберите подразделение" />
+                            </hlm-select-trigger>
 
+                            <hlm-select-content *hlmSelectPortal>
+                                <hlm-select-group>
+                                    <hlm-select-label>
+                                        Родительское подразделение
+                                    </hlm-select-label>
 
-                            @for (
-                            unit
-                            of manageableUnits();
-                            track unit.id
-                            ) {
-                            <option [ngValue]="unit.id">
-                                {{ unit.name }}
-                                @if (!unit.is_active) {
-                                (отключено)
-                                }
-                            </option>
-                            }
-                        </select>
+                                    @if (canManageCompany()) {
+                                    <hlm-select-item value="company-root">
+                                        Корень компании
+                                    </hlm-select-item>
+                                    }
+
+                                    @for (unit of manageableUnits(); track unit.id) {
+                                    <hlm-select-item [value]="unit.id">
+                                        {{ unit.name }}
+                                        @if (!unit.is_active) {
+                                        (отключено)
+                                        }
+                                    </hlm-select-item>
+                                    }
+                                </hlm-select-group>
+                            </hlm-select-content>
+                        </hlm-select>
 
 
                         @if (!canManageCompany()) {

@@ -166,6 +166,9 @@ describe(
             createChild:
                 vi.fn(),
 
+            createChildInTree:
+                vi.fn(),
+
             createRoot:
                 vi.fn(),
 
@@ -186,6 +189,14 @@ describe(
                     .asReadonly(),
             loadAvailableCompanies:
                 vi.fn(),
+
+            switchCompany:
+                vi.fn(
+                    (companyId: number) =>
+                        activeCompanyId.set(
+                            companyId,
+                        ),
+                ),
         };
 
 
@@ -323,6 +334,12 @@ describe(
                         of(tree.children[0]),
                     );
 
+                companyApi
+                    .createChildInTree
+                    .mockReturnValue(
+                        of(tree.children[0]),
+                    );
+
                 authUser.set({
                     id: 100,
 
@@ -399,6 +416,30 @@ describe(
                 fixture.detectChanges();
             },
         );
+
+
+        async function openCreateDialog(): Promise<HTMLElement> {
+            const trigger =
+                fixture.nativeElement
+                    .querySelector(
+                        '[data-testid="create-company-action"]',
+                    ) as HTMLElement | null;
+
+            expect(trigger).not.toBeNull();
+            trigger?.click();
+            fixture.detectChanges();
+            await fixture.whenStable();
+            fixture.detectChanges();
+
+            const dialog =
+                document.body
+                    .querySelector(
+                        '[role="dialog"]',
+                    ) as HTMLElement | null;
+
+            expect(dialog).not.toBeNull();
+            return dialog!;
+        }
 
 
         it(
@@ -586,6 +627,8 @@ describe(
                     true,
                 );
 
+                component.resetCreateForm();
+
                 fixture.detectChanges();
 
 
@@ -604,6 +647,8 @@ describe(
                 canManage.set(
                     true,
                 );
+
+                component.resetCreateForm();
 
 
                 const close =
@@ -624,7 +669,7 @@ describe(
                 );
 
 
-                component.createChild(
+                component.createCompany(
                     dialog,
                 );
 
@@ -632,8 +677,9 @@ describe(
 
 
                 expect(
-                    companyApi.createChild,
+                    companyApi.createChildInTree,
                 ).toHaveBeenCalledWith(
+                    1,
                     1,
                     {
                         name:
@@ -693,6 +739,8 @@ describe(
                     true,
                 );
 
+                component.resetCreateForm();
+
 
                 const dialog = {
                     close:
@@ -705,13 +753,13 @@ describe(
                 );
 
 
-                component.createChild(
+                component.createCompany(
                     dialog,
                 );
 
 
                 expect(
-                    companyApi.createChild,
+                    companyApi.createChildInTree,
                 ).not.toHaveBeenCalled();
 
                 expect(
@@ -723,43 +771,51 @@ describe(
         );
 
         it(
-            'should hide independent root action for regular user',
-            () => {
+            'should show one child-only create dialog for regular manager',
+            async () => {
+                canManage.set(true);
+                fixture.detectChanges();
+
+                const dialog =
+                    await openCreateDialog();
+
+                expect(
+                    fixture.nativeElement
+                        .querySelectorAll(
+                            '[data-testid="create-company-action"]',
+                        ).length,
+                ).toBe(1);
                 expect(
                     fixture.nativeElement
                         .querySelector(
                             '[data-testid="create-root-company-action"]',
                         ),
                 ).toBeNull();
-            },
-        );
-
-        it(
-            'should show independent root action for system administrator',
-            () => {
-                authUser.set({
-                    ...authUser()!,
-
-                    is_system_admin:
-                        true,
-                });
-
-
-                fixture.detectChanges();
-
-
                 expect(
-                    fixture.nativeElement
-                        .querySelector(
-                            '[data-testid="create-root-company-action"]',
-                        ),
+                    dialog.querySelector(
+                        '[data-testid="create-company-type"]',
+                    )?.textContent,
+                ).toContain(
+                    'Дочерняя компания',
+                );
+                expect(
+                    dialog.querySelector(
+                        '[data-testid="create-company-type"]',
+                    )?.textContent,
+                ).not.toContain(
+                    'Независимая компания',
+                );
+                expect(
+                    dialog.querySelector(
+                        '[data-testid="create-company-parent"]',
+                    ),
                 ).not.toBeNull();
             },
         );
 
         it(
-            'should create independent root company and refresh available companies',
-            () => {
+            'should show one root-only create dialog for system administrator without company permission',
+            async () => {
                 authUser.set({
                     ...authUser()!,
 
@@ -769,6 +825,164 @@ describe(
 
 
                 fixture.detectChanges();
+
+                const dialog =
+                    await openCreateDialog();
+
+                expect(
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="create-company-action"]',
+                        ),
+                ).not.toBeNull();
+                expect(
+                    dialog.querySelector(
+                        '[data-testid="create-company-type"]',
+                    )?.textContent,
+                ).toContain(
+                    'Независимая компания',
+                );
+                expect(
+                    dialog.querySelector(
+                        '[data-testid="create-company-type"]',
+                    )?.textContent,
+                ).not.toContain(
+                    'Дочерняя компания',
+                );
+                expect(
+                    dialog.querySelector(
+                        '[data-testid="create-company-parent"]',
+                    ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should let system administrator choose child or independent company in one dialog',
+            async () => {
+                canManage.set(true);
+                authUser.set({
+                    ...authUser()!,
+                    is_system_admin: true,
+                });
+                fixture.detectChanges();
+
+                const dialog =
+                    await openCreateDialog();
+                const typeSelect =
+                    dialog.querySelector(
+                        '[data-testid="create-company-type"]',
+                    );
+
+                expect(typeSelect?.textContent)
+                    .toContain(
+                        'Дочерняя компания',
+                    );
+                expect(typeSelect?.textContent)
+                    .toContain(
+                        'Независимая компания',
+                    );
+
+                component.setCreateMode('root');
+                fixture.detectChanges();
+
+                expect(
+                    dialog.querySelector(
+                        '[data-testid="create-company-parent"]',
+                    ),
+                ).toBeNull();
+            },
+        );
+
+        it(
+            'should create child under explicitly selected active descendant',
+            async () => {
+                const activeTree = {
+                    ...tree,
+                    children: [
+                        {
+                            ...tree.children[0],
+                            is_active: true,
+                        },
+                    ],
+                };
+
+                canManage.set(true);
+                companyApi
+                    .getTree
+                    .mockReturnValue(
+                        of(activeTree),
+                    );
+                component.retry();
+                fixture.detectChanges();
+                const createDialog =
+                    await openCreateDialog();
+
+                expect(
+                    createDialog.querySelector(
+                        '[data-testid="create-company-parent"]',
+                    )?.textContent,
+                ).toContain(
+                    'Branch',
+                );
+
+                component.setCreateParent('2');
+                component.createName.set(
+                    'Local Branch',
+                );
+
+                component.createCompany({
+                    close: vi.fn(),
+                } as unknown as BrnDialog);
+
+                expect(
+                    companyApi.createChildInTree,
+                ).toHaveBeenCalledWith(
+                    1,
+                    2,
+                    {
+                        name: 'Local Branch',
+                        short_name: null,
+                    },
+                );
+            },
+        );
+
+        it(
+            'should create independent root company, refresh switcher and open its tree',
+            () => {
+                const createdRoot = {
+                    ...tree,
+                    id: 10,
+                    parent_id: null,
+                    name: 'Independent Company',
+                    short_name: 'IC',
+                    children: [],
+                };
+
+                authUser.set({
+                    ...authUser()!,
+
+                    is_system_admin:
+                        true,
+                });
+
+                companyApi
+                    .createRoot
+                    .mockReturnValue(
+                        of(createdRoot),
+                    );
+                companyContext
+                    .loadAvailableCompanies
+                    .mockReturnValue(
+                        of([
+                            tree,
+                            createdRoot,
+                        ]),
+                    );
+
+                fixture.detectChanges();
+                component.resetCreateForm();
 
 
                 const close =
@@ -781,21 +995,23 @@ describe(
 
 
                 component
-                    .rootCreateName
+                    .createName
                     .set(
                         '  Second Company  ',
                     );
 
                 component
-                    .rootCreateShortName
+                    .createShortName
                     .set(
                         '  SECOND  ',
                     );
 
 
-                component.createRoot(
+                component.createCompany(
                     dialog,
                 );
+
+                fixture.detectChanges();
 
 
                 expect(
@@ -818,9 +1034,15 @@ describe(
 
 
                 expect(
+                    companyContext.switchCompany,
+                ).toHaveBeenCalledWith(
+                    createdRoot.id,
+                );
+
+                expect(
                     companyApi.getTree,
-                ).toHaveBeenCalledTimes(
-                    1,
+                ).toHaveBeenCalledWith(
+                    createdRoot.id,
                 );
 
 
@@ -833,19 +1055,19 @@ describe(
 
                 expect(
                     component
-                        .rootCreateName(),
+                        .createName(),
                 ).toBe('');
 
 
                 expect(
                     component
-                        .rootCreateShortName(),
+                        .createShortName(),
                 ).toBe('');
 
 
                 expect(
                     component
-                        .rootCreateError(),
+                        .createError(),
                 ).toBeNull();
             },
         );
@@ -1383,6 +1605,75 @@ describe(
         );
 
         it(
+            'should render move parent choices with Spartan select',
+            async () => {
+                canManage.set(
+                    true,
+                );
+
+                fixture.detectChanges();
+
+
+                const moveAction =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="move-company-action-2"]',
+                        ) as HTMLButtonElement | null;
+
+                expect(moveAction).not.toBeNull();
+                moveAction?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+
+                const selectTrigger =
+                    document.body
+                        .querySelector(
+                            '[data-testid="move-company-parent"]',
+                        ) as HTMLElement | null;
+
+                expect(selectTrigger).not.toBeNull();
+                expect(
+                    selectTrigger?.tagName,
+                ).toBe(
+                    'HLM-SELECT-TRIGGER',
+                );
+                expect(
+                    selectTrigger
+                        ?.querySelector('select'),
+                ).toBeNull();
+
+
+                selectTrigger
+                    ?.querySelector('button')
+                    ?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+
+                const options =
+                    Array.from(
+                        document.body
+                            .querySelectorAll(
+                                'hlm-select-item',
+                            ),
+                    ) as HTMLElement[];
+
+                expect(
+                    options.map(
+                        option =>
+                            option.textContent
+                                ?.trim(),
+                    ),
+                ).toContain(
+                    'Main Company',
+                );
+            },
+        );
+
+        it(
             'should exclude moving company and its descendants from parent options',
             () => {
                 const deepTree:
@@ -1468,7 +1759,7 @@ describe(
 
 
                 expect(
-                    component.getMoveParentLabel(
+                    component.getCompanyOptionLabel(
                         component
                             .moveParentOptions()[1],
                     ),

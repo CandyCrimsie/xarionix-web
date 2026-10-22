@@ -596,6 +596,127 @@ describe(
             },
         );
 
+
+        it(
+            'should select create type and parent through Spartan selects',
+            async () => {
+                manageScope.set(
+                    PermissionScope
+                        .OwnUnitTree,
+                );
+
+                component.retry();
+                fixture.detectChanges();
+
+
+                const createAction =
+                    fixture.nativeElement
+                        .querySelector(
+                            '[data-testid="create-organizational-unit-action"]',
+                        ) as HTMLButtonElement | null;
+
+                expect(createAction).not.toBeNull();
+                createAction?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+
+                const typeTrigger =
+                    document.body
+                        .querySelector(
+                            '[data-testid="create-unit-type"]',
+                        ) as HTMLElement | null;
+
+                const parentTrigger =
+                    document.body
+                        .querySelector(
+                            '[data-testid="create-unit-parent"]',
+                        ) as HTMLElement | null;
+
+                expect(typeTrigger?.tagName).toBe(
+                    'HLM-SELECT-TRIGGER',
+                );
+                expect(parentTrigger?.tagName).toBe(
+                    'HLM-SELECT-TRIGGER',
+                );
+                expect(
+                    typeTrigger
+                        ?.querySelector('select'),
+                ).toBeNull();
+                expect(
+                    parentTrigger
+                        ?.querySelector('select'),
+                ).toBeNull();
+
+
+                typeTrigger
+                    ?.querySelector('button')
+                    ?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+
+                const teamOption =
+                    Array.from(
+                        document.body
+                            .querySelectorAll(
+                                'hlm-select-item',
+                            ),
+                    )
+                        .find(
+                            option =>
+                                option.textContent
+                                    ?.trim()
+                                === 'Команда',
+                        ) as HTMLElement | undefined;
+
+                expect(teamOption).not.toBeUndefined();
+                teamOption?.click();
+                fixture.detectChanges();
+
+                expect(
+                    component.createType(),
+                ).toBe(
+                    OrganizationalUnitType.Team,
+                );
+
+
+                parentTrigger
+                    ?.querySelector('button')
+                    ?.click();
+                fixture.detectChanges();
+                await fixture.whenStable();
+                fixture.detectChanges();
+
+
+                const supportOption =
+                    Array.from(
+                        document.body
+                            .querySelectorAll(
+                                'hlm-select-item',
+                            ),
+                    )
+                        .find(
+                            option =>
+                                option.textContent
+                                    ?.trim()
+                                === support.name,
+                        ) as HTMLElement | undefined;
+
+                expect(supportOption).not.toBeUndefined();
+                supportOption?.click();
+                fixture.detectChanges();
+
+                expect(
+                    component.createParentId(),
+                ).toBe(
+                    support.id,
+                );
+            },
+        );
+
         it(
             'should create child inside manageable tree',
             () => {
