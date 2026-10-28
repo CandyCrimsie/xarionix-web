@@ -52,6 +52,7 @@
                 data-testid="map-marker-dialog">
                 <app-map-marker-editor [(draft)]="markerDraft" [editing]="editingMarker() !== null"
                     [spliceConnection]="spliceTarget()?.connection?.name ?? null"
+                    [(routeOperation)]="routeOperation" [(installationAfter)]="routeInstallationAfter" [routeAttachment]="editingMarker()?.route_attachment ?? null"
                     [canManage]="canManage()" [personalStyles]="personalStyles()" (styleRequested)="savePersonalStyle($event)"
                     [saving]="markerSaving()" [error]="markerError()" (pointRequested)="startPointSelection()"
                     (saveRequested)="saveMarker()" />
@@ -163,12 +164,26 @@
 
     <app-map-legend class="absolute bottom-16 left-3 z-10" [markers]="legendMarkers()" [connections]="visibleConnections()"
         [hasBuildings]="legendBuildings()" />
-    @if (spliceHover(); as hover) {
-    <button #spliceHoverAction hlmBtn type="button" variant="secondary" size="icon" class="absolute z-20 size-8 -translate-x-1/2 -translate-y-1/2 rounded-full border bg-popover text-popover-foreground shadow-md transition-colors hover:bg-accent active:not-aria-[haspopup]:-translate-y-1/2"
-        [style.left.px]="hover.x" [style.top.px]="hover.y" [hlmTooltip]="'Вставить муфту: ' + hover.targets[0].connection.name" aria-label="Вставить муфту"
+    @if (routeAnchor(); as hover) {
+    <hlm-popover [state]="routeMenuTarget() ? 'open' : 'closed'" [attachTo]="spliceHoverAction" align="start" [sideOffset]="8" (closed)="closeRouteMenu()">
+    <button #spliceHoverAction hlmBtn type="button" variant="ghost" size="icon" animate.enter="route-plus-enter" animate.leave="route-plus-leave" class="absolute z-20 size-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-300/35 bg-slate-900/85 text-slate-100 shadow-sm shadow-black/25 backdrop-blur-md transition-[scale,background-color,border-color,opacity] duration-150 ease-out hover:scale-110 hover:border-sky-300/70 hover:bg-slate-800/95 hover:text-slate-100 dark:hover:bg-slate-800/95 aria-expanded:bg-slate-900/95 aria-expanded:text-slate-100 focus-visible:ring-sky-400"
+        [style.left.px]="hover.x" [style.top.px]="hover.y" [hlmTooltip]="'Добавить на трассу: ' + hover.targets[0].connection.name" aria-label="Добавить на трассу" aria-haspopup="dialog" [attr.aria-expanded]="routeMenuTarget() !== null"
         data-testid="insert-splice-hover" (mouseenter)="holdSpliceHover(true)" (mouseleave)="holdSpliceHover(false)" (mousemove)="moveSpliceHover($event)"
         (focus)="holdSpliceHover(true)" (blur)="holdSpliceHover(false)" (pointerdown)="$event.stopPropagation()"
         (click)="$event.stopPropagation(); chooseHoveredSplice()"><ng-icon name="lucidePlus" /></button>
+    <div hlmPopoverContent *hlmPopoverPortal class="w-72 gap-1 rounded-xl border border-white/10 bg-slate-950/95 p-2 text-slate-100 shadow-lg backdrop-blur-md" data-testid="route-object-menu">
+        <h3 class="px-2 py-1.5 text-xs font-medium">Добавить на трассу</h3>
+        <p class="px-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400">Сетевой узел · разделить кабель</p>
+        @for (item of routeNodeOptions; track item.type) {
+        <button hlmBtn variant="ghost" type="button" class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10" [hlmTooltip]="item.description" [attr.data-testid]="'route-node-' + item.type" (click)="selectRouteObject(item.type,'split')"><app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}</button>
+        }
+        <p class="mt-1 border-t border-white/10 px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400">Вдоль трассы · без разрыва</p>
+        @for (item of routePassOptions; track item.type) {
+        <button hlmBtn variant="ghost" type="button" class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10" [hlmTooltip]="item.description" [attr.data-testid]="'route-place-' + item.type" (click)="selectRouteObject(item.type,'place')"><app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}</button>
+        }
+        <button hlmBtn variant="ghost" type="button" class="mt-1 h-8 justify-start gap-2 rounded-lg border-t border-white/10 px-2 text-xs text-slate-300 hover:bg-white/10 hover:text-white dark:hover:bg-white/10" data-testid="route-installation-boundary" (click)="startInstallationBoundary()">Изменить прокладку отсюда…</button>
+    </div>
+    </hlm-popover>
     }
     <div class="absolute bottom-0 left-0 z-10 flex items-end">
         <a [href]="yandexMapsUrl()" target="_blank" rel="noopener noreferrer"
@@ -275,8 +290,18 @@
             <div class="grid gap-1"><span class="text-xs text-muted-foreground">Конец</span><button hlmBtn variant="link" class="h-auto justify-start whitespace-normal p-0 text-left" (click)="openEndpoint(line.target)">{{ line.target.name }}</button></div>
             @if (line.length_m !== null) { <p class="text-xs text-muted-foreground">Длина трассы по карте: {{ line.length_m.toFixed(1) }} м</p> }
             @if (line.position_missing) { <p class="text-sm text-muted-foreground">У одного из концов нет координат. Трасса временно не отображается полностью.</p> }
+            @if (line.route_objects?.length) {
+            <div class="grid gap-2 border-t pt-3"><h4 class="text-xs text-muted-foreground">Объекты вдоль трассы · без разрыва кабеля</h4>
+                @for (object of line.route_objects; track object.marker_id) {
+                <div class="flex items-center justify-between gap-2"><button hlmBtn variant="link" size="sm" class="h-auto min-w-0 justify-start whitespace-normal p-0 text-left" (click)="openEndpoint({kind:'marker',id:object.marker_id,name:object.name,latitude:object.latitude,longitude:object.longitude})">{{ object.name }}</button>
+                    @if (canManage() && line.can_manage) { <button hlmBtn variant="ghost" size="sm" (click)="requestDetachObject(line,object.marker_id,object.name)">Отвязать</button> }
+                </div>
+                @if (object.state === 'needs_attention') { <p class="text-xs text-destructive">Проверьте привязку: геометрия трассы изменена.</p> }
+                }
+            </div>
+            }
             @if (canManage() && line.can_manage && line.geometry && line.geometry_token) {
-            <button hlmBtn variant="outline" size="sm" (click)="startAccessibleSplice(line)" data-testid="insert-splice-card"><ng-icon name="lucidePlus" />Вставить муфту</button>
+            <button hlmBtn variant="outline" size="sm" (click)="startAccessibleSplice(line)" data-testid="insert-splice-card"><ng-icon name="lucidePlus" />Добавить на трассу</button>
             }
             @if (line.can_manage) { <div class="flex gap-2"><button hlmBtn variant="outline" size="sm" (click)="startEditConnection(line)">Изменить</button><button hlmBtn variant="destructive" size="sm" (click)="requestDeleteConnection(line)">Удалить</button></div> }
         </div>
@@ -292,9 +317,35 @@
     </hlm-dialog-content>
 </hlm-dialog>
 
+<hlm-dialog #boundaryDialog="hlmDialog" [disableClose]="boundarySaving()">
+    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md" data-testid="installation-boundary-dialog">
+        <hlm-dialog-header><h3 hlmDialogTitle>Способ прокладки</h3><p hlmDialogDescription>«{{ boundaryTarget()?.connection?.name }}». Граница добавится точно в выбранной точке, без нового физического узла.</p></hlm-dialog-header>
+        <div class="grid gap-4">
+            <hlm-select [value]="boundaryMethod()" [itemToString]="installationLabel" (valueChange)="$event && boundaryMethod.set($event)">
+                <hlm-select-trigger class="w-full" aria-label="Способ прокладки"><hlm-select-value /></hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>@for (style of installationStyles; track style.value) { <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item> }</hlm-select-content>
+            </hlm-select>
+            <hlm-select [value]="boundaryUntil()" [itemToString]="boundaryUntilLabel" (valueChange)="$event && boundaryUntil.set($event)">
+                <hlm-select-trigger class="w-full" aria-label="Протяжённость участка"><hlm-select-value /></hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal><hlm-select-item value="end">До конца трассы</hlm-select-item><hlm-select-item value="next_vertex">До следующей вершины</hlm-select-item></hlm-select-content>
+            </hlm-select>
+            @if (boundaryTarget(); as target) { <p class="text-xs text-muted-foreground">{{ target.point.position[1].toFixed(7) }} / {{ target.point.position[0].toFixed(7) }}</p> }
+            @if (boundaryError()) { <p role="alert" class="text-sm text-destructive">{{ boundaryError() }}</p> }
+        </div>
+        <hlm-dialog-footer><button hlmBtn variant="outline" [disabled]="boundarySaving()" (click)="ctx.close()">Отмена</button><button hlmBtn data-testid="save-installation-boundary" [disabled]="boundarySaving()" (click)="saveInstallationBoundary()">{{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}</button></hlm-dialog-footer>
+    </hlm-dialog-content>
+</hlm-dialog>
+
+<hlm-alert-dialog #detachDialog="hlmAlertDialog">
+    <hlm-alert-dialog-content *hlmAlertDialogPortal>
+        <hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Отвязать объект от трассы?</h3><p hlmAlertDialogDescription>«{{ objectToDetach()?.name }}» останется в прежней точке на карте. Топология кабеля не изменится.</p></hlm-alert-dialog-header>
+        <hlm-alert-dialog-footer><button hlmAlertDialogCancel [disabled]="objectDetaching()">Отмена</button><button hlmBtn [disabled]="objectDetaching()" (click)="detachObject()">Отвязать</button></hlm-alert-dialog-footer>
+    </hlm-alert-dialog-content>
+</hlm-alert-dialog>
+
 <hlm-dialog #splicePlacementDialog="hlmDialog">
     <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
-        <hlm-dialog-header><h3 hlmDialogTitle>Место вставки муфты</h3><p hlmDialogDescription>«{{ alternativeSpliceLine()?.name }}». Выберите участок трассы и положение вдоль него. Это также доступно с клавиатуры.</p></hlm-dialog-header>
+        <hlm-dialog-header><h3 hlmDialogTitle>Место добавления объекта</h3><p hlmDialogDescription>«{{ alternativeSpliceLine()?.name }}». Выберите участок трассы и положение вдоль него. Это также доступно с клавиатуры.</p></hlm-dialog-header>
         <div class="grid gap-4">
             <hlm-select [value]="spliceSegment()" [itemToString]="spliceSegmentLabel" (valueChange)="spliceSegment.set($event ?? null)">
                 <hlm-select-trigger class="w-full" aria-label="Участок трассы"><hlm-select-value placeholder="Выберите участок" /></hlm-select-trigger>

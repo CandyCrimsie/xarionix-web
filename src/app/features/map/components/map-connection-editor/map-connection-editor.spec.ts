@@ -52,4 +52,27 @@ describe('MapConnectionEditor', () => {
         expect(fixture.nativeElement.textContent).toContain('Не удалось сохранить');
         expect(fixture.componentInstance.draft().name).toBe('Магистраль');
     });
+
+    it('preserves mixed methods through reverse, vertex edits and explicit boundary merging', () => {
+        const c = fixture.componentInstance;
+        c.update('vertices', [[38.2, 55.2], [38.6, 55.6]]);
+        c.update('installation_methods', ['aerial', 'duct', 'indoor']);
+        c.changeVertex(0, '55.3, 38.3');
+        expect(c.methods()).toEqual(['aerial', 'duct', 'indoor']);
+        c.removeVertex(0);
+        expect(c.draft().vertices).toHaveLength(2);
+        expect(c.coordinateError()).toContain('Выберите способ');
+        c.setMergeMethod(0, 'facade'); c.removeVertex(0);
+        expect(c.methods()).toEqual(['facade', 'indoor']);
+        c.undoVertex(); expect(c.methods()).toEqual(['aerial', 'duct', 'indoor']);
+        c.swap(); expect(c.methods()).toEqual(['indoor', 'duct', 'aerial']);
+    });
+
+    it('inherits the last method when extending a route and offers an explicit whole-route override', () => {
+        const c = fixture.componentInstance;
+        c.setAllMethods('duct'); c.addVertex();
+        expect(c.methods()).toEqual(['duct', 'duct']);
+        c.setMethod(1, 'direct_buried'); expect(c.uniformMethod()).toBeNull();
+        c.setAllMethods('aerial'); expect(c.methods()).toEqual(['aerial', 'aerial']);
+    });
 });

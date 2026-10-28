@@ -50,7 +50,10 @@ import type {
     MapVisibility,
     MapStylePreset,
     MapMarkerAppearance,
+    InstallationMethod, RouteAttachment,
 } from '../../models/map.models';
+import { INSTALLATION_STYLES, installationLabel } from '../../map-line-styles';
+import { ROUTE_DUAL_TYPES } from '../../map-route.config';
 
 
 type OpacityField =
@@ -98,6 +101,13 @@ export class MapMarkerEditor {
     readonly draft = model.required<MapMarkerPayload>();
     readonly editing = input(false);
     readonly spliceConnection = input<string | null>(null);
+    readonly routeOperation=model<'split'|'place'>('split');
+    readonly installationAfter=model<InstallationMethod|null>(null);
+    readonly routeAttachment=input<RouteAttachment|null>(null);
+    readonly dualRouteRole=computed(()=>ROUTE_DUAL_TYPES.has(this.draft().point_type));
+    readonly installationStyles=INSTALLATION_STYLES;
+    readonly installationLabel=(value:string)=>value==='unchanged'?'Без изменения':installationLabel(value as InstallationMethod);
+    readonly routeRoleLabel=(value:string)=>value==='split'?'Вставить узел — разделить кабель':'Разместить на трассе — без разрыва';
     readonly canManage = input(false);
     readonly personalStyles = input<MapStylePreset[]>([]);
     readonly styleRequested = output<{ action: 'create' | 'rename' | 'duplicate' | 'delete'; name: string; appearance: MapMarkerAppearance; preset?: MapStylePreset }>();
@@ -111,9 +121,13 @@ export class MapMarkerEditor {
     readonly visibilityLabel = (value: MapVisibility) => value === 'private' ? 'Личная отметка' : 'Общий объект компании';
     readonly styleLabel = (id: number) => this.personalStyles().find(style => style.id === id)?.name ?? '';
     readonly appearance = computed(() => pickMarkerAppearance(this.draft()));
-    readonly canEditCoordinates = computed(() => !this.spliceConnection() && (this.draft().building_link_role !== 'represents'
+    readonly canEditCoordinates = computed(() => !this.spliceConnection() && !this.routeAttachment() && (this.draft().building_link_role !== 'represents'
         || this.relocatingBuilding() || !!this.draft().building_position
         || this.draft().latitude === null || this.draft().longitude === null));
+    coordinateDisplay(axis: 'latitude' | 'longitude'): number | null {
+        const value = this.draft()[axis];
+        return value !== null && !this.canEditCoordinates() ? Number(value.toFixed(7)) : value;
+    }
     readonly saving = input(false);
     readonly error = input<string | null>(null);
     readonly saveRequested = output<void>();

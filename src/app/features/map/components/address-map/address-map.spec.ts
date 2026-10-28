@@ -266,6 +266,7 @@ describe('AddressMap', () => {
         getConnections: vi.fn(), getStyles: vi.fn(), getBuildingMarker: vi.fn(),
         createConnection: vi.fn(), updateConnection: vi.fn(), deleteConnection: vi.fn(),
         splitConnection: vi.fn(),
+        placeRouteObject: vi.fn(), setInstallationBoundary: vi.fn(), detachRouteObject: vi.fn(),
         createStyle: vi.fn(), updateStyle: vi.fn(), deleteStyle: vi.fn(),
     };
     const loader = { load: vi.fn() };
@@ -1095,6 +1096,56 @@ describe('AddressMap', () => {
         c.openSpliceEditor({ connection: { ...splitLine(), visibility: 'private', can_manage: true }, point: snap });
         expect(c.spliceTarget()).toBeNull();
         expect(c.spliceBusy()).toBe(true);
+    });
+
+    it('opens the object menu first and freezes the chosen connection snapshot', async () => {
+        await initialize(); fixture.componentRef.setInput('canManage', true);
+        const c = fixture.componentInstance, line = splitLine();
+        const selected = { connection: line, point: { ...snap, position: [...snap.position] as [number, number] } };
+        c.openRouteMenu(selected);
+        selected.point.position[0] = 90; line.version = 99;
+        expect(c.spliceTarget()).toBeNull();
+        expect(c.routeMenuTarget()?.connection.version).toBe(3);
+        expect(c.routeMenuTarget()?.point.position).toEqual(snap.position);
+        c.selectRouteObject('fiber_box', 'split');
+        expect(c.routeMenuTarget()).toBeNull();
+        expect(c.markerDraft()).toMatchObject({ point_type: 'fiber_box', icon_name: 'fiber-box' });
+        expect(c.spliceTarget()?.point.position).toEqual(snap.position);
+    });
+
+    it('places a chamber without calling split and keeps all existing endpoints', async () => {
+        await initialize(); fixture.componentRef.setInput('canManage', true);
+        const c = fixture.componentInstance, line = splitLine();
+        c.connections.set([line]);
+        const saved = { ...marker, id: 81, point_type: 'chamber' };
+        const changed = { ...line, version: 4, route_objects: [{ marker_id: 81, name: 'Колодец', point_type: 'chamber', latitude: snap.position[1], longitude: snap.position[0], segment_index: 0, fraction: .23, state: 'on_route' }] };
+        mapData.placeRouteObject.mockReturnValue(of({ marker: saved, connection: changed }));
+        c.openSpliceEditor({ connection: line, point: snap }, 'chamber', 'place');
+        c.saveMarker();
+        expect(mapData.placeRouteObject).toHaveBeenCalledWith(line.id, expect.objectContaining({
+            expected_version: 3, expected_geometry_token: line.geometry_token,
+            marker: expect.objectContaining({ point_type: 'chamber' }), position: { longitude: snap.position[0], latitude: snap.position[1] },
+        }));
+        expect(c.connections()).toHaveLength(1);
+        expect(c.connections()[0].source).toEqual(line.source);
+        expect(c.markers().find(point => point.id === 81)?.route_attachment?.connection_id).toBe(line.id);
+        expect(mapData.splitConnection).not.toHaveBeenCalled();
+    });
+
+    it('sets a method boundary without a physical node and ignores stale company responses', async () => {
+        await initialize(); fixture.componentRef.setInput('canManage', true);
+        const c = fixture.componentInstance, line = splitLine(), pending = new Subject<MapConnection>();
+        c.connections.set([line]); c.openRouteMenu({ connection: line, point: snap }); c.startInstallationBoundary();
+        fixture.detectChanges();
+        expect(document.body.querySelector('[aria-label="Протяжённость участка"]')?.textContent).toContain('До конца трассы');
+        c.boundaryMethod.set('duct');
+        mapData.setInstallationBoundary.mockReturnValue(pending);
+        c.saveInstallationBoundary(); c.saveInstallationBoundary();
+        expect(mapData.setInstallationBoundary).toHaveBeenCalledOnce();
+        expect(mapData.setInstallationBoundary).toHaveBeenCalledWith(line.id, expect.objectContaining({ installation_after: 'duct', fraction: snap.fraction }));
+        expect(mapData.createMarker).not.toHaveBeenCalled();
+        companyChanged.next(2); pending.next({ ...line, version: 4 });
+        expect(c.connections()).toEqual([]); expect(c.boundaryTarget()).toBeNull();
     });
 
     it('adds, deletes and undoes only intermediate vertices; Escape cancels without saving', async () => {

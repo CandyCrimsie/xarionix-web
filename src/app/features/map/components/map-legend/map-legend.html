@@ -17,17 +17,24 @@
         }
         @if (media().length) {
         @if (objects().length) { <hlm-separator class="my-3 bg-white/10" /> }
-        <p class="mb-2 text-zinc-400">Соединения</p>
+        <p class="mb-2 text-zinc-400">Типы кабеля</p>
         <div class="grid gap-2">
             @for (medium of media(); track medium[0]) {
-            <span class="flex items-center gap-2"><svg class="h-3 w-7 shrink-0" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6h26" [attr.stroke]="medium[1]" stroke-width="2.5" stroke-linecap="round" /></svg>{{ medium[0] === 'fiber' ? 'Оптоволокно' : 'Витая пара' }}</span>
+            <span class="flex items-center gap-2"><app-map-line-sample [medium]="$any(medium[0])" />{{ medium[0] === 'fiber' ? 'Оптоволокно' : 'Витая пара' }}</span>
             }
         </div>
+        <hlm-separator class="my-3 bg-white/10" />
+        <hlm-collapsible [expanded]="true">
+            <button hlmCollapsibleTrigger class="mb-2 flex w-full items-center justify-between text-left text-zinc-400" type="button">Способ прокладки<ng-icon name="lucideChevronDown" class="size-3" /></button>
+            <div hlmCollapsibleContent class="grid gap-2">@for (method of methods(); track method.value) {
+                <span class="flex items-center gap-2"><app-map-line-sample [method]="method.value" />{{ method.label }}</span>
+            }</div>
+        </hlm-collapsible>
         <hlm-separator class="my-3 bg-white/10" />
         <p class="mb-2 text-zinc-400">Состояния</p>
         <div class="grid grid-cols-2 gap-2">
             @for (status of statuses(); track status.value) {
-            <span class="flex items-center gap-2"><svg class="h-3 w-7 shrink-0" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6h26" stroke="currentColor" stroke-width="2.5" [attr.stroke-dasharray]="status.svgDash" [attr.opacity]="status.opacity" /></svg>{{ status.label }}</span>
+            <span class="flex items-center gap-2"><app-map-line-sample class="w-7" [status]="status.value" />{{ status.label }}</span>
             }
         </div>
         }

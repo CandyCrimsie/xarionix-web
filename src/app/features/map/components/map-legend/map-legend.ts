@@ -9,10 +9,12 @@ import { MapIcon } from '../map-icon/map-icon';
 import { MAP_MARKER_ICONS, LEGACY_MAP_MARKER_ICONS } from '../../map-marker.config';
 import type { MapConnection, MapMarker } from '../../models/map.models';
 import { CONNECTION_COLORS, CONNECTION_STATUSES } from '../../map-connection-layer';
+import { INSTALLATION_STYLES, installationMethods } from '../../map-line-styles';
+import { MapLineSample } from '../map-line-sample/map-line-sample';
 
 @Component({
     selector: 'app-map-legend',
-    imports: [HlmCollapsibleImports, HlmButtonImports, HlmTooltipImports, HlmSeparatorImports, NgIcon, MapIcon],
+    imports: [HlmCollapsibleImports, HlmButtonImports, HlmTooltipImports, HlmSeparatorImports, NgIcon, MapIcon, MapLineSample],
     providers: [provideIcons({ lucideChevronDown, lucideMap })],
     templateUrl: './map-legend.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,4 +31,8 @@ export class MapLegend {
     });
     readonly media = computed(() => Object.entries(CONNECTION_COLORS).filter(([medium]) => this.connections().some(line => line.geometry && line.medium === medium)));
     readonly statuses = computed(() => CONNECTION_STATUSES.filter(status => this.connections().some(line => line.geometry && line.status === status.value)));
+    readonly methods = computed(() => {
+        const used = new Set(this.connections().filter(line => line.geometry).flatMap(line => installationMethods(line.vertices ?? [], line.installation_methods)));
+        return INSTALLATION_STYLES.filter(style => used.has(style.value));
+    });
 }

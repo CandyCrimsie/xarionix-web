@@ -9,7 +9,7 @@ describe('MapLegend', () => {
         const fixture = TestBed.createComponent(MapLegend);
         fixture.componentRef.setInput('hasBuildings', true);
         fixture.componentRef.setInput('markers', [{ icon_name: 'splice' }, { icon_name: 'splice' }] as MapMarker[]);
-        fixture.componentRef.setInput('connections', [{ medium: 'fiber', status: 'construction', geometry: { type: 'LineString', coordinates: [] } }, { medium: 'utp', status: 'inactive', geometry: null }] as MapConnection[]);
+        fixture.componentRef.setInput('connections', [{ medium: 'fiber', status: 'construction', vertices:[],installation_methods:['duct'],geometry: { type: 'LineString', coordinates: [[0,0],[1,1]] } }, { medium: 'utp', status: 'inactive', geometry: null }] as unknown as MapConnection[]);
         fixture.detectChanges();
         const button = fixture.nativeElement.querySelector('[data-testid="map-legend-toggle"]') as HTMLButtonElement;
         expect(button.getAttribute('aria-expanded')).toBe('false');
@@ -19,7 +19,8 @@ describe('MapLegend', () => {
         expect(fixture.componentInstance.statuses().map(status => status.value)).toEqual(['construction']);
         expect(fixture.nativeElement.textContent).toContain('Оптоволокно');
         expect(fixture.nativeElement.textContent).not.toContain('Витая пара');
-        expect(fixture.nativeElement.querySelector('path[stroke-dasharray="10 5 1.25 5"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('path[stroke-dasharray="8.1 4.86"]')).not.toBeNull();
+        expect(fixture.componentInstance.methods().map(method=>method.value)).toEqual(['duct']);
         button.click(); fixture.detectChanges();
         expect(button.getAttribute('aria-expanded')).toBe('false');
     });

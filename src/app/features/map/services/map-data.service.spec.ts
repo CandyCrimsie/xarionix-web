@@ -52,6 +52,22 @@ describe('MapDataService', () => {
         });
     });
 
+    it('uses distinct protected contracts for pass-through objects, boundaries and explicit detach', () => {
+        const point = { expected_version: 3, expected_geometry_token: 'a'.repeat(64), segment_index: 0, fraction: .5, position: { latitude: 55, longitude: 38 } };
+        const payload = { ...point, marker: { ...pickMarkerAppearance(createDefaultMapMarker()), point_type: 'chamber' as const, name: 'Колодец', description: null } };
+        service.placeRouteObject(17, payload).subscribe();
+        const place = http.expectOne('/api/v1/map/connections/17/route-objects');
+        expect(place.request.method).toBe('POST'); expect(place.request.body).toEqual(payload);
+        place.flush({ marker: { id: 91 }, connection: { id: 17 } });
+        service.setInstallationBoundary(17, { ...point, installation_after: 'duct', until: 'end' }).subscribe();
+        const boundary = http.expectOne('/api/v1/map/connections/17/installation-boundaries');
+        expect(boundary.request.body).not.toHaveProperty('marker'); boundary.flush({ id: 17 });
+        service.detachRouteObject({ id: 17, version: 3, geometry_token: point.expected_geometry_token } as any, 91).subscribe();
+        const detach = http.expectOne('/api/v1/map/connections/17/route-objects/91/detach');
+        expect(detach.request.body).toEqual({ expected_version: 3, expected_geometry_token: point.expected_geometry_token });
+        detach.flush({ marker: { id: 91 }, connection: { id: 17 } });
+    });
+
     it('sends viewport bounds and loads address-object bounds', () => {
         service.getBuildings({ west: 37, south: 55, east: 38, north: 56 }).subscribe();
         const buildings = http.expectOne(

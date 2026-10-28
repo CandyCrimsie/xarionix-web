@@ -20,6 +20,7 @@ export class MapSpliceHover {
         if (this.disposed) return;
         if (this.busy() || event.originalEvent?.buttons || this.map.isMoving?.()) { this.clear(); return; }
         if (this.held) return;
+        if(this.blocked(event.point)){this.leave();return;}
         const hits = this.map.queryRenderedFeatures(event.point, { layers: [CONNECTION_HIT_LAYER] });
         const ids = new Set(hits.map(feature => Number(feature.properties['id'])));
         if (this.preferredId !== null && !ids.has(this.preferredId)) this.preferredId = null;
@@ -37,7 +38,8 @@ export class MapSpliceHover {
     private readonly cameraMove = () => this.clear();
 
     constructor(private readonly map: LibreMap, private readonly lines: () => MapConnection[],
-        private readonly busy: () => boolean, private readonly changed: (hover: SpliceHover | null) => void) {
+        private readonly busy: () => boolean, private readonly changed: (hover: SpliceHover | null) => void,
+        private readonly blocked:(point:{x:number;y:number})=>boolean=()=>false) {
         map.on('mousemove', this.move);
         map.on('movestart', this.cameraMove);
         map.getCanvas().addEventListener?.('mouseleave', this.leave);

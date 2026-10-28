@@ -16,8 +16,23 @@ describe('Shared map renderer', () => {
         expect(LEGACY_MAP_MARKER_ICONS.some(icon => icon.value === 'house')).toBe(true);
         expect(markerSvg({ ...appearance, icon_name: 'house' })).not.toBe(markerSvg({ ...appearance, icon_name: 'map-house' }));
     });
+    it.each(['small', 'normal', 'large'] as const)('renders new infrastructure SVGs at %s size without a hidden background', marker_size => {
+        for (const icon_name of ['fiber-box', 'odf', 'transition']) {
+            const values = { ...appearance, icon_name, marker_size, marker_shape: 'icon' as const,
+                background_enabled: false, border_enabled: false, icon_color: '#123456', icon_opacity: .4 };
+            const svg = new DOMParser().parseFromString(markerSvg(values), 'image/svg+xml');
+            const glyph = svg.querySelector('svg svg');
+            expect(svg.querySelector('parsererror')).toBeNull();
+            expect(glyph?.getAttribute('viewBox')).toBe('0 0 24 24');
+            expect(glyph?.querySelector('g')?.getAttribute('stroke')).toBe('#123456');
+            expect(glyph?.querySelector('g')?.getAttribute('fill')).toBe('none');
+            expect(glyph?.parentElement?.getAttribute('opacity')).toBe('0.4');
+            expect(glyph?.parentElement?.getAttribute('transform')).toContain(`scale(${markerMetrics(values).size * .75 / 24})`);
+            expect(svg.querySelector('svg > g > rect')?.getAttribute('stroke-width')).toBe('0');
+        }
+    });
     it('offers only distinct infrastructure icons while retaining all legacy renderers', () => {
-        expect(MAP_MARKER_ICONS).toHaveLength(11);
+        expect(MAP_MARKER_ICONS).toHaveLength(14);
         for (const icon of [...MAP_MARKER_ICONS, ...LEGACY_MAP_MARKER_ICONS]) {
             expect(mapMarkerIconSvg(icon.value)).toContain('<svg');
         }

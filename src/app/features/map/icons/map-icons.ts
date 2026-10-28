@@ -9,6 +9,9 @@ import note from './note.svg';
 import router from './router.svg';
 import wifi from './wifi.svg';
 import radioTower from './radio-tower.svg';
+import fiberBox from './fiber-box.svg';
+import odf from './odf.svg';
+import transition from './transition.svg';
 
 export const APPROVED_MAP_ICONS = [
     { value: 'map-house', label: 'Дом', svg: house },
@@ -19,6 +22,9 @@ export const APPROVED_MAP_ICONS = [
     { value: 'chamber', label: 'Колодец', svg: chamber },
     { value: 'equipment', label: 'Оборудование', svg: equipment },
     { value: 'note', label: 'Заметка', svg: note },
+    { value: 'fiber-box', label: 'Оптический бокс', svg: fiberBox },
+    { value: 'odf', label: 'Оптический кросс', svg: odf },
+    { value: 'transition', label: 'Точка перехода', svg: transition },
 ] as const;
 
 export const TELECOM_MAP_ICONS = [

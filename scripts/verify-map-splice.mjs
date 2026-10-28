@@ -38,6 +38,7 @@ export async function verifyMapSplice(page, screenshot) {
     const pressed = await plus.boundingBox();
     assert(Math.hypot(resting.x - pressed.x, resting.y - pressed.y) < .1, 'Spartan active styling must not move the snapped plus');
     await page.mouse.up();
+    await page.getByTestId('route-node-splice').click();
     await page.getByTestId('map-marker-dialog').waitFor();
     assert((await page.locator('app-map-marker-editor').textContent()).includes('разделит соединение'));
     assert(await page.locator('#marker-latitude').isDisabled());
@@ -48,7 +49,7 @@ export async function verifyMapSplice(page, screenshot) {
         return { id: button.dataset.testid, w: rect.width, h: rect.height, sw: svg.width, sh: svg.height,
             offset: Math.hypot(svg.x + svg.width / 2 - rect.x - rect.width / 2, svg.y + svg.height / 2 - rect.y - rect.height / 2) };
     }));
-    assert.equal(grid.length, 11);
+    assert.equal(grid.length, 14);
     assert(grid.every(icon => icon.w === 44 && icon.h === 44 && icon.sw >= 20 && icon.sw <= 24 && icon.offset < .5), JSON.stringify(grid));
     await screenshot('icon-grid');
     // Verify real browser-decoded note pixels, not merely string attributes.
@@ -76,6 +77,7 @@ export async function verifyMapSplice(page, screenshot) {
     await page.getByTestId('map-marker-dialog').waitFor({ state: 'detached' });
     const countBefore = await component(() => window.ng.getComponent(document.querySelector('app-address-map')).connections().length);
     await page.mouse.move(target.cursorX, target.cursorY); await plus.waitFor({ state: 'visible' }); await plus.click();
+    await page.getByTestId('route-node-splice').click();
     await page.getByTestId('map-marker-dialog').waitFor();
     await page.getByTestId('marker-name').fill('Муфта из hover-плюса');
     const before = await component(() => {
@@ -121,7 +123,9 @@ export async function verifyMapSplice(page, screenshot) {
     await plus.waitFor({ state: 'visible' });
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'insert-splice-hover');
     assert.equal(await component(() => window.ng.getComponent(document.querySelector('app-address-map')).spliceHover().targets[0].connection.id), 7001);
-    await page.keyboard.press('Enter'); await page.getByTestId('map-marker-dialog').waitFor();
+    await page.keyboard.press('Enter');
+    await page.getByTestId('route-node-splice').click();
+    await page.getByTestId('map-marker-dialog').waitFor();
     assert.equal(await component(() => window.ng.getComponent(document.querySelector('app-address-map')).spliceTarget().connection.id), 7001);
     await component(() => window.ng.getComponent(document.querySelector('app-address-map')).markerDialog().close({}));
     await page.getByTestId('map-marker-dialog').waitFor({ state: 'detached' });
@@ -132,12 +136,13 @@ export async function verifyMapSplice(page, screenshot) {
         c.openConnectionPopup(1);
     });
     await page.getByTestId('insert-splice-card').click();
-    await page.getByRole('heading', { name: 'Место вставки муфты', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Место добавления объекта', exact: true }).waitFor();
     await component(() => {
         const c = window.ng.getComponent(document.querySelector('app-address-map'));
         c.spliceSegment.set(0); c.spliceFraction.set(.61);
     });
     await page.getByRole('button', { name: 'Продолжить', exact: true }).click();
+    await page.getByTestId('route-node-splice').click();
     await page.getByTestId('map-marker-dialog').waitFor();
     assert.equal(await component(() => window.ng.getComponent(document.querySelector('app-address-map')).spliceTarget().point.fraction), .61);
     await component(() => window.ng.getComponent(document.querySelector('app-address-map')).markerDialog().close({}));

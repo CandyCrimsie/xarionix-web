@@ -17,7 +17,7 @@ import {
     HostListener,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom, Subscription, type Observable } from 'rxjs';
+import { firstValueFrom, Subscription, map as mapResult, type Observable } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import { toast } from '@spartan-ng/brain/sonner';
@@ -48,6 +48,7 @@ import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmDialog, HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
+import { HlmPopoverImports } from '@spartan-ng/helm/popover';
 import { AddressApiService } from '../../../../core/addresses/address-api.service';
 
 import type { AddressObject, Building } from '../../../../core/addresses/address.models';
@@ -84,6 +85,7 @@ import type {
     MapMarkerAppearance,
     MapStylePreset,
     BuildingBindingConflict,
+    InstallationMethod, MapPointType, RouteNodeType, RoutePassThroughType,
 } from '../../models/map.models';
 import { createConnectionDraft } from '../../models/map.models';
 import { createMarkerElement, markerImageKey, rasterizeMarker, labelHaloColor, MAP_FONT_FACES, MAP_LABEL_LAYOUT, MAP_TEXT_FONT } from '../../map-marker-renderer';
@@ -98,6 +100,11 @@ import { MapMarkerEditor } from '../map-marker-editor/map-marker-editor';
 import { MapLegend } from '../map-legend/map-legend';
 import { MapSpliceHover, type SpliceHover, type SpliceTarget } from '../../map-splice-hover';
 import { routePosition } from '../../map-connection-geometry';
+import { INSTALLATION_STYLES, installationMethods, installationLabel, removeRouteVertex as removeVertexWithMethods } from '../../map-line-styles';
+import { MarkerFootprintCache } from '../../map-marker-footprints';
+import type { MarkerFootprint } from '../../map-line-clipping';
+import { MapIcon } from '../map-icon/map-icon';
+import { ROUTE_NODE_OPTIONS, ROUTE_PASS_OPTIONS } from '../../map-route.config';
 
 
 type MapInstance = import('maplibre-gl').Map;
@@ -148,6 +155,8 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         HlmSelectImports,
         HlmSliderImports,
         MapLegend,
+        HlmPopoverImports,
+        MapIcon,
     ],
     providers: [provideIcons({
         lucideBuilding2,
@@ -221,7 +230,7 @@ export class AddressMap implements AfterViewInit {
     readonly selectedMarkerId = signal<number | null>(null);
     readonly popupBuildingId = signal<number | null>(null);
     readonly activeVertex = signal<number | null>(null);
-    readonly routeHistory = signal<[number, number][][]>([]);
+    readonly routeHistory = signal<MapConnectionDraft[]>([]);
     readonly popupConnections = signal<MapConnection[]>([]);
     readonly markerDependencies = signal<MapConnection[]>([]);
     readonly markerDeleteError = signal<string | null>(null);
@@ -235,6 +244,24 @@ export class AddressMap implements AfterViewInit {
     readonly dark = signal(document.documentElement.classList.contains('dark'));
     readonly spliceHover = signal<SpliceHover | null>(null);
     readonly spliceTarget = signal<SpliceTarget | null>(null);
+    readonly routeMenuTarget = signal<SpliceTarget|null>(null);
+    readonly routeAnchor = computed(()=>this.routeMenuTarget()?{targets:[this.routeMenuTarget()!],x:this.routeMenuTarget()!.point.screen.x,y:this.routeMenuTarget()!.point.screen.y}:this.spliceHover());
+    readonly routeOperation = signal<'split'|'place'>('split');
+    readonly routeInstallationAfter = signal<InstallationMethod|null>(null);
+    readonly routeNodeOptions=ROUTE_NODE_OPTIONS;
+    readonly routePassOptions=ROUTE_PASS_OPTIONS;
+    readonly installationStyles=INSTALLATION_STYLES;
+    readonly installationLabel=installationLabel;
+    readonly boundaryDialog=viewChild<HlmDialog>('boundaryDialog');
+    readonly boundaryTarget=signal<SpliceTarget|null>(null);
+    readonly boundaryMethod=signal<InstallationMethod>('duct');
+    readonly boundaryUntil=signal<'end'|'next_vertex'>('end');
+    readonly boundaryUntilLabel = (value: string) => value === 'next_vertex' ? 'До следующей вершины' : 'До конца трассы';
+    readonly boundarySaving=signal(false);
+    readonly boundaryError=signal<string|null>(null);
+    readonly detachDialog=viewChild<HlmAlertDialog>('detachDialog');
+    readonly objectToDetach=signal<{line:MapConnection;markerId:number;name:string}|null>(null);
+    readonly objectDetaching=signal(false);
     readonly spliceChoices = signal<SpliceTarget[]>([]);
     readonly spliceChoiceDialog = viewChild<HlmDialog>('spliceChoiceDialog');
     readonly spliceHoverAction = viewChild<ElementRef<HTMLButtonElement>>('spliceHoverAction');
@@ -257,10 +284,10 @@ export class AddressMap implements AfterViewInit {
     readonly visibleConnections = computed(() => this.showConnections() ? this.connections().filter(line =>
         (this.mediumFilter() === 'all' || line.medium === this.mediumFilter())
         && (this.statusFilter() === 'all' || line.status === this.statusFilter())) : []);
-    readonly spliceBusy = computed(() => !this.canManage() || this.placingMarker() || this.connectionDraftActive()
+    readonly spliceBusy = computed(() => !this.canManage() || this.placingMarker() || this.connectionDraftActive() || this.routeMenuTarget()!==null
         || this.markerSaving() || this.connectionSaving() || this.state() !== 'ready'
         || [this.markerDialog(), this.connectionDialog(), this.spliceChoiceDialog(), this.splicePlacementDialog(),
-            this.deleteMarkerDialog(), this.connectionDeleteDialog(), this.bindingDialog()].some(dialog => dialog?.stateComputed() === 'open'));
+            this.deleteMarkerDialog(), this.connectionDeleteDialog(), this.bindingDialog(),this.boundaryDialog(),this.detachDialog()].some(dialog => dialog?.stateComputed() === 'open'));
     readonly pointTypeLabel = (type: string) => MAP_POINT_TYPES.find(item => item.value === type)?.label ?? 'Объект';
     readonly linkRoleLabel = (role: string) => BUILDING_LINK_ROLES.find(item => item.value === role)?.label ?? '';
     readonly connectionLabel = connectionLabel;
@@ -293,6 +320,7 @@ export class AddressMap implements AfterViewInit {
     private readonly markerResources = new Set<string>();
     private usedMarkerImages = new Set<string>();
     private connectionLayer: MapConnectionLayer | null = null;
+    private readonly footprintCache=new MarkerFootprintCache();
     private spliceController: MapSpliceHover | null = null;
     private connectionViewportSubscription: Subscription | null = null;
     private contextGeneration = 0;
@@ -325,6 +353,8 @@ export class AddressMap implements AfterViewInit {
             this.closePopup();
             this.spliceController?.clear();
             this.spliceTarget.set(null);
+            this.routeMenuTarget.set(null);this.boundaryTarget.set(null);this.boundaryDialog()?.close({});this.boundarySaving.set(false);
+            this.detachDialog()?.close({});this.objectToDetach.set(null);this.objectDetaching.set(false);
             this.spliceChoices.set([]);
             this.alternativeSpliceLine.set(null);
             this.spliceChoiceDialog()?.close({});
@@ -413,7 +443,7 @@ export class AddressMap implements AfterViewInit {
             if (this.state() !== 'ready') return;
             untracked(() => {
                 this.renderConnections();
-                this.connectionLayer?.setDraft(active ? draft : null, mode === 'vertices');
+                this.connectionLayer?.setDraft(active ? draft : null, mode === 'vertices',this.editingConnection()?.id??null);
             });
         });
     }
@@ -502,8 +532,9 @@ export class AddressMap implements AfterViewInit {
                     (id, coordinate) => this.openConnectionPopup(id, coordinate),
                     index => { this.rememberRoute(); this.activeVertex.set(index); },
                     (index, coordinate) => this.moveRouteVertex(index, coordinate),
+                    ()=>this.connectionFootprints(),
                 );
-                this.spliceController = new MapSpliceHover(map, () => this.visibleConnections(), () => this.spliceBusy(), hover => this.spliceHover.set(hover));
+                this.spliceController = new MapSpliceHover(map, () => this.visibleConnections(), () => this.spliceBusy(), hover => this.spliceHover.set(hover),point=>this.connectionLayer?.isOccluded(point)??false);
                 this.state.set('ready');
                 this.scheduleSessionRefresh(session);
                 this.updateExternalMapLink();
@@ -517,12 +548,13 @@ export class AddressMap implements AfterViewInit {
                 if (vertex) { this.activeVertex.set(Number(vertex.properties['index'])); return; }
                 if (this.connectionDraft().vertices.length >= 498) { toast.error('Допускается не более 498 промежуточных вершин'); return; }
                 this.rememberRoute();
-                this.connectionDraft.update(draft => ({ ...draft, vertices: [...draft.vertices, [event.lngLat.lng, event.lngLat.lat]] }));
+                this.connectionDraft.update(draft => ({ ...draft, vertices: [...draft.vertices, [event.lngLat.lng, event.lngLat.lat]],installation_methods:[...installationMethods(draft.vertices,draft.installation_methods),installationMethods(draft.vertices,draft.installation_methods).at(-1)!] }));
             });
             map.on('moveend', () => {
                 this.updateExternalMapLink();
                 this.scheduleViewportLoad();
             });
+            map.on('movestart',()=>this.routeMenuTarget.set(null));
         } catch (error) {
             if (this.destroyed || generation !== this.initializationGeneration) {
                 return;
@@ -890,6 +922,7 @@ export class AddressMap implements AfterViewInit {
         void rasterizeMarker(pickMarkerAppearance(marker), 2, selected).then(image => {
             if (this.destroyed || this.map !== map || map.hasImage(imageKey) || !this.usedMarkerImages.has(imageKey)) return;
             map.addImage(imageKey, image, { pixelRatio: 2 });
+            this.connectionLayer?.refreshClipping();
             if (imageKey !== BUILDING_MARKER_IMAGE && imageKey !== SELECTED_BUILDING_IMAGE) this.markerResources.add(imageKey);
         }).catch(() => {
             if (!this.destroyed && this.map === map) this.coordinateNotice.set('Не удалось подготовить изображение метки.');
@@ -1168,6 +1201,33 @@ export class AddressMap implements AfterViewInit {
         this.connectionLayer?.setConnections(this.visibleConnections(), this.selectedConnectionId());
     }
 
+    private connectionFootprints():MarkerFootprint[]{
+        const map=this.map;
+        if(!map||typeof map.queryRenderedFeatures!=='function'||typeof map.project!=='function')return [];
+        const layers=['building-points','selected-building-marker','custom-marker-points','building-clusters','custom-marker-clusters'].filter(id=>map.getLayer(id));
+        const markers=new Map(this.markers().map(marker=>[marker.id,marker]));
+        const result:MarkerFootprint[]=[],seen=new Set<string>();
+        for(const feature of map.queryRenderedFeatures({layers})){
+            if(feature.geometry.type!=='Point')continue;
+            const center=map.project(feature.geometry.coordinates as [number,number]);
+            const key=`${feature.layer.id}:${feature.id}:${center.x.toFixed(2)}:${center.y.toFixed(2)}`;
+            if(seen.has(key))continue;seen.add(key);
+            if(feature.properties['point_count']){
+                const count=Number(feature.properties['point_count']),building=feature.layer.id==='building-clusters';
+                const radius=count>=100?(building?26:25):count>=20?(building?21:20):(building?17:16);
+                result.push({center,width:radius*2+2,height:radius*2+2,radius:radius+1});continue;
+            }
+            const markerId=feature.layer.id==='custom-marker-points'?Number(feature.properties['id']):Number(feature.properties['marker_id']);
+            const marker=markers.get(markerId);
+            const appearance=marker?pickMarkerAppearance(marker):{...mapAppearanceForTheme(this.dark()),icon_name:'map-house',label_text:null};
+            const selected=marker?marker.id===this.selectedMarkerId()||marker.id===this.selectedBuildingMarker()?.id:feature.layer.id==='selected-building-marker'||Number(feature.properties['id'])===this.popupBuildingId();
+            const imageKey=String(feature.properties['image_key']??(selected?SELECTED_BUILDING_IMAGE:BUILDING_MARKER_IMAGE));
+            const footprint=this.footprintCache.footprint(map,center,appearance,imageKey,selected);
+            if(footprint)result.push(footprint);
+        }
+        return result;
+    }
+
     holdSpliceHover(held: boolean): void { this.spliceController?.hold(held); }
 
     moveSpliceHover(event: MouseEvent): void {
@@ -1180,8 +1240,23 @@ export class AddressMap implements AfterViewInit {
         const hover = this.spliceHover();
         if (!hover || this.spliceBusy()) return;
         this.spliceController?.clear();
-        if (hover.targets.length === 1) this.openSpliceEditor(hover.targets[0]);
+        if (hover.targets.length === 1) this.openRouteMenu(hover.targets[0]);
         else { this.spliceChoices.set(hover.targets); this.spliceChoiceDialog()?.open(); }
+    }
+
+    openRouteMenu(target:SpliceTarget):void {
+        if(!this.canManage()||!target.connection.can_manage)return;
+        this.splicePlacementDialog()?.close({});
+        this.routeMenuTarget.set(structuredClone(target));
+        this.spliceController?.clear();
+    }
+
+    closeRouteMenu():void {this.routeMenuTarget.set(null);}
+
+    selectRouteObject(type:MapPointType,operation:'split'|'place'):void {
+        const target=this.routeMenuTarget();if(!target)return;
+        this.routeMenuTarget.set(null);
+        this.openSpliceEditor(target,type,operation);
     }
 
     chooseSpliceConnection(target: SpliceTarget): void {
@@ -1198,7 +1273,7 @@ export class AddressMap implements AfterViewInit {
         if (!this.destroyed && this.spliceHover()?.targets.length === 1) this.spliceHoverAction()?.nativeElement.focus();
     }
 
-    openSpliceEditor(target: SpliceTarget): void {
+    openSpliceEditor(target: SpliceTarget,type:MapPointType='splice',operation:'split'|'place'='split'): void {
         if (!this.canManage() || !target.connection.can_manage || !target.connection.geometry_token) return;
         this.spliceChoiceDialog()?.close({});
         this.splicePlacementDialog()?.close({});
@@ -1206,9 +1281,11 @@ export class AddressMap implements AfterViewInit {
         this.closePopup();
         this.editingMarker.set(null);
         this.markerError.set(null);
+        this.routeOperation.set(operation);this.routeInstallationAfter.set(null);
         this.spliceTarget.set(structuredClone(target));
+        const pointType=MAP_POINT_TYPES.find(item=>item.value===type)!;
         this.markerDraft.set({ ...createDefaultMapMarker(target.point.position[1], target.point.position[0]),
-            name: 'Муфта', point_type: 'splice', icon_name: 'splice', visibility: target.connection.visibility });
+            name: pointType.label, point_type: type, icon_name: pointType.icon, visibility: target.connection.visibility });
         this.markerDialog()?.open();
     }
 
@@ -1229,7 +1306,7 @@ export class AddressMap implements AfterViewInit {
     confirmAccessibleSplice(): void {
         const connection = this.alternativeSpliceLine(), position = this.alternativeSplicePoint(), index = this.spliceSegment();
         if (!connection || !position || index === null || !this.map) return;
-        this.openSpliceEditor({ connection, point: { segmentIndex: index, fraction: this.spliceFraction(), position,
+        this.openRouteMenu({ connection, point: { segmentIndex: index, fraction: this.spliceFraction(), position,
             screen: this.map.project(position), distancePx: 0 } });
     }
 
@@ -1239,38 +1316,76 @@ export class AddressMap implements AfterViewInit {
         const draft = this.markerDraft(), generation = ++this.markerMutationGeneration;
         this.markerSaving.set(true);
         this.markerError.set(null);
-        this.mapData.splitConnection(target.connection.id, {
+        const pointPayload={
             expected_version: target.connection.version, expected_geometry_token: target.connection.geometry_token,
             segment_index: target.point.segmentIndex, fraction: target.point.fraction,
             position: { latitude: target.point.position[1], longitude: target.point.position[0] },
-            marker: { ...pickMarkerAppearance(draft), name: draft.name, description: draft.description },
-        }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        };
+        const appearance={...pickMarkerAppearance(draft),name:draft.name,description:draft.description};
+        const request:Observable<{marker:MapMarker;connections:MapConnection[]}>=this.routeOperation()==='split'
+            ?this.mapData.splitConnection(target.connection.id,{...pointPayload,marker:{...appearance,point_type:draft.point_type as RouteNodeType}})
+            :this.mapData.placeRouteObject(target.connection.id,{...pointPayload,marker:{...appearance,point_type:draft.point_type as RoutePassThroughType},installation_after:this.routeInstallationAfter()})
+                .pipe(mapResult(result=>({marker:result.marker,connections:[result.connection]})));
+        request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: result => {
                 if (this.destroyed || generation !== this.markerMutationGeneration) return;
                 // Invalidate pre-split viewport HTTP responses before applying the
                 // atomic response. Keep camera, tree and unrelated graph objects.
-                this.viewportGeneration++;
-                this.markerViewportSubscription?.unsubscribe();
-                this.connectionViewportSubscription?.unsubscribe();
                 this.markerSaving.set(false);
-                this.markers.update(points => [...points.filter(point => point.id !== result.marker.id), result.marker]);
-                const ids = new Set(result.connections.map(line => line.id));
-                this.connections.update(lines => [...lines.filter(line => !ids.has(line.id)), ...result.connections]);
-                this.setMarkerData(this.markers());
-                this.renderConnections();
+                this.applyRouteMutation(result.connections,result.marker);
                 this.markerDialog()?.close({});
                 this.spliceTarget.set(null);
                 this.selectedMarkerId.set(result.marker.id);
-                toast.success('Муфта вставлена в соединение');
+                toast.success(this.routeOperation()==='split'?'Узел вставлен в соединение':'Объект размещён на трассе');
             },
             error: (error: HttpErrorResponse) => {
                 if (this.destroyed || generation !== this.markerMutationGeneration) return;
                 this.markerSaving.set(false);
-                const message = error.error?.detail?.message ?? 'Не удалось вставить муфту. Данные формы сохранены.';
+                const message = error.error?.detail?.message ?? 'Не удалось добавить объект на трассу. Данные формы сохранены.';
                 this.markerError.set(message);
                 toast.error(message);
             },
         });
+    }
+
+    private applyRouteMutation(connections:MapConnection[],marker?:MapMarker):void {
+        this.viewportGeneration++;this.viewportSubscription?.unsubscribe();this.markerViewportSubscription?.unsubscribe();this.connectionViewportSubscription?.unsubscribe();
+        const ids=new Set(connections.map(line=>line.id));
+        this.connections.update(lines=>[...lines.filter(line=>!ids.has(line.id)),...connections]);
+        this.markers.update(current=>{
+            const points=marker?[...current.filter(point=>point.id!==marker.id),marker]:current;
+            return points.map(point=>{
+                for(const line of connections){
+                    const attachment=line.route_objects?.find(item=>item.marker_id===point.id);
+                    if(attachment)return {...point,route_attachment:{connection_id:line.id,name:line.name,version:line.version,geometry_token:line.geometry_token,segment_index:attachment.segment_index,fraction:attachment.fraction}};
+                }
+                return point.route_attachment&&ids.has(point.route_attachment.connection_id)&&connections.some(line=>line.id===point.route_attachment!.connection_id&&line.route_objects!==undefined)?{...point,route_attachment:null}:point;
+            });
+        });
+        this.setMarkerData(this.markers());this.renderConnections();
+    }
+
+    startInstallationBoundary():void {
+        const target=this.routeMenuTarget();if(!target)return;
+        this.routeMenuTarget.set(null);this.boundaryTarget.set(target);this.boundaryMethod.set('duct');this.boundaryUntil.set('end');this.boundaryError.set(null);this.boundaryDialog()?.open();
+    }
+
+    saveInstallationBoundary():void {
+        const target=this.boundaryTarget();if(!target||this.boundarySaving())return;
+        const generation=++this.markerMutationGeneration;this.boundarySaving.set(true);this.boundaryError.set(null);
+        this.mapData.setInstallationBoundary(target.connection.id,{expected_version:target.connection.version,expected_geometry_token:target.connection.geometry_token,
+            segment_index:target.point.segmentIndex,fraction:target.point.fraction,position:{latitude:target.point.position[1],longitude:target.point.position[0]},installation_after:this.boundaryMethod(),until:this.boundaryUntil()})
+            .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next:line=>{if(this.destroyed||generation!==this.markerMutationGeneration)return;this.boundarySaving.set(false);this.applyRouteMutation([line]);this.boundaryDialog()?.close({});this.boundaryTarget.set(null);toast.success('Способ прокладки изменён');},
+                error:(error:HttpErrorResponse)=>{if(this.destroyed||generation!==this.markerMutationGeneration)return;this.boundarySaving.set(false);this.boundaryError.set(error.error?.detail?.message??'Не удалось сохранить способ прокладки');}});
+    }
+
+    requestDetachObject(line:MapConnection,markerId:number,name:string):void {this.objectToDetach.set({line,markerId,name});this.detachDialog()?.open();}
+    detachObject():void {
+        const target=this.objectToDetach();if(!target||this.objectDetaching())return;
+        const generation=++this.connectionMutationGeneration;this.objectDetaching.set(true);
+        this.mapData.detachRouteObject(target.line,target.markerId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next:result=>{
+            if(this.destroyed||generation!==this.connectionMutationGeneration)return;this.objectDetaching.set(false);this.applyRouteMutation([result.connection],result.marker);this.detachDialog()?.close({});this.closePopup();this.openConnectionPopup(result.connection.id);toast.success('Объект отвязан от трассы');
+        },error:(error:HttpErrorResponse)=>{if(this.destroyed||generation!==this.connectionMutationGeneration)return;this.objectDetaching.set(false);toast.error(error.error?.detail?.message??'Не удалось отвязать объект');}});
     }
 
 
@@ -1294,6 +1409,7 @@ export class AddressMap implements AfterViewInit {
             description: connection.description, visibility: connection.visibility, medium: connection.medium,
             status: connection.status, fiber_count: connection.fiber_count, category: connection.category,
             vertices: connection.vertices.map(point => [...point] as [number, number]), expected_version: connection.version });
+        this.connectionDraft.update(draft=>({...draft,installation_methods:installationMethods(connection.vertices,connection.installation_methods)}));
         this.connectionDraftActive.set(true);
         this.connectionDialog()?.open();
     }
@@ -1315,7 +1431,7 @@ export class AddressMap implements AfterViewInit {
         this.connectionMapMode.set(null);
         this.routeBeforeMap = null;
         this.activeVertex.set(null);
-        this.connectionLayer?.setDraft(this.connectionDraft(), false);
+        this.connectionLayer?.setDraft(this.connectionDraft(), false, this.editingConnection()?.id ?? null);
         if (this.map) this.map.getCanvas().style.cursor = '';
         this.connectionDialog()?.open();
     }
@@ -1341,7 +1457,7 @@ export class AddressMap implements AfterViewInit {
 
 
     private rememberRoute(): void {
-        const points = this.connectionDraft().vertices.map(point => [...point] as [number, number]);
+        const points = structuredClone(this.connectionDraft());
         this.routeHistory.update(history => [...history.slice(-29), points]);
     }
 
@@ -1355,8 +1471,10 @@ export class AddressMap implements AfterViewInit {
     removeRouteVertex(): void {
         const index = this.activeVertex();
         if (index === null || this.connectionMapMode() !== 'vertices') return;
+        const draft=this.connectionDraft(),result=removeVertexWithMethods(draft.vertices,installationMethods(draft.vertices,draft.installation_methods),index);
+        if(!result){toast.error('Это граница способов прокладки. Выберите способ объединённого участка в редакторе соединения.');return;}
         this.rememberRoute();
-        this.connectionDraft.update(draft => ({ ...draft, vertices: draft.vertices.filter((_, i) => i !== index) }));
+        this.connectionDraft.update(draft => ({ ...draft, ...result }));
         this.activeVertex.set(null);
     }
 
@@ -1364,7 +1482,7 @@ export class AddressMap implements AfterViewInit {
     undoRoute(): void {
         const history = this.routeHistory();
         if (!history.length) return;
-        this.connectionDraft.update(draft => ({ ...draft, vertices: history[history.length - 1] }));
+        this.connectionDraft.set(history[history.length - 1]);
         this.routeHistory.set(history.slice(0, -1));
         this.activeVertex.set(null);
     }
@@ -1397,7 +1515,7 @@ export class AddressMap implements AfterViewInit {
             next: line => {
                 if (this.destroyed || generation !== this.connectionMutationGeneration) return;
                 this.connectionSaving.set(false);
-                this.connections.update(lines => [...lines.filter(item => item.id !== line.id), line]);
+                this.applyRouteMutation([line]);
                 this.connectionDraftActive.set(false);
                 this.connectionLayer?.setDraft(null);
                 this.connectionDialog()?.close({});
@@ -1878,6 +1996,7 @@ export class AddressMap implements AfterViewInit {
         this.cleanupPointSelection();
         this.connectionLayer?.destroy();
         this.connectionLayer = null;
+        this.footprintCache.clear();
         this.spliceController?.destroy();
         this.spliceController = null;
         this.buildingImageSignature = null;

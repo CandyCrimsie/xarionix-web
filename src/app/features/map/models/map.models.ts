@@ -46,7 +46,17 @@ export interface MapAddressObjectBounds {
 export type MapMarkerSize = 'small' | 'normal' | 'large';
 export type MapMarkerShape = 'circle' | 'rounded' | 'pill' | 'icon';
 export type MapVisibility = 'company' | 'private';
-export type MapPointType = 'building' | 'network_node' | 'cabinet' | 'splice' | 'pole' | 'chamber' | 'equipment' | 'note';
+export type MapPointType = 'building' | 'network_node' | 'cabinet' | 'splice' | 'pole' | 'chamber' | 'equipment' | 'note' | 'fiber_box' | 'odf' | 'transition';
+export type InstallationMethod = 'unknown' | 'aerial' | 'duct' | 'direct_buried' | 'facade' | 'indoor';
+export type RouteNodeType = 'splice' | 'fiber_box' | 'odf' | 'network_node' | 'cabinet';
+export type RoutePassThroughType = 'chamber' | 'pole' | 'transition' | 'fiber_box' | 'network_node' | 'cabinet';
+export interface RouteAttachment {
+    connection_id: number; name: string; version: number; geometry_token: string; segment_index: number; fraction: number;
+}
+export interface RouteObject {
+    marker_id: number; name: string; point_type: MapPointType; latitude: number; longitude: number;
+    segment_index: number; fraction: number; state: 'on_route' | 'needs_attention';
+}
 export type BuildingLinkRole = 'none' | 'represents' | 'located_at' | 'reference';
 
 
@@ -83,6 +93,7 @@ export interface MapMarkerPayload {
 
 
 export interface MapMarker extends MapMarkerPayload {
+    route_attachment?: RouteAttachment | null;
     id: number;
     company_id: number;
     owner_user_id: number | null;
@@ -104,6 +115,7 @@ export type MapMarkerAppearance = Pick<MapMarkerPayload,
 export type MapEndpoint = { kind: 'building'; id: number } | { kind: 'marker'; id: number };
 export type MapEndpointDetail = MapEndpoint & { name: string; latitude: number | null; longitude: number | null };
 export interface MapConnectionPayload {
+    installation_methods?: InstallationMethod[];
     source: MapEndpoint;
     target: MapEndpoint;
     visibility: MapVisibility;
@@ -117,6 +129,7 @@ export interface MapConnectionPayload {
     expected_version?: number;
 }
 export interface MapConnection extends MapConnectionPayload {
+    route_objects?: RouteObject[];
     id: number;
     company_id: number;
     owner_user_id: number | null;
@@ -137,7 +150,16 @@ export interface MapConnectionSplitPayload {
     segment_index: number;
     fraction: number;
     position: { latitude: number; longitude: number };
-    marker: MapMarkerAppearance & { name: string; description: string | null };
+    marker: MapMarkerAppearance & { name: string; description: string | null; point_type?: RouteNodeType };
+}
+export type RoutePointPayload = Omit<MapConnectionSplitPayload, 'marker'>;
+export interface MapRouteObjectPayload extends RoutePointPayload {
+    marker: MapMarkerAppearance & { name: string; description: string | null; point_type: RoutePassThroughType };
+    installation_after?: InstallationMethod | null;
+}
+export interface MapRouteObjectResponse { marker: MapMarker; connection: MapConnection }
+export interface MapInstallationBoundaryPayload extends RoutePointPayload {
+    installation_after: InstallationMethod; until: 'end' | 'next_vertex';
 }
 export interface MapConnectionSplitResponse {
     marker: MapMarker;

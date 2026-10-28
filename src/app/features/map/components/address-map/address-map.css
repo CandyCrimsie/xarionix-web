@@ -4,6 +4,14 @@
     min-height: 0;
 }
 
+.route-plus-enter { animation: route-plus-in 140ms ease-out; }
+.route-plus-leave { pointer-events: none; animation: route-plus-out 140ms ease-in; }
+@keyframes route-plus-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes route-plus-out { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+    .route-plus-enter, .route-plus-leave { animation-duration: 1ms; }
+}
+
 :host ::ng-deep .maplibregl-popup-content {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);

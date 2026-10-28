@@ -8,7 +8,8 @@ import { deflateSync } from 'node:zlib';
 
 const base = process.env.MAP_VISUAL_BASE_URL || 'http://127.0.0.1:4217';
 const verifySplice = process.env.MAP_VERIFY_SPLICE === '1';
-const out = new URL(verifySplice ? '../docs/verification/map-splice/' : '../docs/verification/stage25.17.2/', import.meta.url);
+const verifyRoutes = process.env.MAP_VERIFY_ROUTES === '1';
+const out = new URL(verifyRoutes ? '../docs/verification/map-routes/' : verifySplice ? '../docs/verification/map-splice/' : '../docs/verification/stage25.17.2/', import.meta.url);
 await mkdir(out, { recursive: true });
 const date = '2026-10-28T00:00:00Z';
 const appearance = { icon_name: 'map-house', label_text: 'Дом 53', icon_color: '#E3EAF3', icon_opacity: 1, text_color: '#E3EAF3', text_opacity: 1, background_enabled: true, background_color: '#222E3E', background_opacity: 1, border_enabled: true, border_color: '#3B485A', border_width: 1, border_opacity: 1, marker_opacity: 1, marker_size: 'normal', marker_shape: 'circle' };
@@ -107,13 +108,18 @@ try {
             if (!url.href.startsWith(base) && !url.href.startsWith('data:') && !url.href.startsWith('blob:')) return route.fulfill({ contentType: 'text/css', body: '' });
             return route.continue();
         });
+        let routesFixture;
+        if (verifyRoutes) {
+            const { installRouteFixtures } = await import('./verify-map-routes.mjs');
+            routesFixture = await installRouteFixtures(page, { markers, getLines: () => lines, setLines: value => { lines = value; } });
+        }
         await page.goto(base + '/addresses');
         await page.evaluate(theme => document.documentElement.classList.toggle('dark', theme === 'dark'), theme);
         await page.getByTestId('open-address-map').click();
         await page.waitForFunction(() => {
             const element = document.querySelector('app-address-map');
             const c = element && window.ng?.getComponent(element);
-            return c?.state() === 'ready' && c.map.getLayer('connection-active') && c.map.hasImage('xarionix-building-marker') && c.map.queryRenderedFeatures({ layers: ['custom-marker-points'] }).length > 0;
+            return c?.state() === 'ready' && c.map.getLayer('connection-method-unknown') && c.map.hasImage('xarionix-building-marker') && c.map.queryRenderedFeatures({ layers: ['custom-marker-points'] }).length > 0;
         }, undefined, { timeout: 12000 }).catch(async error => { await page.screenshot({ path: new URL('failure.png', out).pathname }); console.log('map failed', errors, unknownApi, page.url(), await page.locator('body').innerText(), await page.evaluate(() => { const e = document.querySelector('app-address-map'); const c = e && window.ng.getComponent(e); return { state: c?.state(), images: c?.map?.listImages(), loaded: c?.map?.loaded(), markers: c?.markers() }; })); throw error; });
         const component = fn => page.evaluate(fn);
         await component(() => window.ng.getComponent(document.querySelector('app-address-map')).map.jumpTo({ center: [38.2455,55.5763], zoom: 15.3 }));
@@ -205,9 +211,13 @@ try {
             assert(resources.images <= 20 && resources.domMarkers === 0);
             rendered.thousandPointResources = resources;
         }
-        if (verifySplice) {
+        if (verifySplice || verifyRoutes) {
             const { verifyMapSplice } = await import('./verify-map-splice.mjs');
             rendered.spliceChecks = await verifyMapSplice(page, screenshot);
+        }
+        if (verifyRoutes) {
+            const { verifyMapRoutes } = await import('./verify-map-routes.mjs');
+            rendered.routeChecks = await verifyMapRoutes(page, screenshot, routesFixture);
         }
         await page.getByTestId('close-address-map').click();
         await page.getByTestId('address-map').waitFor({ state: 'detached' });
@@ -233,4 +243,5 @@ try {
     throw error;
 } finally { await browser.close(); }
 await writeFile(new URL('browser-results.json', out), JSON.stringify(results, null, 2) + '\n');
-console.log(JSON.stringify(results, null, 2));
+console.log(JSON.stringify(results.map(result => ({ theme: result.theme, dpr: result.dpr, errors: result.errors,
+    ...(result.routeChecks ? { methods: result.routeChecks.rendering.allMethods, clipping: result.routeChecks.clipping } : {}) })), null, 2));

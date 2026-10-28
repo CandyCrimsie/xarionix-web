@@ -1,8 +1,11 @@
 <hlm-dialog-header class="shrink-0 pr-6">
-    <h3 hlmDialogTitle>{{ spliceConnection() ? 'Вставить муфту' : editing() ? 'Редактирование маркера' : 'Новый маркер' }}</h3>
+    <h3 hlmDialogTitle>{{ spliceConnection() ? 'Добавить объект на трассу' : editing() ? 'Редактирование маркера' : 'Новый маркер' }}</h3>
     <p hlmDialogDescription>
         @if (spliceConnection(); as connection) {
-        Муфта разделит соединение «{{ connection }}» в выбранной точке. Видимость наследуется от трассы.
+        @if (routeOperation() === 'split') {
+        {{ pointTypeLabel(draft().point_type) }} разделит соединение «{{ connection }}» в выбранной точке.
+        } @else { Объект будет закреплён на трассе «{{ connection }}». Кабель не разрывается. }
+        Видимость наследуется от трассы.
         } @else { Заполните основные данные, выберите иконку и при необходимости настройте оформление. }
     </p>
 </hlm-dialog-header>
@@ -23,17 +26,35 @@
                 </p>
             </div>
             <hlm-field-group>
+                @if (spliceConnection() && dualRouteRole()) {
+                <hlm-field><label hlmFieldLabel>Роль объекта на трассе</label>
+                    <hlm-select [value]="routeOperation()" [itemToString]="routeRoleLabel" (valueChange)="$event && routeOperation.set($event)">
+                        <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal><hlm-select-item value="split">Вставить узел — разделить кабель</hlm-select-item><hlm-select-item value="place">Разместить на трассе — без разрыва</hlm-select-item></hlm-select-content>
+                    </hlm-select>
+                </hlm-field>
+                }
+                @if (spliceConnection() && routeOperation() === 'place') {
+                <hlm-field><label hlmFieldLabel>Прокладка после объекта</label>
+                    <hlm-select [value]="installationAfter() ?? 'unchanged'" [itemToString]="installationLabel" (valueChange)="installationAfter.set($event === 'unchanged' ? null : $any($event))">
+                        <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal><hlm-select-item value="unchanged">Без изменения</hlm-select-item>@for (style of installationStyles; track style.value) { <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item> }</hlm-select-content>
+                    </hlm-select>
+                    <p hlmFieldDescription>При смене прокладки добавится только геометрическая граница, не физический узел.</p>
+                </hlm-field>
+                }
+                @if (routeAttachment(); as attachment) { <p class="text-sm text-muted-foreground">Объект закреплён на трассе «{{ attachment.name }}». Для изменения положения сначала отвяжите его в карточке соединения.</p> }
                 <div class="grid gap-4 sm:grid-cols-2">
                     <hlm-field>
                         <label hlmFieldLabel>Тип объекта</label>
-                        <hlm-select [value]="draft().point_type" [disabled]="!!spliceConnection()" [itemToString]="pointTypeLabel" (valueChange)="selectPointType($event)">
+                        <hlm-select [value]="draft().point_type" [disabled]="!!spliceConnection() || !!routeAttachment()" [itemToString]="pointTypeLabel" (valueChange)="selectPointType($event)">
                             <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
                             <hlm-select-content *hlmSelectPortal>@for (type of pointTypes(); track type.value) { <hlm-select-item [value]="type.value">{{ type.label }}</hlm-select-item> }</hlm-select-content>
                         </hlm-select>
                     </hlm-field>
                     <hlm-field>
                         <label hlmFieldLabel>Видимость</label>
-                        <hlm-select [value]="draft().visibility" [itemToString]="visibilityLabel" [disabled]="!canManage() || !!spliceConnection()" (valueChange)="selectVisibility($event)">
+                        <hlm-select [value]="draft().visibility" [itemToString]="visibilityLabel" [disabled]="!canManage() || !!spliceConnection() || !!routeAttachment()" (valueChange)="selectVisibility($event)">
                             <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
                             <hlm-select-content *hlmSelectPortal><hlm-select-item value="private">Личная отметка</hlm-select-item><hlm-select-item value="company">Общий объект компании</hlm-select-item></hlm-select-content>
                         </hlm-select>
@@ -60,18 +81,18 @@
                         <label hlmFieldLabel for="marker-latitude">Широта</label>
                         <input hlmInput id="marker-latitude" inputmode="decimal"
                             [disabled]="!canEditCoordinates()"
-                            [ngModel]="draft().latitude" (paste)="handleCoordinatePaste($event)"
+                            [ngModel]="coordinateDisplay('latitude')" (paste)="handleCoordinatePaste($event)"
                             (ngModelChange)="updateNumber('latitude', $event)" />
                     </hlm-field>
                     <hlm-field class="min-w-0">
                         <label hlmFieldLabel for="marker-longitude">Долгота</label>
                         <input hlmInput id="marker-longitude" inputmode="decimal"
                             [disabled]="!canEditCoordinates()"
-                            [ngModel]="draft().longitude" (paste)="handleCoordinatePaste($event)"
+                            [ngModel]="coordinateDisplay('longitude')" (paste)="handleCoordinatePaste($event)"
                             (ngModelChange)="updateNumber('longitude', $event)" />
                     </hlm-field>
                 </div>
-                @if (!spliceConnection()) {
+                @if (!spliceConnection() && !routeAttachment()) {
                 <div class="flex flex-wrap items-center gap-2">
                     <button hlmBtn variant="outline" type="button" (click)="requestPoint()" [disabled]="!canEditCoordinates()"
                         data-testid="choose-marker-point">

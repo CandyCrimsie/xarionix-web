@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from '../../../core/api/api.config';
-import type { MapConnection, MapConnectionPayload, MapConnectionSplitPayload, MapConnectionSplitResponse, MapEndpointDetail, MapMarkerAppearance, MapStylePreset } from '../models/map.models';
+import type { MapConnection, MapConnectionPayload, MapConnectionSplitPayload, MapConnectionSplitResponse, MapEndpointDetail, MapMarkerAppearance, MapStylePreset, MapRouteObjectPayload, MapRouteObjectResponse, MapInstallationBoundaryPayload } from '../models/map.models';
 import type {
     MapAddressObjectBounds,
     MapBounds,
@@ -112,6 +112,20 @@ export class MapDataService {
 
     splitConnection(id: number, data: MapConnectionSplitPayload): Observable<MapConnectionSplitResponse> {
         return this.http.post<MapConnectionSplitResponse>(`${API_BASE_URL}/map/connections/${id}/split`, data);
+    }
+
+    placeRouteObject(id: number, data: MapRouteObjectPayload): Observable<MapRouteObjectResponse> {
+        return this.http.post<MapRouteObjectResponse>(`${API_BASE_URL}/map/connections/${id}/route-objects`, data);
+    }
+
+    setInstallationBoundary(id: number, data: MapInstallationBoundaryPayload): Observable<MapConnection> {
+        return this.http.post<MapConnection>(`${API_BASE_URL}/map/connections/${id}/installation-boundaries`, data);
+    }
+
+    detachRouteObject(line: MapConnection, markerId: number): Observable<MapRouteObjectResponse> {
+        return this.http.post<MapRouteObjectResponse>(`${API_BASE_URL}/map/connections/${line.id}/route-objects/${markerId}/detach`, {
+            expected_version: line.version, expected_geometry_token: line.geometry_token,
+        });
     }
 
     getStyles(): Observable<MapStylePreset[]> {
