@@ -13,9 +13,11 @@ import {
     TemplateRef,
     viewChild,
     ViewContainerRef,
+    computed,
+    HostListener,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { firstValueFrom, Subscription, type Observable } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import { toast } from '@spartan-ng/brain/sonner';
@@ -31,6 +33,9 @@ import {
     lucideTrash2,
     lucideTriangleAlert,
     lucideX,
+    lucideCable,
+    lucideListFilter,
+    lucideUndo2,
 } from '@ng-icons/lucide';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmAlertDialog, HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
@@ -39,6 +44,8 @@ import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmDialog, HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
+import { AddressApiService } from '../../../../core/addresses/address-api.service';
 
 import type { AddressObject, Building } from '../../../../core/addresses/address.models';
 import { CompanyContextService } from '../../../../core/company/company-context.service';
@@ -56,6 +63,10 @@ import {
 import {
     createDefaultMapMarker,
     mapMarkerIconSvg,
+    mapAppearanceForTheme,
+    MAP_POINT_TYPES,
+    BUILDING_LINK_ROLES,
+    pickMarkerAppearance,
 } from '../../map-marker.config';
 import type {
     MapBounds,
@@ -63,7 +74,18 @@ import type {
     MapMarker,
     MapMarkerPayload,
     MapTileSession,
+    MapConnection,
+    MapConnectionDraft,
+    MapConnectionPayload,
+    MapEndpointDetail,
+    MapMarkerAppearance,
+    MapStylePreset,
+    BuildingBindingConflict,
 } from '../../models/map.models';
+import { createConnectionDraft } from '../../models/map.models';
+import { createMarkerElement, markerImageKey, rasterizeMarker, labelHaloColor, MAP_FONT_FACES, MAP_LABEL_LAYOUT, MAP_TEXT_FONT } from '../../map-marker-renderer';
+import { MapConnectionLayer, connectionLabel, routeCoordinates } from '../../map-connection-layer';
+import { MapConnectionEditor, CONNECTION_STATUS_LABELS } from '../map-connection-editor/map-connection-editor';
 import { MapDataService } from '../../services/map-data.service';
 import {
     MapLibreLoaderService,
@@ -84,12 +106,14 @@ const EMPTY_FEATURES: MapBuildingFeatureCollection = {
     features: [],
 };
 const BUILDING_MARKER_IMAGE = 'xarionix-building-marker';
+const SELECTED_BUILDING_IMAGE = 'xarionix-building-selected';
 const SELECTED_BUILDING_SOURCE_ID = 'xarionix-selected-building';
 interface CustomMarkerFeatureProperties {
     id: number;
     image_key: string;
     label_text: string;
     text_color: string;
+    text_halo_color: string;
     text_opacity: number;
     marker_opacity: number;
 }
@@ -113,6 +137,8 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         HlmDialogImports,
         HlmTooltipImports,
         MapMarkerEditor,
+        MapConnectionEditor,
+        HlmCheckboxImports,
     ],
     providers: [provideIcons({
         lucideBuilding2,
@@ -124,6 +150,9 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         lucideTrash2,
         lucideTriangleAlert,
         lucideX,
+        lucideCable,
+        lucideListFilter,
+        lucideUndo2,
     })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './address-map.html',
@@ -135,6 +164,7 @@ export class AddressMap implements AfterViewInit {
     private readonly companyContext = inject(CompanyContextService);
     private readonly destroyRef = inject(DestroyRef);
     private readonly popupViews = inject(ViewContainerRef);
+    private readonly addressApi = inject(AddressApiService);
 
     readonly selectedObject = input<AddressObject | null>(null);
     readonly selectedBuilding = input<Building | null>(null);
@@ -160,6 +190,43 @@ export class AddressMap implements AfterViewInit {
     readonly placingMarker = signal(false);
     readonly markerToDelete = signal<MapMarker | null>(null);
     readonly markerDeleting = signal(false);
+    readonly personalStyles = signal<MapStylePreset[]>([]);
+    readonly bindingConflict = signal<BuildingBindingConflict | null>(null);
+    readonly bindingDialog = viewChild<HlmAlertDialog>('bindingDialog');
+    readonly connectionDialog = viewChild<HlmDialog>('connectionDialog');
+    readonly connectionDeleteDialog = viewChild<HlmAlertDialog>('connectionDeleteDialog');
+    readonly connectionPopup = viewChild.required<TemplateRef<{ $implicit: MapConnection }>>('connectionPopup');
+    readonly buildingPopup = viewChild.required<TemplateRef<{ $implicit: { id: number; full_address: string } }>>('buildingPopup');
+    readonly choicesPopup = viewChild.required<TemplateRef<{ $implicit: MapEndpointDetail[] }>>('choicesPopup');
+    readonly connections = signal<MapConnection[]>([]);
+    readonly connectionDraft = signal<MapConnectionDraft>(createConnectionDraft());
+    readonly editingConnection = signal<MapConnection | null>(null);
+    readonly connectionSaving = signal(false);
+    readonly connectionError = signal<string | null>(null);
+    readonly connectionToDelete = signal<MapConnection | null>(null);
+    readonly connectionDeleting = signal(false);
+    readonly connectionMapMode = signal<'source' | 'target' | 'vertices' | null>(null);
+    readonly connectionDraftActive = signal(false);
+    readonly selectedConnectionId = signal<number | null>(null);
+    readonly selectedMarkerId = signal<number | null>(null);
+    readonly popupBuildingId = signal<number | null>(null);
+    readonly activeVertex = signal<number | null>(null);
+    readonly routeHistory = signal<[number, number][][]>([]);
+    readonly popupConnections = signal<MapConnection[]>([]);
+    readonly markerDependencies = signal<MapConnection[]>([]);
+    readonly markerDeleteError = signal<string | null>(null);
+    readonly filterPanelOpen = signal(false);
+    readonly showBuildings = signal(true);
+    readonly showInfrastructure = signal(true);
+    readonly showPersonal = signal(true);
+    readonly showConnections = signal(true);
+    readonly mediumFilter = signal<'all' | 'fiber' | 'utp'>('all');
+    readonly statusFilter = signal<'all' | MapConnection['status']>('all');
+    readonly dark = signal(document.documentElement.classList.contains('dark'));
+    readonly pointTypeLabel = (type: string) => MAP_POINT_TYPES.find(item => item.value === type)?.label ?? 'Объект';
+    readonly linkRoleLabel = (role: string) => BUILDING_LINK_ROLES.find(item => item.value === role)?.label ?? '';
+    readonly connectionLabel = connectionLabel;
+    readonly connectionStatusLabel = (status: MapConnection['status']) => CONNECTION_STATUS_LABELS[status];
     readonly yandexLogoUrl = YANDEX_LOGO_URL;
     readonly yandexTermsUrl = YANDEX_MAPS_TERMS_URL;
 
@@ -180,9 +247,23 @@ export class AddressMap implements AfterViewInit {
     private sessionRefreshPromise: Promise<void> | null = null;
     private resizeObserver: ResizeObserver | null = null;
     private placementMarker: DraggableMapMarker | null = null;
-    private placementOriginalCoordinates: [number, number] | null = null;
+    private placementOriginalDraft: MapMarkerPayload | null = null;
     private placementClickHandler: ((event: { lngLat: { lng: number; lat: number } }) => void) | null = null;
+    private suppressFocusForBuildingId: number | null = null;
+    private buildingImageSignature: string | null = null;
     private readonly pendingMarkerImages = new Set<string>();
+    private readonly markerResources = new Set<string>();
+    private usedMarkerImages = new Set<string>();
+    private connectionLayer: MapConnectionLayer | null = null;
+    private connectionViewportSubscription: Subscription | null = null;
+    private contextGeneration = 0;
+    private popupGeneration = 0;
+    private connectionMutationGeneration = 0;
+    private styleGeneration = 0;
+    private sessionRetryCount = 0;
+    private themeObserver: MutationObserver | null = null;
+    private viewReady = false;
+    private routeBeforeMap: MapConnectionDraft | null = null;
 
 
     constructor() {
@@ -191,22 +272,58 @@ export class AddressMap implements AfterViewInit {
         this.companyContext.companyChanged$.pipe(
             takeUntilDestroyed(this.destroyRef),
         ).subscribe(() => {
-            if (!this.map || this.destroyed) {
-                return;
-            }
+            this.contextGeneration++;
+            this.initializationGeneration++;
             this.viewportGeneration += 1;
             this.focusGeneration += 1;
             this.markerMutationGeneration += 1;
+            this.connectionMutationGeneration++;
+            this.styleGeneration++;
             this.viewportSubscription?.unsubscribe();
             this.markerViewportSubscription?.unsubscribe();
+            this.connectionViewportSubscription?.unsubscribe();
             this.focusSubscription?.unsubscribe();
             this.closePopup();
+            this.markerDialog()?.close({});
+            this.deleteMarkerDialog()?.close({});
+            this.bindingDialog()?.close({});
+            this.connectionDialog()?.close({});
+            this.connectionDeleteDialog()?.close({});
+            this.markerDraft.set(createDefaultMapMarker());
+            this.editingMarker.set(null);
+            this.markerToDelete.set(null);
+            this.markerSaving.set(false);
+            this.markerDeleting.set(false);
+            this.markerError.set(null);
+            this.markerDeleteError.set(null);
+            this.bindingConflict.set(null);
+            this.personalStyles.set([]);
+            this.connections.set([]);
+            this.connectionDraft.set(createConnectionDraft());
+            this.editingConnection.set(null);
+            this.connectionToDelete.set(null);
+            this.connectionSaving.set(false);
+            this.connectionDeleting.set(false);
+            this.connectionError.set(null);
+            this.connectionMapMode.set(null);
+            this.connectionDraftActive.set(false);
+            this.selectedConnectionId.set(null);
+            this.routeHistory.set([]);
+            this.activeVertex.set(null);
             this.setBuildingData(EMPTY_FEATURES);
             this.markers.set([]);
             this.setMarkerData([]);
             this.placingMarker.set(false);
             this.cleanupPointSelection();
+            this.sessionRefreshPromise = null;
+            this.sessionRetryCount = 0;
+            if (this.destroyed) return;
+            if (!this.map) {
+                if (this.viewReady) void this.initializeMap();
+                return;
+            }
             void this.refreshTileSession();
+            this.loadPersonalStyles();
             this.scheduleViewportLoad(0);
         });
 
@@ -219,10 +336,43 @@ export class AddressMap implements AfterViewInit {
             untracked(() => this.setMarkerData(this.markers()));
             this.focusSelection(selectedObject, selectedBuilding);
         });
+
+        effect(() => {
+            this.dark();
+            this.showBuildings(); this.showInfrastructure(); this.showPersonal();
+            const markers = this.markers();
+            this.selectedMarkerId();
+            const popupBuildingId = this.popupBuildingId();
+            if (this.state() !== 'ready') return;
+            untracked(() => {
+                if (this.map) this.addBuildingMarkerImage(this.map);
+                this.setMarkerData(markers);
+                this.map?.setLayoutProperty('building-points', 'icon-image', ['case', ['==', ['get', 'id'], popupBuildingId ?? -1], SELECTED_BUILDING_IMAGE, BUILDING_MARKER_IMAGE]);
+                this.map?.setFilter('building-popup-label', ['all', ['!', ['has', 'point_count']], ['==', ['get', 'id'], popupBuildingId ?? -1]]);
+                this.map?.setFilter('custom-marker-selected-label', ['all', ['!', ['has', 'point_count']], ['==', ['get', 'id'], this.selectedMarkerId() ?? -1]]);
+                this.map?.setFilter('custom-marker-labels', ['all', ['!', ['has', 'point_count']], ['!=', ['get', 'id'], this.selectedMarkerId() ?? -1]]);
+            });
+        });
+        effect(() => {
+            this.connections(); this.selectedConnectionId(); this.showConnections(); this.mediumFilter(); this.statusFilter();
+            const draft = this.connectionDraft();
+            const active = this.connectionDraftActive();
+            const mode = this.connectionMapMode();
+            if (this.state() !== 'ready') return;
+            untracked(() => {
+                this.renderConnections();
+                this.connectionLayer?.setDraft(active ? draft : null, mode === 'vertices');
+            });
+        });
     }
 
 
     ngAfterViewInit(): void {
+        this.viewReady = true;
+        if (typeof MutationObserver !== 'undefined') {
+            this.themeObserver = new MutationObserver(() => this.dark.set(document.documentElement.classList.contains('dark')));
+            this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        }
         void this.initializeMap();
     }
 
@@ -233,6 +383,8 @@ export class AddressMap implements AfterViewInit {
 
 
     retryViewport(): void {
+        this.sessionRetryCount = 0;
+        void this.refreshTileSession();
         this.loadViewport();
     }
 
@@ -263,6 +415,7 @@ export class AddressMap implements AfterViewInit {
                 attributionControl: false,
                 style: {
                     version: 8,
+                    'font-faces': MAP_FONT_FACES,
                     sources: {
                         [MAP_SOURCE_ID]: {
                             type: 'raster',
@@ -293,11 +446,25 @@ export class AddressMap implements AfterViewInit {
                 this.addBuildingLayers(map);
                 this.updateSelectedBuildingLayer(this.selectedBuilding()?.id ?? null);
                 this.addCustomMarkerLayers(map);
+                this.connectionLayer = new MapConnectionLayer(map,
+                    (id, coordinate) => this.openConnectionPopup(id, coordinate),
+                    index => { this.rememberRoute(); this.activeVertex.set(index); },
+                    (index, coordinate) => this.moveRouteVertex(index, coordinate),
+                );
                 this.state.set('ready');
                 this.scheduleSessionRefresh(session);
                 this.updateExternalMapLink();
                 this.focusSelection(this.selectedObject(), this.selectedBuilding());
                 this.loadViewport();
+                this.loadPersonalStyles();
+            });
+            map.on('click', event => {
+                if (this.connectionMapMode() !== 'vertices') return;
+                const vertex = map.queryRenderedFeatures(event.point, { layers: ['route-edit-vertices'] })[0];
+                if (vertex) { this.activeVertex.set(Number(vertex.properties['index'])); return; }
+                if (this.connectionDraft().vertices.length >= 498) { toast.error('Допускается не более 498 промежуточных вершин'); return; }
+                this.rememberRoute();
+                this.connectionDraft.update(draft => ({ ...draft, vertices: [...draft.vertices, [event.lngLat.lng, event.lngLat.lat]] }));
             });
             map.on('moveend', () => {
                 this.updateExternalMapLink();
@@ -355,21 +522,10 @@ export class AddressMap implements AfterViewInit {
             filter: ['has', 'point_count'],
             layout: {
                 'text-field': ['get', 'point_count_abbreviated'],
+                'text-font': MAP_TEXT_FONT,
                 'text-size': 12,
             },
             paint: { 'text-color': '#ffffff' },
-        });
-        map.addLayer({
-            id: 'selected-building-point',
-            type: 'circle',
-            source: SELECTED_BUILDING_SOURCE_ID,
-            filter: ['all', ['==', ['get', 'id'], -1], ['!', ['has', 'marker_id']]],
-            paint: {
-                'circle-color': '#ef4444',
-                'circle-radius': 14,
-                'circle-stroke-color': '#ffffff',
-                'circle-stroke-width': 3,
-            },
         });
         map.addLayer({
             id: 'building-points',
@@ -378,17 +534,23 @@ export class AddressMap implements AfterViewInit {
             filter: ['!', ['has', 'point_count']],
             layout: {
                 'icon-image': BUILDING_MARKER_IMAGE,
-                'icon-size': 0.8,
+                'icon-size': 1,
                 'icon-allow-overlap': true,
             },
+        });
+        map.addLayer({
+            id: 'building-popup-label', type: 'symbol', source: MAP_BUILDINGS_SOURCE_ID,
+            filter: ['==', ['get', 'id'], -1],
+            layout: { 'text-field': ['concat', 'д. ', ['get', 'number']], ...MAP_LABEL_LAYOUT, 'text-allow-overlap': true },
+            paint: { 'text-color': '#465366', 'text-halo-color': '#FFFFFF', 'text-halo-width': 1 },
         });
         map.addLayer({
             id: 'selected-building-marker',
             type: 'symbol',
             source: SELECTED_BUILDING_SOURCE_ID,
             layout: {
-                'icon-image': ['coalesce', ['get', 'image_key'], BUILDING_MARKER_IMAGE],
-                'icon-size': 0.8,
+                'icon-image': ['coalesce', ['get', 'image_key'], SELECTED_BUILDING_IMAGE],
+                'icon-size': 1,
                 'icon-allow-overlap': true,
             },
             paint: { 'icon-opacity': ['coalesce', ['get', 'marker_opacity'], 1] },
@@ -399,16 +561,14 @@ export class AddressMap implements AfterViewInit {
             source: SELECTED_BUILDING_SOURCE_ID,
             layout: {
                 'text-field': ['coalesce', ['get', 'label_text'], ''],
-                'text-size': 13,
-                'text-anchor': 'top',
-                'text-offset': [0, 2.2],
+                ...MAP_LABEL_LAYOUT,
                 'text-allow-overlap': false,
             },
             paint: {
                 'text-color': ['coalesce', ['get', 'text_color'], '#ffffff'],
                 'text-opacity': ['coalesce', ['get', 'text_opacity'], 1],
-                'text-halo-color': 'rgba(0, 0, 0, 0.65)',
-                'text-halo-width': 1,
+                'text-halo-color': ['coalesce', ['get', 'text_halo_color'], '#FFFFFF'],
+                'text-halo-width': 0.75,
             },
         });
         map.on('click', 'building-clusters', event => {
@@ -419,14 +579,15 @@ export class AddressMap implements AfterViewInit {
                 return;
             }
             void source.getClusterExpansionZoom(clusterId).then(zoom => {
-                if (feature?.geometry.type !== 'Point') {
+                if (this.destroyed || this.map !== map || feature?.geometry.type !== 'Point') {
                     return;
                 }
                 map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom });
-            });
+            }).catch(() => {});
         });
         for (const layerId of ['building-points', 'selected-building-marker']) {
             map.on('click', layerId, event => {
+                if (this.handlePointClick(event, 'building')) return;
                 const feature = event.features?.[0];
                 if (!feature || feature.geometry.type !== 'Point') {
                     return;
@@ -435,7 +596,7 @@ export class AddressMap implements AfterViewInit {
                 if (markerId !== undefined) {
                     const marker = this.markers().find(item => item.id === Number(markerId));
                     if (marker) {
-                        this.showCustomMarkerPopup(feature.geometry.coordinates as [number, number], marker);
+                        this.showBuildingPopup(feature.geometry.coordinates as [number, number], marker.building_id!, marker.building_full_address ?? marker.name);
                     }
                     return;
                 }
@@ -463,39 +624,20 @@ export class AddressMap implements AfterViewInit {
 
 
     private addBuildingMarkerImage(map: MapInstance): void {
-        if (map.hasImage(BUILDING_MARKER_IMAGE)) {
-            return;
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = 32;
-        canvas.height = 32;
-        const context = canvas.getContext('2d');
-        if (!context) {
-            return;
-        }
-        context.lineJoin = 'round';
-        context.lineCap = 'round';
-        context.lineWidth = 2.5;
-        context.strokeStyle = '#18181b';
-        context.fillStyle = '#ffffff';
-        context.beginPath();
-        context.moveTo(5, 15);
-        context.lineTo(16, 5);
-        context.lineTo(27, 15);
-        context.lineTo(24, 15);
-        context.lineTo(24, 27);
-        context.lineTo(8, 27);
-        context.lineTo(8, 15);
-        context.closePath();
-        context.fill();
-        context.stroke();
-        context.beginPath();
-        context.rect(14, 20, 5, 7);
-        context.stroke();
-        map.addImage(
-            BUILDING_MARKER_IMAGE,
-            context.getImageData(0, 0, canvas.width, canvas.height),
-        );
+        const appearance = { ...mapAppearanceForTheme(this.dark()), icon_name: 'map-house' };
+        const signature = markerImageKey({ ...appearance, label_text: null });
+        if (this.buildingImageSignature === signature) return;
+        this.buildingImageSignature = signature;
+        void rasterizeMarker({ ...appearance, label_text: null }, 2).then(image => {
+            if (this.destroyed || this.map !== map || this.buildingImageSignature !== signature) return;
+            if (map.hasImage(BUILDING_MARKER_IMAGE)) map.updateImage(BUILDING_MARKER_IMAGE, image);
+            else map.addImage(BUILDING_MARKER_IMAGE, image, { pixelRatio: 2 });
+        }).catch(() => { if (this.map === map) this.buildingImageSignature = null; });
+        void rasterizeMarker({ ...appearance, label_text: null }, 2, true).then(image => {
+            if (this.destroyed || this.map !== map || this.buildingImageSignature !== signature) return;
+            if (map.hasImage(SELECTED_BUILDING_IMAGE)) map.updateImage(SELECTED_BUILDING_IMAGE, image);
+            else map.addImage(SELECTED_BUILDING_IMAGE, image, { pixelRatio: 2 });
+        }).catch(() => { if (this.map === map) this.buildingImageSignature = null; });
     }
 
 
@@ -531,6 +673,7 @@ export class AddressMap implements AfterViewInit {
             filter: ['has', 'point_count'],
             layout: {
                 'text-field': ['get', 'point_count_abbreviated'],
+                'text-font': MAP_TEXT_FONT,
                 'text-size': 12,
             },
             paint: { 'text-color': '#ffffff' },
@@ -553,20 +696,25 @@ export class AddressMap implements AfterViewInit {
             id: 'custom-marker-labels',
             type: 'symbol',
             source: MAP_MARKERS_SOURCE_ID,
+            minzoom: 15,
             filter: ['!', ['has', 'point_count']],
             layout: {
                 'text-field': ['get', 'label_text'],
-                'text-size': 13,
-                'text-anchor': 'top',
-                'text-offset': [0, 2.2],
+                ...MAP_LABEL_LAYOUT,
                 'text-allow-overlap': false,
             },
             paint: {
                 'text-color': ['get', 'text_color'],
                 'text-opacity': ['get', 'text_opacity'],
-                'text-halo-color': 'rgba(0, 0, 0, 0.65)',
-                'text-halo-width': 1,
+                'text-halo-color': ['get', 'text_halo_color'],
+                'text-halo-width': 0.75,
             },
+        });
+        map.addLayer({
+            id: 'custom-marker-selected-label', type: 'symbol', source: MAP_MARKERS_SOURCE_ID,
+            filter: ['==', ['get', 'id'], -1],
+            layout: { 'text-field': ['get', 'label_text'], ...MAP_LABEL_LAYOUT, 'text-allow-overlap': true },
+            paint: { 'text-color': ['get', 'text_color'], 'text-opacity': ['get', 'text_opacity'], 'text-halo-color': ['get', 'text_halo_color'], 'text-halo-width': 0.75 },
         });
         map.on('click', 'custom-marker-clusters', event => {
             const feature = event.features?.[0];
@@ -576,15 +724,16 @@ export class AddressMap implements AfterViewInit {
                 return;
             }
             void source.getClusterExpansionZoom(clusterId).then(zoom => {
-                if (feature?.geometry.type === 'Point') {
+                if (!this.destroyed && this.map === map && feature?.geometry.type === 'Point') {
                     map.easeTo({
                         center: feature.geometry.coordinates as [number, number],
                         zoom,
                     });
                 }
-            });
+            }).catch(() => {});
         });
         map.on('click', 'custom-marker-points', event => {
+            if (this.handlePointClick(event, 'marker')) return;
             const feature = event.features?.[0];
             const id = Number(feature?.properties?.['id']);
             if (!Number.isInteger(id) || feature?.geometry.type !== 'Point') {
@@ -619,29 +768,38 @@ export class AddressMap implements AfterViewInit {
         const data: FeatureCollection<Point, CustomMarkerFeatureProperties> = {
             type: 'FeatureCollection',
             features: markers
-                .filter(marker => marker.id !== selectedMarkerId)
+                .filter(marker => marker.id !== selectedMarkerId && marker.latitude !== null && marker.longitude !== null && this.visibleMarker(marker))
                 .map(marker => this.markerFeature(marker)),
         };
         source.setData(data);
+        const used = new Set(data.features.map(feature => feature.properties.image_key));
+        const selected = this.selectedBuildingMarker();
+        if (selected) used.add(this.markerImageKey(selected));
+        this.usedMarkerImages = used;
+        for (const resource of this.markerResources) {
+            if (!used.has(resource) && map.hasImage(resource)) { map.removeImage(resource); this.markerResources.delete(resource); }
+        }
         this.renderBuildingData();
         this.updateSelectedBuildingLayer(this.selectedBuilding()?.id ?? null);
     }
 
 
     private markerFeature(marker: MapMarker): Feature<Point, CustomMarkerFeatureProperties> {
+        const selected = marker.id === this.selectedMarkerId() || marker.id === this.selectedBuildingMarker()?.id;
         const imageKey = this.markerImageKey(marker);
         if (this.map) {
-            this.prepareMarkerImage(this.map, marker, imageKey);
+            this.prepareMarkerImage(this.map, marker, imageKey, selected);
         }
         return {
             type: 'Feature',
             id: marker.id,
-            geometry: { type: 'Point', coordinates: [marker.longitude, marker.latitude] },
+            geometry: { type: 'Point', coordinates: [marker.longitude!, marker.latitude!] },
             properties: {
                 id: marker.id,
                 image_key: imageKey,
                 label_text: marker.label_text ?? '',
                 text_color: marker.text_color,
+                text_halo_color: labelHaloColor(marker.text_color),
                 text_opacity: marker.text_opacity * marker.marker_opacity,
                 marker_opacity: marker.marker_opacity,
             },
@@ -649,12 +807,8 @@ export class AddressMap implements AfterViewInit {
     }
 
 
-    private markerRepresentsBuilding(marker: MapMarker, id: number, center: number[]): boolean {
-        return marker.building_id === id && marker.marker_opacity > 0 && (
-            marker.sync_building_coordinates
-            || (Math.abs(marker.longitude - center[0]) <= 0.0000001
-                && Math.abs(marker.latitude - center[1]) <= 0.0000001)
-        );
+    private markerRepresentsBuilding(marker: MapMarker, id: number, _center?: number[]): boolean {
+        return marker.building_id === id && marker.building_link_role === 'represents' && marker.visibility === 'company';
     }
 
 
@@ -668,273 +822,488 @@ export class AddressMap implements AfterViewInit {
 
 
     private markerImageKey(marker: MapMarkerPayload): string {
-        const signature = JSON.stringify({
-            icon_name: marker.icon_name,
-            icon_color: marker.icon_color,
-            icon_opacity: marker.icon_opacity,
-            background_enabled: marker.background_enabled,
-            background_color: marker.background_color,
-            background_opacity: marker.background_opacity,
-            border_enabled: marker.border_enabled,
-            border_color: marker.border_color,
-            border_width: marker.border_width,
-            border_opacity: marker.border_opacity,
-            marker_size: marker.marker_size,
-            marker_shape: marker.marker_shape,
-        });
-        let hash = 2166136261;
-        for (let index = 0; index < signature.length; index += 1) {
-            hash ^= signature.charCodeAt(index);
-            hash = Math.imul(hash, 16777619);
-        }
-        return `xarionix-marker-${(hash >>> 0).toString(16)}`;
+        const selected = 'id' in marker && (marker.id === this.selectedMarkerId() || marker.id === this.selectedBuildingMarker()?.id);
+        const key = markerImageKey(pickMarkerAppearance(marker), selected);
+        const standard = markerImageKey({ ...mapAppearanceForTheme(this.dark()), icon_name: 'map-house', label_text: null }, selected);
+        // An unchanged primary house style reuses the standard house sprite,
+        // rather than allocating a second identical texture under another ID.
+        return key === standard ? (selected ? SELECTED_BUILDING_IMAGE : BUILDING_MARKER_IMAGE) : key;
     }
 
 
-    private prepareMarkerImage(
-        map: MapInstance,
-        marker: MapMarkerPayload,
-        imageKey: string,
-    ): void {
-        if (map.hasImage(imageKey) || this.pendingMarkerImages.has(imageKey)) {
-            return;
-        }
+    private prepareMarkerImage(map: MapInstance, marker: MapMarkerPayload, imageKey: string, selected = false): void {
+        if (map.hasImage(imageKey) || this.pendingMarkerImages.has(imageKey)) return;
         this.pendingMarkerImages.add(imageKey);
-        const size = { small: 32, normal: 42, large: 54 }[marker.marker_size];
-        const width = marker.marker_shape === 'pill' ? Math.round(size * 1.4) : size;
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = size;
-        const context = canvas.getContext('2d');
-        if (!context) {
-            this.pendingMarkerImages.delete(imageKey);
-            return;
-        }
-        this.drawMarkerBackground(context, marker, width, size);
-        const svg = mapMarkerIconSvg(marker.icon_name);
-        if (!svg) {
-            this.addPreparedMarkerImage(map, imageKey, context, canvas);
-            return;
-        }
-        const image = new Image();
-        image.addEventListener('load', () => {
-            const iconSize = Math.round(size * 0.52);
-            context.globalAlpha = marker.icon_opacity;
-            context.drawImage(
-                image,
-                (width - iconSize) / 2,
-                (size - iconSize) / 2,
-                iconSize,
-                iconSize,
-            );
-            context.globalAlpha = 1;
-            this.addPreparedMarkerImage(map, imageKey, context, canvas);
-        }, { once: true });
-        image.addEventListener('error', () => {
-            this.addPreparedMarkerImage(map, imageKey, context, canvas);
-        }, { once: true });
-        const coloredSvg = svg.replaceAll('currentColor', marker.icon_color);
-        image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(coloredSvg)}`;
+        void rasterizeMarker(pickMarkerAppearance(marker), 2, selected).then(image => {
+            if (this.destroyed || this.map !== map || map.hasImage(imageKey) || !this.usedMarkerImages.has(imageKey)) return;
+            map.addImage(imageKey, image, { pixelRatio: 2 });
+            if (imageKey !== BUILDING_MARKER_IMAGE && imageKey !== SELECTED_BUILDING_IMAGE) this.markerResources.add(imageKey);
+        }).catch(() => {
+            if (!this.destroyed && this.map === map) this.coordinateNotice.set('Не удалось подготовить изображение метки.');
+        }).finally(() => this.pendingMarkerImages.delete(imageKey));
     }
 
 
-    private drawMarkerBackground(
-        context: CanvasRenderingContext2D,
-        marker: MapMarkerPayload,
-        width: number,
-        height: number,
-    ): void {
-        const backgroundEnabled = marker.background_enabled && marker.marker_shape !== 'icon';
-        const borderEnabled = marker.border_enabled && marker.marker_shape !== 'icon';
-        if (!backgroundEnabled && !borderEnabled) {
-            return;
-        }
-        const inset = borderEnabled ? marker.border_width / 2 + 1 : 1;
-        const x = inset;
-        const y = inset;
-        const shapeWidth = width - inset * 2;
-        const shapeHeight = height - inset * 2;
-        const radius = marker.marker_shape === 'circle' || marker.marker_shape === 'pill'
-            ? shapeHeight / 2
-            : Math.min(10, shapeHeight / 4);
-        context.beginPath();
-        context.roundRect(x, y, shapeWidth, shapeHeight, radius);
-        if (backgroundEnabled) {
-            context.globalAlpha = marker.background_opacity;
-            context.fillStyle = marker.background_color;
-            context.fill();
-        }
-        if (borderEnabled && marker.border_width > 0) {
-            context.globalAlpha = marker.border_opacity;
-            context.lineWidth = marker.border_width;
-            context.strokeStyle = marker.border_color;
-            context.stroke();
-        }
-        context.globalAlpha = 1;
+    private visibleMarker(marker: MapMarker): boolean {
+        if (marker.building_link_role === 'represents') return this.showBuildings();
+        return marker.visibility === 'private' ? this.showPersonal() : this.showInfrastructure();
     }
 
 
-    private addPreparedMarkerImage(
-        map: MapInstance,
-        imageKey: string,
-        context: CanvasRenderingContext2D,
-        canvas: HTMLCanvasElement,
-    ): void {
-        this.pendingMarkerImages.delete(imageKey);
-        if (this.destroyed || this.map !== map || map.hasImage(imageKey)) {
-            return;
-        }
-        map.addImage(
-            imageKey,
-            context.getImageData(0, 0, canvas.width, canvas.height),
-            { pixelRatio: 1 },
-        );
+    private showBuildingPopup(coordinates: [number, number], buildingId: number, fullAddress: string): void {
+        this.renderPopup(this.buildingPopup(), { id: buildingId, full_address: fullAddress }, coordinates);
+        this.popupBuildingId.set(buildingId);
+        this.selectedMarkerId.set(this.markers().find(marker => this.markerRepresentsBuilding(marker, buildingId))?.id ?? null);
+        this.loadPopupConnections({ kind: 'building', id: buildingId });
     }
 
 
-    private showBuildingPopup(
-        coordinates: [number, number],
-        buildingId: number,
-        fullAddress: string,
-    ): void {
-        if (!this.map || !this.mapLibre) {
-            return;
-        }
-        this.popup?.remove();
-        const container = document.createElement('div');
-        container.className = 'grid gap-2';
-        const address = document.createElement('p');
-        address.className = 'text-sm font-medium';
-        address.textContent = fullAddress;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'text-sm underline underline-offset-4';
-        button.textContent = 'Подробнее';
-        button.addEventListener('click', () => {
-            this.buildingSelected.emit(buildingId);
-            this.popup?.remove();
-        });
-        container.append(address, button);
-        this.popup = new this.mapLibre.Popup({ closeButton: true })
-            .setLngLat(coordinates)
-            .setDOMContent(container)
-            .addTo(this.map);
-    }
-
-
-    private showCustomMarkerPopup(
-        coordinates: [number, number],
-        marker: MapMarker,
-    ): void {
-        if (!this.map || !this.mapLibre) {
-            return;
-        }
-        this.popup?.remove();
-        const view = this.popupViews.createEmbeddedView(this.markerPopup(), { $implicit: marker });
+    private renderPopup<T>(template: TemplateRef<{ $implicit: T }>, data: T, coordinates: [number, number]): void {
+        if (!this.map || !this.mapLibre) return;
+        this.closePopup();
+        const view = this.popupViews.createEmbeddedView(template, { $implicit: data });
         view.detectChanges();
         const container = document.createElement('div');
         container.append(...view.rootNodes);
-        const popup = new this.mapLibre.Popup({
-            closeButton: false,
-            maxWidth: 'none',
-            className: 'address-marker-popup',
-        })
-            .setLngLat(coordinates)
-            .setDOMContent(container);
+        const popup = new this.mapLibre.Popup({ closeButton: false, maxWidth: 'none', className: 'address-marker-popup' })
+            .setLngLat(coordinates).setDOMContent(container);
         popup.on('close', () => {
             view.destroy();
-            if (this.popup === popup) {
-                this.popup = null;
-            }
+            if (this.popup === popup) { this.popup = null; this.popupGeneration++; }
         });
         this.popup = popup.addTo(this.map);
     }
 
 
+    private showCustomMarkerPopup(coordinates: [number, number], marker: MapMarker): void {
+        if (marker.building_link_role === 'represents' && marker.building_id !== null) {
+            this.showBuildingPopup(coordinates, marker.building_id, marker.building_full_address ?? marker.name);
+            return;
+        }
+        this.renderPopup(this.markerPopup(), marker, coordinates);
+        this.selectedMarkerId.set(marker.id);
+        this.loadPopupConnections({ kind: 'marker', id: marker.id });
+    }
+
+
     closePopup(): void {
+        this.popupGeneration++;
         this.popup?.remove();
+        this.popup = null;
+        this.popupConnections.set([]);
+        this.selectedMarkerId.set(null);
+        this.popupBuildingId.set(null);
     }
 
 
     startCreateMarker(): void {
+        this.popupGeneration++;
         const center = this.map?.getCenter();
         this.editingMarker.set(null);
         this.markerError.set(null);
+        this.bindingConflict.set(null);
         this.markerDraft.set(createDefaultMapMarker(center?.lat, center?.lng));
     }
 
 
     startEditMarker(marker: MapMarker): void {
-        this.popup?.remove();
+        this.closePopup();
         this.editingMarker.set(marker);
         this.markerError.set(null);
-        const {
-            id: _id,
-            company_id: _companyId,
-            created_at: _createdAt,
-            updated_at: _updatedAt,
-            ...draft
-        } = marker;
-        this.markerDraft.set(draft);
+        const defaults = createDefaultMapMarker();
+        const draft = Object.fromEntries(Object.keys(defaults).map(key => [
+            key, key in marker ? marker[key as keyof MapMarkerPayload] : defaults[key as keyof MapMarkerPayload],
+        ])) as unknown as MapMarkerPayload;
+        draft.latitude = marker.latitude;
+        draft.longitude = marker.longitude;
+        this.markerDraft.set({ ...draft, expected_version: marker.version, sync_building_coordinates: false });
         this.markerDialog()?.open();
     }
 
 
-    saveMarker(): void {
-        if (this.markerSaving()) {
-            return;
-        }
+    saveMarker(confirmation?: string): void {
+        if (this.markerSaving()) return;
         const generation = ++this.markerMutationGeneration;
         const editing = this.editingMarker();
-        const draft = this.markerDraft();
-        const changes = editing ? Object.fromEntries(
-            Object.entries(draft).filter(([key, value]) => value !== editing[key as keyof MapMarkerPayload]),
-        ) : draft;
+        const draft = { ...this.markerDraft(), ...(confirmation ? { binding_confirmation: confirmation } : {}) };
         this.markerSaving.set(true);
         this.markerError.set(null);
-        const request = editing
-            ? this.mapData.updateMarker(editing.id, changes)
-            : this.mapData.createMarker(draft);
+        const allowed = new Set([...Object.keys(createDefaultMapMarker()), 'building_position', 'binding_confirmation']);
+        const payload = Object.fromEntries(Object.entries(draft).filter(([key]) => allowed.has(key))) as unknown as MapMarkerPayload;
+        const changes = editing ? Object.fromEntries(Object.entries(payload).filter(([key, value]) =>
+            key === 'building_position' ? value != null : key === 'binding_confirmation' || value !== editing[key as keyof MapMarker])) : payload;
+        if (editing && payload.building_id !== editing.building_id) changes['building_link_role'] = payload.building_link_role;
+        const request = editing ? this.mapData.updateMarker(editing.id, { ...changes, expected_version: editing.version }) : this.mapData.createMarker(payload);
         request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: saved => {
-                if (generation !== this.markerMutationGeneration || this.destroyed) {
-                    return;
-                }
+                if (generation !== this.markerMutationGeneration || this.destroyed) return;
                 this.markerSaving.set(false);
-                this.markers.update(current => {
-                    const withoutSaved = current.filter(item => item.id !== saved.id);
-                    return [...withoutSaved, saved];
-                });
+                this.bindingConflict.set(null);
+                this.bindingDialog()?.close({});
+                this.markers.update(current => [...current.filter(item => item.id !== saved.id), saved]);
                 this.setMarkerData(this.markers());
                 this.markerDialog()?.close({});
                 this.editingMarker.set(null);
-                if (saved.sync_building_coordinates && saved.building_id !== null) {
+                if (draft.building_position && saved.building_id !== null && saved.building_link_role === 'represents') {
+                    this.suppressFocusForBuildingId = saved.building_id;
                     this.buildingCoordinatesChanged.emit({
-                        id: saved.building_id,
-                        latitude: saved.latitude,
-                        longitude: saved.longitude,
+                        id: saved.building_id, latitude: saved.latitude === null ? null : String(saved.latitude),
+                        longitude: saved.longitude === null ? null : String(saved.longitude),
                     });
-                    // Invalidate old viewport responses and reload the canonical
-                    // building point plus any other synchronized annotations.
-                    this.loadViewport();
                 }
+                this.loadViewport();
                 toast.success(editing ? 'Маркер изменён' : 'Маркер создан');
             },
-            error: () => {
-                if (generation !== this.markerMutationGeneration || this.destroyed) {
-                    return;
-                }
+            error: (error: unknown) => {
+                if (generation !== this.markerMutationGeneration || this.destroyed) return;
                 this.markerSaving.set(false);
-                this.markerError.set('Проверьте поля и повторите попытку. Введённые данные сохранены в форме.');
+                const detail = error instanceof HttpErrorResponse ? error.error?.detail : null;
+                if (detail?.code === 'building_binding_conflict' && detail.snapshot && detail.confirmation_token) {
+                    this.bindingConflict.set(detail);
+                    this.bindingDialog()?.open();
+                } else {
+                    const message = detail?.message ?? 'Проверьте поля и повторите попытку. Введённые данные сохранены в форме.';
+                    this.markerError.set(message);
+                    toast.error(message);
+                }
             },
         });
     }
 
 
+    confirmBinding(): void {
+        const conflict = this.bindingConflict();
+        if (conflict) this.saveMarker(conflict.confirmation_token);
+    }
+
+
+    loadPersonalStyles(): void {
+        const generation = this.contextGeneration;
+        this.mapData.getStyles().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: styles => { if (!this.destroyed && generation === this.contextGeneration) this.personalStyles.set(styles); },
+            error: () => { if (!this.destroyed && generation === this.contextGeneration) toast.error('Не удалось загрузить личные стили'); },
+        });
+    }
+
+
+    savePersonalStyle(event: { action: 'create' | 'rename' | 'duplicate' | 'delete'; name: string; appearance: MapMarkerAppearance; preset?: MapStylePreset }): void {
+        const generation = this.contextGeneration;
+        const operation = ++this.styleGeneration;
+        const request: Observable<unknown> = event.action === 'delete' && event.preset
+            ? this.mapData.deleteStyle(event.preset.id)
+            : event.action === 'rename' && event.preset
+                ? this.mapData.updateStyle(event.preset, event.name, event.appearance)
+                : this.mapData.createStyle(event.name, event.appearance);
+        request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: () => {
+                if (this.destroyed || generation !== this.contextGeneration || operation !== this.styleGeneration) return;
+                toast.success(event.action === 'delete' ? 'Личный стиль удалён' : 'Личный стиль сохранён');
+                this.loadPersonalStyles();
+            },
+            error: (error: HttpErrorResponse) => {
+                if (!this.destroyed && generation === this.contextGeneration && operation === this.styleGeneration)
+                    toast.error(error.error?.detail?.message ?? 'Не удалось сохранить личный стиль');
+            },
+        });
+    }
+
+
+    startBuildingStyle(buildingId: number): void {
+        const generation = this.contextGeneration;
+        const request = ++this.popupGeneration;
+        this.addressApi.getBuilding(buildingId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: building => {
+                if (this.destroyed || generation !== this.contextGeneration || request !== this.popupGeneration) return;
+                const existing = this.markers().find(marker => this.markerRepresentsBuilding(marker, buildingId));
+                if (existing) { this.startEditMarker(existing); return; }
+                this.closePopup();
+                this.editingMarker.set(null);
+                this.markerError.set(null);
+                this.markerDraft.set({
+                    ...createDefaultMapMarker(), visibility: 'company', point_type: 'building',
+                    building_link_role: 'represents', building_id: buildingId, icon_name: 'map-house',
+                    name: 'Дом ' + building.number, label_text: building.number,
+                    latitude: building.latitude === null ? null : Number(building.latitude),
+                    longitude: building.longitude === null ? null : Number(building.longitude),
+                });
+                this.markerDialog()?.open();
+            },
+            error: () => { if (generation === this.contextGeneration) toast.error('Дом больше недоступен'); },
+        });
+    }
+
+
+    private handlePointClick(event: import('maplibre-gl').MapLayerMouseEvent, hint: 'building' | 'marker'): boolean {
+        if (this.placingMarker() || this.connectionMapMode() === 'vertices') return true;
+        const features = event.point && this.map
+            ? this.map.queryRenderedFeatures(event.point, { layers: ['building-points', 'selected-building-marker', 'custom-marker-points'] })
+            : event.features ?? [];
+        const choices = new Map<string, MapEndpointDetail>();
+        for (const feature of features) {
+            if (feature.geometry.type !== 'Point') continue;
+            const properties = feature.properties;
+            const markerId = properties['marker_id'] ?? ((feature.layer?.id === 'custom-marker-points' || (!feature.layer && hint === 'marker')) ? properties['id'] : undefined);
+            const marker = markerId === undefined ? undefined : this.markers().find(item => item.id === Number(markerId));
+            let option: MapEndpointDetail;
+            if (marker) {
+                option = marker.building_link_role === 'represents' && marker.building_id !== null
+                    ? { kind: 'building', id: marker.building_id, name: marker.building_full_address ?? marker.name, latitude: marker.latitude, longitude: marker.longitude }
+                    : { kind: 'marker', id: marker.id, name: marker.name, latitude: marker.latitude, longitude: marker.longitude };
+            } else {
+                option = { kind: 'building', id: Number(properties['id']), name: String(properties['full_address']), latitude: feature.geometry.coordinates[1], longitude: feature.geometry.coordinates[0] };
+            }
+            if (Number.isInteger(option.id)) choices.set(option.kind + ':' + option.id, option);
+        }
+        const options = [...choices.values()];
+        if (options.length > 1) {
+            const point = options[0];
+            this.renderPopup(this.choicesPopup(), options, [point.longitude!, point.latitude!]);
+            return true;
+        }
+        if (options.length === 1 && this.connectionMapMode()) {
+            this.selectMapChoice(options[0]);
+            return true;
+        }
+        return false;
+    }
+
+
+    selectMapChoice(endpoint: MapEndpointDetail): void {
+        const mode = this.connectionMapMode();
+        if (mode === 'source' || mode === 'target') {
+            this.connectionDraft.update(draft => ({ ...draft, [mode]: endpoint }));
+            this.finishConnectionMap();
+            this.closePopup();
+        } else this.openEndpoint(endpoint);
+    }
+
+
+    openEndpoint(endpoint: MapEndpointDetail): void {
+        if (endpoint.kind === 'building') {
+            this.closePopup();
+            this.buildingSelected.emit(endpoint.id);
+            return;
+        }
+        const generation = this.contextGeneration;
+        const request = ++this.popupGeneration;
+        this.mapData.getMarker(endpoint.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: marker => {
+                if (this.destroyed || generation !== this.contextGeneration || request !== this.popupGeneration) return;
+                if (marker.latitude === null || marker.longitude === null) { toast.error('У объекта не задано расположение'); return; }
+                this.map?.easeTo({ center: [marker.longitude, marker.latitude], zoom: 17 });
+                this.showCustomMarkerPopup([marker.longitude, marker.latitude], marker);
+            },
+            error: () => { if (generation === this.contextGeneration && request === this.popupGeneration) toast.error('Объект больше недоступен'); },
+        });
+    }
+
+
+    private loadPopupConnections(endpoint: { kind: 'building' | 'marker'; id: number }): void {
+        const generation = ++this.popupGeneration;
+        const context = this.contextGeneration;
+        this.mapData.getConnections(undefined, endpoint).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: lines => { if (!this.destroyed && generation === this.popupGeneration && context === this.contextGeneration) this.popupConnections.set(lines); },
+            error: () => { if (generation === this.popupGeneration && context === this.contextGeneration) toast.error('Не удалось загрузить присоединённые линии'); },
+        });
+    }
+
+
+    private renderConnections(): void {
+        this.connectionLayer?.setConnections(this.showConnections() ? this.connections().filter(line =>
+            (this.mediumFilter() === 'all' || line.medium === this.mediumFilter())
+            && (this.statusFilter() === 'all' || line.status === this.statusFilter())) : [], this.selectedConnectionId());
+    }
+
+
+    startCreateConnection(): void {
+        this.closePopup();
+        this.editingConnection.set(null);
+        this.connectionError.set(null);
+        this.routeHistory.set([]);
+        this.connectionDraft.set(createConnectionDraft(this.canManage() ? 'company' : 'private'));
+        this.connectionDraftActive.set(true);
+        this.connectionDialog()?.open();
+    }
+
+
+    startEditConnection(connection: MapConnection): void {
+        this.closePopup();
+        this.editingConnection.set(connection);
+        this.connectionError.set(null);
+        this.routeHistory.set([]);
+        this.connectionDraft.set({ source: connection.source, target: connection.target, name: connection.name,
+            description: connection.description, visibility: connection.visibility, medium: connection.medium,
+            status: connection.status, fiber_count: connection.fiber_count, category: connection.category,
+            vertices: connection.vertices.map(point => [...point] as [number, number]), expected_version: connection.version });
+        this.connectionDraftActive.set(true);
+        this.connectionDialog()?.open();
+    }
+
+
+    startConnectionMap(mode: 'source' | 'target' | 'vertices'): void {
+        if (mode === 'vertices' && !routeCoordinates(this.connectionDraft())) { toast.error('Укажите оба конца с координатами'); return; }
+        this.routeBeforeMap = structuredClone(this.connectionDraft());
+        this.connectionMapMode.set(mode);
+        this.connectionDraftActive.set(true);
+        this.activeVertex.set(null);
+        this.connectionDialog()?.close({});
+        this.closePopup();
+        if (this.map) this.map.getCanvas().style.cursor = mode === 'vertices' ? 'crosshair' : 'pointer';
+    }
+
+
+    finishConnectionMap(): void {
+        this.connectionMapMode.set(null);
+        this.routeBeforeMap = null;
+        this.activeVertex.set(null);
+        this.connectionLayer?.setDraft(this.connectionDraft(), false);
+        if (this.map) this.map.getCanvas().style.cursor = '';
+        this.connectionDialog()?.open();
+    }
+
+
+    cancelConnectionMap(): void {
+        if (this.routeBeforeMap) this.connectionDraft.set(this.routeBeforeMap);
+        this.routeBeforeMap = null;
+        this.connectionMapMode.set(null);
+        this.connectionDraftActive.set(false);
+        this.activeVertex.set(null);
+        this.connectionLayer?.setDraft(null);
+        if (this.map) this.map.getCanvas().style.cursor = '';
+    }
+
+
+    onConnectionDialogClosed(): void {
+        if (this.connectionMapMode() === null) {
+            this.connectionDraftActive.set(false);
+            this.connectionLayer?.setDraft(null);
+        }
+    }
+
+
+    private rememberRoute(): void {
+        const points = this.connectionDraft().vertices.map(point => [...point] as [number, number]);
+        this.routeHistory.update(history => [...history.slice(-29), points]);
+    }
+
+
+    private moveRouteVertex(index: number, point: [number, number]): void {
+        if (this.connectionMapMode() !== 'vertices') return;
+        this.connectionDraft.update(draft => ({ ...draft, vertices: draft.vertices.map((current, i) => i === index ? point : current) }));
+    }
+
+
+    removeRouteVertex(): void {
+        const index = this.activeVertex();
+        if (index === null || this.connectionMapMode() !== 'vertices') return;
+        this.rememberRoute();
+        this.connectionDraft.update(draft => ({ ...draft, vertices: draft.vertices.filter((_, i) => i !== index) }));
+        this.activeVertex.set(null);
+    }
+
+
+    undoRoute(): void {
+        const history = this.routeHistory();
+        if (!history.length) return;
+        this.connectionDraft.update(draft => ({ ...draft, vertices: history[history.length - 1] }));
+        this.routeHistory.set(history.slice(0, -1));
+        this.activeVertex.set(null);
+    }
+
+
+    @HostListener('window:keydown', ['$event'])
+    handleMapKey(event: KeyboardEvent): void {
+        if (this.connectionMapMode()) {
+            if (event.key === 'Escape') { event.preventDefault(); this.cancelConnectionMap(); }
+            else if (event.key === 'Enter') { event.preventDefault(); this.finishConnectionMap(); }
+            else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); this.removeRouteVertex(); }
+        } else if (this.placingMarker()) {
+            if (event.key === 'Escape') { event.preventDefault(); this.cancelPointSelection(); }
+            else if (event.key === 'Enter') { event.preventDefault(); this.confirmPointSelection(); }
+        }
+    }
+
+
+    saveConnection(): void {
+        if (this.connectionSaving()) return;
+        const draft = this.connectionDraft();
+        if (!draft.source || !draft.target || !draft.name.trim()) return;
+        const payload: MapConnectionPayload = { ...draft, source: { kind: draft.source.kind, id: draft.source.id }, target: { kind: draft.target.kind, id: draft.target.id } };
+        const editing = this.editingConnection();
+        const generation = ++this.connectionMutationGeneration;
+        this.connectionSaving.set(true);
+        this.connectionError.set(null);
+        const request = editing ? this.mapData.updateConnection(editing.id, { ...payload, expected_version: editing.version }) : this.mapData.createConnection(payload);
+        request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: line => {
+                if (this.destroyed || generation !== this.connectionMutationGeneration) return;
+                this.connectionSaving.set(false);
+                this.connections.update(lines => [...lines.filter(item => item.id !== line.id), line]);
+                this.connectionDraftActive.set(false);
+                this.connectionLayer?.setDraft(null);
+                this.connectionDialog()?.close({});
+                this.selectedConnectionId.set(line.id);
+                this.renderConnections();
+                this.loadViewport();
+                toast.success(editing ? 'Соединение изменено' : 'Соединение создано');
+            },
+            error: (error: HttpErrorResponse) => {
+                if (this.destroyed || generation !== this.connectionMutationGeneration) return;
+                this.connectionSaving.set(false);
+                this.connectionError.set(error.error?.detail?.message ?? 'Не удалось сохранить соединение. Проверьте поля и повторите попытку.');
+                toast.error(this.connectionError()!);
+            },
+        });
+    }
+
+
+    openConnectionPopup(id: number, coordinate?: [number, number]): void {
+        const connection = this.connections().find(line => line.id === id) ?? this.popupConnections().find(line => line.id === id);
+        if (!connection) return;
+        const point = coordinate ?? connection.geometry?.coordinates[0] as [number, number] | undefined;
+        if (!point) { toast.error('Для отображения трассы нужны координаты обоих концов'); return; }
+        this.selectedConnectionId.set(id);
+        this.renderPopup(this.connectionPopup(), connection, point);
+    }
+
+
+    requestDeleteConnection(connection: MapConnection): void {
+        this.closePopup();
+        this.connectionToDelete.set(connection);
+        this.connectionDeleteDialog()?.open();
+    }
+
+
+    deleteConnection(): void {
+        const line = this.connectionToDelete();
+        if (!line || this.connectionDeleting()) return;
+        const generation = ++this.connectionMutationGeneration;
+        this.connectionDeleting.set(true);
+        this.mapData.deleteConnection(line.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: () => {
+                if (this.destroyed || generation !== this.connectionMutationGeneration) return;
+                this.connectionDeleting.set(false);
+                this.connections.update(lines => lines.filter(item => item.id !== line.id));
+                this.connectionDeleteDialog()?.close({});
+                this.connectionToDelete.set(null);
+                toast.success('Соединение удалено');
+            },
+            error: () => { if (generation === this.connectionMutationGeneration && !this.destroyed) { this.connectionDeleting.set(false); toast.error('Не удалось удалить соединение'); } },
+        });
+    }
+
+
     requestDeleteMarker(marker: MapMarker): void {
-        this.popup?.remove();
+        this.closePopup();
         this.markerToDelete.set(marker);
+        this.markerDeleteError.set(null);
+        this.markerDependencies.set([]);
         this.deleteMarkerDialog()?.open();
+        const generation = this.contextGeneration;
+        this.mapData.getConnections(undefined, { kind: 'marker', id: marker.id }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: lines => { if (!this.destroyed && generation === this.contextGeneration && this.markerToDelete()?.id === marker.id) this.markerDependencies.set(lines); },
+            error: () => { if (generation === this.contextGeneration) this.markerDeleteError.set('Не удалось проверить присоединённые линии. Попробуйте снова.'); },
+        });
     }
 
 
@@ -959,12 +1328,14 @@ export class AddressMap implements AfterViewInit {
                 this.markerToDelete.set(null);
                 toast.success('Маркер удалён');
             },
-            error: () => {
+            error: (error: HttpErrorResponse) => {
                 if (generation !== this.markerMutationGeneration || this.destroyed) {
                     return;
                 }
                 this.markerDeleting.set(false);
-                toast.error('Не удалось удалить маркер');
+                const detail = error.error?.detail;
+                this.markerDeleteError.set(detail?.message ?? 'Не удалось удалить маркер');
+                toast.error(this.markerDeleteError()!);
             },
         });
     }
@@ -977,15 +1348,18 @@ export class AddressMap implements AfterViewInit {
             return;
         }
         const draft = this.markerDraft();
+        const center = map.getCenter();
+        this.placementOriginalDraft = structuredClone(draft);
+        this.placingMarker.set(true);
         this.markerDialog()?.close({});
         this.cleanupPointSelection();
-        this.placementOriginalCoordinates = [draft.longitude, draft.latitude];
-        this.placingMarker.set(true);
+        this.placementOriginalDraft = structuredClone(draft);
         this.placementMarker = new mapLibre.Marker({
             draggable: true,
-            color: draft.background_color,
+            anchor: 'center',
+            element: createMarkerElement(pickMarkerAppearance(draft), true),
         })
-            .setLngLat([draft.longitude, draft.latitude])
+            .setLngLat([draft.longitude ?? center.lng, draft.latitude ?? center.lat])
             .addTo(map);
         this.placementMarker.on('dragend', () => {
             const position = this.placementMarker?.getLngLat();
@@ -1003,6 +1377,8 @@ export class AddressMap implements AfterViewInit {
 
 
     confirmPointSelection(): void {
+        const position = this.placementMarker?.getLngLat();
+        if (position) this.applyDraftCoordinates(position.lng, position.lat);
         this.placingMarker.set(false);
         this.cleanupPointSelection();
         this.markerDialog()?.open();
@@ -1010,9 +1386,9 @@ export class AddressMap implements AfterViewInit {
 
 
     cancelPointSelection(): void {
-        const original = this.placementOriginalCoordinates;
+        const original = this.placementOriginalDraft;
         if (original) {
-            this.applyDraftCoordinates(original[0], original[1]);
+            this.markerDraft.set(original);
         }
         this.placingMarker.set(false);
         this.cleanupPointSelection();
@@ -1021,7 +1397,9 @@ export class AddressMap implements AfterViewInit {
 
 
     private applyDraftCoordinates(longitude: number, latitude: number): void {
-        this.markerDraft.update(current => ({ ...current, longitude, latitude }));
+        this.markerDraft.update(current => ({ ...current, longitude, latitude,
+            ...(current.building_link_role === 'represents' ? { building_position: { latitude, longitude } } : {}),
+        }));
     }
 
 
@@ -1032,7 +1410,7 @@ export class AddressMap implements AfterViewInit {
         this.placementClickHandler = null;
         this.placementMarker?.remove();
         this.placementMarker = null;
-        this.placementOriginalCoordinates = null;
+        this.placementOriginalDraft = null;
         if (this.map) {
             this.map.getCanvas().style.cursor = '';
         }
@@ -1052,7 +1430,9 @@ export class AddressMap implements AfterViewInit {
 
     private loadViewport(): void {
         const map = this.map;
-        if (!map || !map.isStyleLoaded()) {
+        // Adding GeoJSON sources in the load callback temporarily makes
+        // isStyleLoaded() false. That must not suppress the initial API read.
+        if (!map || !map.getSource(MAP_BUILDINGS_SOURCE_ID)) {
             return;
         }
         const bounds = map.getBounds();
@@ -1096,11 +1476,23 @@ export class AddressMap implements AfterViewInit {
                 this.markers.set(markers);
                 this.setMarkerData(markers);
             },
-            error: () => {
+            error: (error: HttpErrorResponse) => {
                 if (generation !== this.viewportGeneration || this.destroyed) {
                     return;
                 }
-                this.viewportError.set('Не удалось загрузить маркеры для этой области');
+                this.viewportError.set(error.error?.detail?.message ?? 'Не удалось загрузить маркеры для этой области');
+            },
+        });
+        this.connectionViewportSubscription?.unsubscribe();
+        this.connectionViewportSubscription = this.mapData.getConnections(viewport).subscribe({
+            next: lines => {
+                if (generation !== this.viewportGeneration || this.destroyed) return;
+                this.connections.set(lines);
+                this.renderConnections();
+            },
+            error: (error: HttpErrorResponse) => {
+                if (generation !== this.viewportGeneration || this.destroyed) return;
+                this.viewportError.set(error.error?.detail?.message ?? 'Не удалось загрузить соединения для этой области');
             },
         });
     }
@@ -1114,6 +1506,7 @@ export class AddressMap implements AfterViewInit {
 
     private renderBuildingData(): void {
         const source = this.map?.getSource(MAP_BUILDINGS_SOURCE_ID) as GeoJSONSource | undefined;
+        if (!this.showBuildings()) { source?.setData(EMPTY_FEATURES); return; }
         const selected = this.selectedBuilding();
         const selectedId = this.buildingCenter(selected) ? selected?.id : null;
         const linked = new Map<number, MapMarker[]>();
@@ -1152,10 +1545,11 @@ export class AddressMap implements AfterViewInit {
         building: Building | null,
     ): void {
         const map = this.map;
-        if (!map || !map.isStyleLoaded()) {
+        if (!map || !map.getSource(MAP_BUILDINGS_SOURCE_ID)) {
             return;
         }
         const center = this.buildingCenter(building);
+        if (building && this.suppressFocusForBuildingId === building.id) { this.suppressFocusForBuildingId = null; return; }
         if (center) {
             this.coordinateNotice.set(null);
             this.focusGeneration += 1;
@@ -1210,14 +1604,11 @@ export class AddressMap implements AfterViewInit {
 
 
     private updateSelectedBuildingLayer(buildingId: number | null): void {
-        if (!this.map?.getLayer('selected-building-point')) {
+        if (!this.map?.getSource(SELECTED_BUILDING_SOURCE_ID)) {
             return;
         }
-        this.map.setFilter(
-            'selected-building-point',
-            ['all', ['==', ['get', 'id'], buildingId ?? -1], ['!', ['has', 'marker_id']]],
-        );
         const source = this.map.getSource(SELECTED_BUILDING_SOURCE_ID) as GeoJSONSource | undefined;
+        if (!this.showBuildings()) { source?.setData(EMPTY_FEATURES); return; }
         const building = this.selectedBuilding();
         const center = this.buildingCenter(building);
         const marker = this.selectedBuildingMarker();
@@ -1227,7 +1618,7 @@ export class AddressMap implements AfterViewInit {
                 type: 'FeatureCollection',
                 features: [{
                     ...feature,
-                    properties: { ...feature.properties, marker_id: marker.id, full_address: building.full_address },
+                    properties: { ...feature.properties, id: building.id, marker_id: marker.id, full_address: building.full_address },
                 }],
             });
             return;
@@ -1283,17 +1674,26 @@ export class AddressMap implements AfterViewInit {
 
 
     private async performTileSessionRefresh(): Promise<void> {
+        const generation = this.contextGeneration;
+        const map = this.map;
         try {
             const session = await this.firstValueFromSession();
-            if (this.destroyed || !this.map) {
+            if (this.destroyed || !this.map || map !== this.map || generation !== this.contextGeneration) {
                 return;
             }
             const source = this.map.getSource(MAP_SOURCE_ID) as RasterTileSource | undefined;
             source?.setTiles([session.tile_url_template]);
             this.scheduleSessionRefresh(session);
+            this.sessionRetryCount = 0;
         } catch {
-            // Keep the current signed tile URL. Reopening the map requests a
-            // fresh session without replacing the usable map with an alert.
+            if (this.destroyed || generation !== this.contextGeneration || map !== this.map) return;
+            if (this.sessionRetryCount < 4) {
+                const delay = 2000 * 2 ** this.sessionRetryCount++;
+                if (this.sessionRefreshTimer !== null) clearTimeout(this.sessionRefreshTimer);
+                this.sessionRefreshTimer = setTimeout(() => { this.sessionRefreshTimer = null; void this.refreshTileSession(); }, delay);
+            } else {
+                this.viewportError.set('Не удалось обновить сессию карты. Нажмите «Повторить».');
+            }
         }
     }
 
@@ -1316,6 +1716,11 @@ export class AddressMap implements AfterViewInit {
         this.popup?.remove();
         this.popup = null;
         this.cleanupPointSelection();
+        this.connectionLayer?.destroy();
+        this.connectionLayer = null;
+        this.buildingImageSignature = null;
+        this.markerResources.clear();
+        this.usedMarkerImages.clear();
         this.pendingMarkerImages.clear();
         this.map?.remove();
         this.map = null;
@@ -1328,6 +1733,9 @@ export class AddressMap implements AfterViewInit {
         this.viewportGeneration += 1;
         this.focusGeneration += 1;
         this.markerMutationGeneration += 1;
+        this.contextGeneration++;
+        this.connectionMutationGeneration++;
+        this.themeObserver?.disconnect();
         if (this.viewportTimer !== null) {
             clearTimeout(this.viewportTimer);
         }
@@ -1336,6 +1744,7 @@ export class AddressMap implements AfterViewInit {
         }
         this.viewportSubscription?.unsubscribe();
         this.markerViewportSubscription?.unsubscribe();
+        this.connectionViewportSubscription?.unsubscribe();
         this.focusSubscription?.unsubscribe();
         this.destroyCurrentMap();
     }

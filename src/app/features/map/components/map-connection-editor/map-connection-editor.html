@@ -1,0 +1,85 @@
+<hlm-dialog-header>
+    <h3 hlmDialogTitle>{{ editing() ? 'Изменить соединение' : 'Добавить соединение' }}</h3>
+    <p hlmDialogDescription>Выберите два существующих объекта, среду и трассу между ними.</p>
+</hlm-dialog-header>
+<hlm-field-group class="my-5 max-h-[65dvh] overflow-y-auto pr-1">
+    @for (side of ['source', 'target']; track side) {
+    <hlm-field>
+        <div class="flex items-center justify-between gap-2">
+            <label hlmFieldLabel>{{ side === 'source' ? 'Начало' : 'Конец' }}</label>
+            <button hlmBtn variant="ghost" size="sm" type="button" (click)="mapRequested.emit($any(side))">Выбрать на карте</button>
+        </div>
+        <app-map-endpoint-picker [value]="$any(draft())[side]" [disabled]="saving()" (valueChange)="setEndpoint($any(side), $event)" />
+    </hlm-field>
+    }
+    <div class="flex flex-wrap gap-2">
+        <button hlmBtn variant="outline" size="sm" type="button" (click)="swap()">Поменять местами</button>
+        <button hlmBtn variant="outline" size="sm" type="button" [disabled]="!draft().source || !draft().target" (click)="mapRequested.emit('vertices')">Редактировать трассу · {{ draft().vertices.length }} вершин</button>
+    </div>
+    <details class="rounded-lg border p-3">
+        <summary class="cursor-pointer text-sm font-medium">Вершины трассы · ручной ввод</summary>
+        <p class="my-3 text-xs text-muted-foreground">Широта, долгота. Концы привязаны к объектам и не удаляются как вершины.</p>
+        <div class="grid gap-2">
+            @for (point of draft().vertices; track $index) {
+            <div class="flex items-center gap-2">
+                <input hlmInput [attr.aria-label]="'Вершина ' + ($index + 1)" [value]="point[1] + ', ' + point[0]" (change)="changeVertex($index, $any($event.target).value)" />
+                <button hlmBtn variant="outline" size="sm" type="button" (click)="removeVertex($index)">Удалить</button>
+            </div>
+            }
+            <div class="flex gap-2"><button hlmBtn variant="outline" size="sm" type="button" [disabled]="!draft().source || draft().vertices.length >= 498" (click)="addVertex()">Добавить вершину</button><button hlmBtn variant="ghost" size="sm" type="button" [disabled]="!vertexHistory().length" (click)="undoVertex()">Отменить правку</button></div>
+            @if (coordinateError()) { <p class="text-sm text-destructive" role="alert">{{ coordinateError() }}</p> }
+        </div>
+    </details>
+    <hlm-field>
+        <label hlmFieldLabel for="connection-name">Название</label>
+        <input hlmInput id="connection-name" maxlength="120" [ngModel]="draft().name" (ngModelChange)="update('name', $event)" />
+    </hlm-field>
+    <div class="grid gap-4 sm:grid-cols-2">
+        <hlm-field>
+            <label hlmFieldLabel>Среда</label>
+            <hlm-select [value]="draft().medium" [itemToString]="mediumLabel" (valueChange)="setMedium($event)">
+                <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal><hlm-select-item value="fiber">Оптоволокно</hlm-select-item><hlm-select-item value="utp">UTP</hlm-select-item></hlm-select-content>
+            </hlm-select>
+        </hlm-field>
+        <hlm-field>
+            <label hlmFieldLabel>Состояние</label>
+            <hlm-select [value]="draft().status" [itemToString]="statusLabel" (valueChange)="$event && update('status', $event)">
+                <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>@for (status of statuses; track status[0]) { <hlm-select-item [value]="status[0]">{{ status[1] }}</hlm-select-item> }</hlm-select-content>
+            </hlm-select>
+        </hlm-field>
+    </div>
+    @if (draft().medium === 'fiber') {
+    <hlm-field>
+        <label hlmFieldLabel for="connection-fibers">Количество волокон</label>
+        <input hlmInput id="connection-fibers" type="number" min="1" max="10000" [ngModel]="draft().fiber_count" (ngModelChange)="update('fiber_count', $event || null)" />
+    </hlm-field>
+    } @else {
+    <hlm-field>
+        <label hlmFieldLabel>Категория UTP</label>
+        <hlm-select [value]="draft().category" (valueChange)="update('category', $event ?? null)">
+            <hlm-select-trigger class="w-full"><hlm-select-value placeholder="Не указана" /></hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>@for (category of ['Cat 5e', 'Cat 6', 'Cat 6A']; track category) { <hlm-select-item [value]="category">{{ category }}</hlm-select-item> }</hlm-select-content>
+        </hlm-select>
+    </hlm-field>
+    }
+    @if (canManage()) {
+    <hlm-field>
+        <label hlmFieldLabel>Видимость</label>
+        <hlm-select [value]="draft().visibility" [itemToString]="visibilityLabel" (valueChange)="$event && update('visibility', $event)">
+            <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal><hlm-select-item value="company">Общее соединение компании</hlm-select-item><hlm-select-item value="private">Личное соединение</hlm-select-item></hlm-select-content>
+        </hlm-select>
+    </hlm-field>
+    }
+    <hlm-field>
+        <label hlmFieldLabel for="connection-description">Описание</label>
+        <textarea hlmTextarea id="connection-description" maxlength="2000" [ngModel]="draft().description" (ngModelChange)="update('description', $event || null)"></textarea>
+    </hlm-field>
+</hlm-field-group>
+@if (error()) { <p class="mb-3 text-sm text-destructive" role="alert">{{ error() }}</p> }
+<hlm-dialog-footer>
+    <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="saving()">Отмена</button>
+    <button hlmBtn type="button" [disabled]="!canSave() || saving()" (click)="saveRequested.emit()">{{ saving() ? 'Сохраняем...' : 'Сохранить соединение' }}</button>
+</hlm-dialog-footer>

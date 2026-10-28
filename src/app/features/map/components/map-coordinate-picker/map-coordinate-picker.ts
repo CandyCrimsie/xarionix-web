@@ -10,7 +10,14 @@ import {
     viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { CompanyContextService } from '../../../../core/company/company-context.service';
 import { firstValueFrom } from 'rxjs';
+import { toast } from '@spartan-ng/brain/sonner';
+import { createMarkerElement } from '../../map-marker-renderer';
+import { mapAppearanceForTheme, pickMarkerAppearance } from '../../map-marker.config';
+import type { MapMarkerAppearance } from '../../models/map.models';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLoaderCircle, lucideTriangleAlert } from '@ng-icons/lucide';
@@ -48,9 +55,11 @@ export class MapCoordinatePicker implements AfterViewInit {
     private readonly mapData = inject(MapDataService);
     private readonly mapLibreLoader = inject(MapLibreLoaderService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly dialogRef = inject(BrnDialogRef, { optional: true });
 
     readonly latitude = input('');
     readonly longitude = input('');
+    readonly buildingId = input<number | null>(null);
     readonly mapContainer = viewChild.required<ElementRef<HTMLElement>>('mapContainer');
     readonly loading = signal(true);
     readonly error = signal<string | null>(null);
@@ -64,12 +73,31 @@ export class MapCoordinatePicker implements AfterViewInit {
     private mapLibre: MapLibreModule | null = null;
     private destroyed = false;
     private sessionRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    private sessionRefreshPromise: Promise<void> | null = null;
+    private sessionRetryCount = 0;
+    private resizeObserver: ResizeObserver | null = null;
+    private appearance: MapMarkerAppearance = { ...mapAppearanceForTheme(), icon_name: 'map-house', label_text: null };
 
 
     constructor() {
+        inject(CompanyContextService).companyChanged$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+            this.destroyed = true;
+            this.marker?.remove();
+            this.marker = null;
+            this.resizeObserver?.disconnect();
+            this.map?.remove();
+            this.map = null;
+            if (this.sessionRefreshTimer !== null) clearTimeout(this.sessionRefreshTimer);
+            this.sessionRefreshTimer = null;
+            this.selectedCoordinates.set(null);
+            this.loading.set(false);
+            this.error.set('Компания изменена. Откройте выбор координат заново.');
+            this.dialogRef?.close();
+        });
         this.destroyRef.onDestroy(() => {
             this.destroyed = true;
             this.marker?.remove();
+            this.resizeObserver?.disconnect();
             this.map?.remove();
             if (this.sessionRefreshTimer !== null) {
                 clearTimeout(this.sessionRefreshTimer);
@@ -89,6 +117,13 @@ export class MapCoordinatePicker implements AfterViewInit {
                 this.mapLibreLoader.load(),
                 firstValueFrom(this.mapData.createTileSession()),
             ]);
+            const buildingId = this.buildingId();
+            if (buildingId !== null) {
+                try {
+                    const marker = await firstValueFrom(this.mapData.getBuildingMarker(buildingId));
+                    if (marker) this.appearance = pickMarkerAppearance(marker);
+                } catch { /* The independent coordinate picker still works with the standard house. */ }
+            }
             if (this.destroyed) {
                 return;
             }
@@ -123,8 +158,13 @@ export class MapCoordinatePicker implements AfterViewInit {
                 },
             });
             this.map = map;
+            if (typeof ResizeObserver !== 'undefined') {
+                this.resizeObserver = new ResizeObserver(() => map.resize());
+                this.resizeObserver.observe(this.mapContainer().nativeElement);
+            }
             map.addControl(new mapLibre.NavigationControl(), 'top-right');
             map.on('load', () => {
+                if (this.destroyed || this.map !== map) return;
                 this.loading.set(false);
                 this.scheduleSessionRefresh(session.expires_at);
                 this.updateExternalMapLink();
@@ -136,9 +176,10 @@ export class MapCoordinatePicker implements AfterViewInit {
                 }
             });
             map.on('click', event => {
+                if (this.destroyed || this.map !== map) return;
                 this.setMarker(event.lngLat.lng, event.lngLat.lat);
             });
-            map.on('moveend', () => this.updateExternalMapLink());
+            map.on('moveend', () => { if (!this.destroyed && this.map === map) this.updateExternalMapLink(); });
         } catch (error) {
             if (this.destroyed) {
                 return;
@@ -181,7 +222,7 @@ export class MapCoordinatePicker implements AfterViewInit {
             return;
         }
         if (!this.marker) {
-            this.marker = new this.mapLibre.Marker({ draggable: true })
+            this.marker = new this.mapLibre.Marker({ draggable: true, anchor: 'center', element: createMarkerElement(this.appearance, true) })
                 .setLngLat([longitude, latitude])
                 .addTo(this.map);
             this.marker.on('dragend', () => {
@@ -221,7 +262,14 @@ export class MapCoordinatePicker implements AfterViewInit {
     }
 
 
-    private async refreshTileSession(): Promise<void> {
+    private refreshTileSession(): Promise<void> {
+        if (this.sessionRefreshPromise) return this.sessionRefreshPromise;
+        const request = this.performRefresh();
+        this.sessionRefreshPromise = request.finally(() => { this.sessionRefreshPromise = null; });
+        return this.sessionRefreshPromise;
+    }
+
+    private async performRefresh(): Promise<void> {
         try {
             const session = await firstValueFrom(this.mapData.createTileSession());
             if (this.destroyed || !this.map) {
@@ -230,10 +278,12 @@ export class MapCoordinatePicker implements AfterViewInit {
             const source = this.map.getSource(MAP_SOURCE_ID) as RasterTileSource | undefined;
             source?.setTiles([session.tile_url_template]);
             this.scheduleSessionRefresh(session.expires_at);
+            this.sessionRetryCount = 0;
         } catch {
-            if (!this.destroyed) {
-                this.error.set('Сессия карты истекла. Закройте окно и попробуйте снова.');
-            }
+            if (this.destroyed) return;
+            if (this.sessionRetryCount < 4) {
+                this.sessionRefreshTimer = setTimeout(() => { this.sessionRefreshTimer = null; void this.refreshTileSession(); }, 2000 * 2 ** this.sessionRetryCount++);
+            } else toast.error('Не удалось обновить сессию карты', { action: { label: 'Повторить', onClick: () => { this.sessionRetryCount = 0; void this.refreshTileSession(); } } });
         }
     }
 

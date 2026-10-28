@@ -21,6 +21,22 @@
                 </p>
             </div>
             <hlm-field-group>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <hlm-field>
+                        <label hlmFieldLabel>Тип объекта</label>
+                        <hlm-select [value]="draft().point_type" [itemToString]="pointTypeLabel" (valueChange)="selectPointType($event)">
+                            <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                            <hlm-select-content *hlmSelectPortal>@for (type of pointTypes(); track type.value) { <hlm-select-item [value]="type.value">{{ type.label }}</hlm-select-item> }</hlm-select-content>
+                        </hlm-select>
+                    </hlm-field>
+                    <hlm-field>
+                        <label hlmFieldLabel>Видимость</label>
+                        <hlm-select [value]="draft().visibility" [itemToString]="visibilityLabel" [disabled]="!canManage()" (valueChange)="selectVisibility($event)">
+                            <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                            <hlm-select-content *hlmSelectPortal><hlm-select-item value="private">Личная отметка</hlm-select-item><hlm-select-item value="company">Общий объект компании</hlm-select-item></hlm-select-content>
+                        </hlm-select>
+                    </hlm-field>
+                </div>
                 <hlm-field>
                     <label hlmFieldLabel for="marker-name">Название маркера</label>
                     <input hlmInput id="marker-name" maxlength="120" [ngModel]="draft().name"
@@ -41,22 +57,27 @@
                     <hlm-field class="min-w-0">
                         <label hlmFieldLabel for="marker-latitude">Широта</label>
                         <input hlmInput id="marker-latitude" inputmode="decimal"
+                            [disabled]="!canEditCoordinates()"
                             [ngModel]="draft().latitude" (paste)="handleCoordinatePaste($event)"
                             (ngModelChange)="updateNumber('latitude', $event)" />
                     </hlm-field>
                     <hlm-field class="min-w-0">
                         <label hlmFieldLabel for="marker-longitude">Долгота</label>
                         <input hlmInput id="marker-longitude" inputmode="decimal"
+                            [disabled]="!canEditCoordinates()"
                             [ngModel]="draft().longitude" (paste)="handleCoordinatePaste($event)"
                             (ngModelChange)="updateNumber('longitude', $event)" />
                     </hlm-field>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <button hlmBtn variant="outline" type="button" (click)="pointRequested.emit()"
+                    <button hlmBtn variant="outline" type="button" (click)="requestPoint()" [disabled]="!canEditCoordinates()"
                         data-testid="choose-marker-point">
                         <ng-icon name="lucideMapPin" />
                         Выбрать на карте
                     </button>
+                    @if (draft().building_link_role === 'represents' && !canEditCoordinates()) {
+                    <button hlmBtn variant="outline" type="button" (click)="relocatingBuilding.set(true)">Изменить расположение дома</button>
+                    }
                     <span class="text-xs text-muted-foreground">
                         Можно вставить «55.577276, 38.245099» в любое поле координат.
                     </span>
@@ -65,19 +86,18 @@
                     (buildingIdChange)="update('building_id', $event)"
                     (buildingSelected)="selectBuilding($event)" />
                 @if (draft().building_id !== null) {
-                <hlm-field class="rounded-lg border p-4">
-                    <div class="flex items-start justify-between gap-4">
-                        <label hlmFieldLabel for="marker-building-sync">Синхронизировать координаты дома</label>
-                        <hlm-switch inputId="marker-building-sync" [checked]="draft().sync_building_coordinates"
-                            [disabled]="saving()" (checkedChange)="setBuildingSync($event)"
-                            data-testid="marker-building-sync" />
-                    </div>
+                <hlm-field>
+                    <label hlmFieldLabel>Связь с домом</label>
+                    <hlm-select [value]="draft().building_link_role" [itemToString]="linkRoleLabel" (valueChange)="selectLinkRole($event)">
+                        <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal>@for (role of linkRoles(); track role.value) { <hlm-select-item [value]="role.value">{{ role.label }}</hlm-select-item> }</hlm-select-content>
+                    </hlm-select>
                     <p hlmFieldDescription>
-                        @if (draft().sync_building_coordinates) {
-                        При сохранении эта точка станет координатами дома. Изменения через карту и карточку дома
-                        будут синхронизироваться. Координаты дома общие для всех компаний.
+                        @if (draft().building_link_role === 'represents') {
+                        Эта метка оформляет сам дом. Его расположение общее для всех компаний.
+                        @if (draft().latitude === null) { Выберите точку и сохраните расположение дома. }
                         } @else {
-                        Только справочная связь: координаты маркера независимы, координаты дома не изменяются.
+                        Самостоятельный объект сохраняет свою точку и не изменяет расположение дома.
                         }
                     </p>
                 </hlm-field>
@@ -111,7 +131,7 @@
                     [attr.aria-label]="icon.label"
                     [attr.data-testid]="'marker-icon-' + icon.value"
                     (click)="selectIcon(icon.value)">
-                    <ng-icon [name]="icon.icon" />
+                    <img [src]="iconSource(icon.value)" class="size-8" alt="" />
                 </button>
                 } @empty {
                 <p class="col-span-full py-8 text-center text-sm text-muted-foreground">
@@ -146,6 +166,30 @@
                     </hlm-select-content>
                 </hlm-select>
             </hlm-field>
+
+            <section class="grid gap-3 rounded-lg border p-4" aria-label="Личные стили">
+                <h4 class="font-medium">Мои стили</h4>
+                <p class="text-xs text-muted-foreground">Личные стили доступны вам в текущей компании. Их изменение не меняет уже созданные метки.</p>
+                <hlm-select [value]="selectedStyle()" [itemToString]="styleLabel" (valueChange)="applyPersonalStyle($event)">
+                    <hlm-select-trigger class="w-full"><hlm-select-value placeholder="Применить мой стиль" /></hlm-select-trigger>
+                    <hlm-select-content *hlmSelectPortal>@for (style of personalStyles(); track style.id) { <hlm-select-item [value]="style.id">{{ style.name }}</hlm-select-item> }</hlm-select-content>
+                </hlm-select>
+                <input hlmInput aria-label="Название личного стиля" maxlength="120" placeholder="Название моего стиля" [ngModel]="styleName()" (ngModelChange)="styleName.set($event)" />
+                <div class="flex flex-wrap gap-2">
+                    <button hlmBtn variant="outline" size="sm" type="button" [disabled]="!styleName().trim()" (click)="requestStyle('create')">Сохранить как мой стиль</button>
+                    @if (selectedStyle() !== null) {
+                    <button hlmBtn variant="ghost" size="sm" type="button" [disabled]="!styleName().trim()" (click)="requestStyle('rename')">Сохранить изменения стиля</button>
+                    <button hlmBtn variant="ghost" size="sm" type="button" (click)="requestStyle('duplicate')">Дублировать</button>
+                    <hlm-alert-dialog>
+                        <button hlmAlertDialogTrigger hlmBtn variant="ghost" size="sm" type="button">Удалить стиль</button>
+                        <hlm-alert-dialog-content *hlmAlertDialogPortal>
+                            <hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Удалить личный стиль?</h3><p hlmAlertDialogDescription>Существующие метки сохранят своё оформление.</p></hlm-alert-dialog-header>
+                            <hlm-alert-dialog-footer><button hlmAlertDialogCancel type="button">Отмена</button><button hlmAlertDialogAction variant="destructive" type="button" (click)="requestStyle('delete')">Удалить</button></hlm-alert-dialog-footer>
+                        </hlm-alert-dialog-content>
+                    </hlm-alert-dialog>
+                    }
+                </div>
+            </section>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <hlm-field class="min-w-0">
@@ -288,29 +332,10 @@
             </div>
             <div class="flex min-h-48 min-w-0 items-center justify-center rounded-md border bg-background p-6"
                 data-testid="marker-live-preview">
-                <div class="flex min-w-0 max-w-full flex-col items-center gap-2" [style.opacity]="draft().marker_opacity">
-                    <div class="flex shrink-0 items-center justify-center"
-                        [style.width.px]="previewWidth()" [style.height.px]="previewSize()"
-                        [style.border-radius]="previewRadius()"
-                        [style.background-color]="draft().background_enabled && draft().marker_shape !== 'icon' ? 'color-mix(in srgb, ' + draft().background_color + ' ' + opacityPercent('background_opacity') + '%, transparent)' : 'transparent'"
-                        [style.border-style]="draft().border_enabled && draft().marker_shape !== 'icon' ? 'solid' : 'none'"
-                        [style.border-width.px]="draft().border_enabled && draft().marker_shape !== 'icon' ? draft().border_width : 0"
-                        [style.border-color]="draft().border_enabled && draft().marker_shape !== 'icon' ? 'color-mix(in srgb, ' + draft().border_color + ' ' + opacityPercent('border_opacity') + '%, transparent)' : 'transparent'">
-                        @if (selectedIconName(); as iconName) {
-                        <ng-icon [name]="iconName" [style.color]="draft().icon_color"
-                            [style.opacity]="draft().icon_opacity" />
-                        }
-                    </div>
-                    @if (draft().label_text) {
-                    <span class="max-w-full break-words text-center text-sm font-medium"
-                        [style.color]="draft().text_color" [style.opacity]="draft().text_opacity">
-                        {{ draft().label_text }}
-                    </span>
-                    }
-                </div>
+                <app-map-marker-preview [appearance]="appearance()" />
             </div>
             <p class="text-xs text-muted-foreground">
-                {{ draft().latitude.toFixed(6) }} / {{ draft().longitude.toFixed(6) }}
+                {{ draft().latitude?.toFixed(6) ?? 'Нет широты' }} / {{ draft().longitude?.toFixed(6) ?? 'Нет долготы' }}
             </p>
         </div>
     </aside>

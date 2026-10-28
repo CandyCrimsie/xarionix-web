@@ -13,6 +13,7 @@ import { FormsModule } from '@angular/forms';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideMapPin, lucideRotateCcw, lucideSearch } from '@ng-icons/lucide';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
+import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmFieldImports } from '@spartan-ng/helm/field';
@@ -32,11 +33,21 @@ import {
     MAP_MARKER_ICON_PROVIDERS,
     MAP_MARKER_ICONS,
     MAP_MARKER_PRESETS,
+    MAP_POINT_TYPES,
+    BUILDING_LINK_ROLES,
+    pickMarkerAppearance,
 } from '../../map-marker.config';
+import { MapMarkerPreview } from '../map-marker-preview/map-marker-preview';
+import { markerDataUrl } from '../../map-marker-renderer';
 import type {
     MapMarkerPayload,
     MapMarkerShape,
     MapMarkerSize,
+    MapPointType,
+    BuildingLinkRole,
+    MapVisibility,
+    MapStylePreset,
+    MapMarkerAppearance,
 } from '../../models/map.models';
 
 
@@ -54,6 +65,7 @@ type OpacityField =
         FormsModule,
         NgIcon,
         HlmAlertImports,
+        HlmAlertDialogImports,
         HlmButtonImports,
         HlmDialogImports,
         HlmFieldImports,
@@ -65,6 +77,7 @@ type OpacityField =
         HlmTextareaImports,
         HlmTooltipImports,
         BuildingAddressPicker,
+        MapMarkerPreview,
     ],
     providers: [provideIcons({
         ...MAP_MARKER_ICON_PROVIDERS,
@@ -81,6 +94,22 @@ type OpacityField =
 export class MapMarkerEditor {
     readonly draft = model.required<MapMarkerPayload>();
     readonly editing = input(false);
+    readonly canManage = input(false);
+    readonly personalStyles = input<MapStylePreset[]>([]);
+    readonly styleRequested = output<{ action: 'create' | 'rename' | 'duplicate' | 'delete'; name: string; appearance: MapMarkerAppearance; preset?: MapStylePreset }>();
+    readonly styleName = signal('');
+    readonly selectedStyle = signal<number | null>(null);
+    readonly relocatingBuilding = signal(false);
+    readonly pointTypes = computed(() => this.canManage() ? MAP_POINT_TYPES : MAP_POINT_TYPES.filter(type => type.value === 'note'));
+    readonly linkRoles = computed(() => BUILDING_LINK_ROLES.filter(role => role.value !== 'represents' || (this.canManage() && this.draft().visibility === 'company' && this.draft().point_type === 'building')));
+    readonly pointTypeLabel = (value: MapPointType) => MAP_POINT_TYPES.find(type => type.value === value)?.label ?? '';
+    readonly linkRoleLabel = (value: BuildingLinkRole) => BUILDING_LINK_ROLES.find(role => role.value === value)?.label ?? '';
+    readonly visibilityLabel = (value: MapVisibility) => value === 'private' ? 'Личная отметка' : 'Общий объект компании';
+    readonly styleLabel = (id: number) => this.personalStyles().find(style => style.id === id)?.name ?? '';
+    readonly appearance = computed(() => pickMarkerAppearance(this.draft()));
+    readonly canEditCoordinates = computed(() => this.draft().building_link_role !== 'represents'
+        || this.relocatingBuilding() || !!this.draft().building_position
+        || this.draft().latitude === null || this.draft().longitude === null);
     readonly saving = input(false);
     readonly error = input<string | null>(null);
     readonly saveRequested = output<void>();
@@ -136,6 +165,8 @@ export class MapMarkerEditor {
             && marker.border_width <= 8
             && (marker.building_id === null || marker.building_id > 0)
             && (!marker.sync_building_coordinates || marker.building_id !== null)
+            && marker.latitude !== null
+            && marker.longitude !== null
             && Number.isFinite(marker.latitude)
             && marker.latitude >= -90
             && marker.latitude <= 90
@@ -169,20 +200,70 @@ export class MapMarkerEditor {
         this.draft.update(current => ({
             ...current,
             building_id: building?.id ?? null,
-            sync_building_coordinates: building !== null,
+            sync_building_coordinates: false,
+            building_link_role: building ? (current.building_link_role === 'none' ? 'reference' : current.building_link_role) : 'none',
+            building_position: null,
         }));
-        if (building) {
+        this.relocatingBuilding.set(false);
+        if (building && this.draft().building_link_role === 'represents') {
             this.useBuildingCoordinates(building);
         }
     }
 
-
-    setBuildingSync(enabled: boolean): void {
-        this.update('sync_building_coordinates', enabled && this.draft().building_id !== null);
+    selectLinkRole(role: BuildingLinkRole | null | undefined): void {
+        if (!role || !this.linkRoles().some(item => item.value === role)) return;
+        this.update('building_link_role', role);
+        this.update('building_position', null);
+        this.relocatingBuilding.set(false);
         const building = this.buildingPicker()?.selectedBuilding();
-        if (enabled && building) {
+        if (role === 'represents' && building) {
             this.useBuildingCoordinates(building);
         }
+    }
+
+    selectPointType(type: MapPointType | null | undefined): void {
+        if (!type || !this.pointTypes().some(item => item.value === type)) return;
+        const icon = MAP_POINT_TYPES.find(item => item.value === type)!;
+        this.draft.update(current => ({ ...current, point_type: type, icon_name: icon.icon,
+            visibility: type === 'note' ? 'private' : 'company',
+            building_link_role: current.building_link_role === 'represents' && type !== 'building' ? 'reference' : current.building_link_role,
+            building_position: null,
+        }));
+    }
+
+    selectVisibility(visibility: MapVisibility | null | undefined): void {
+        if (!visibility || !this.canManage()) return;
+        this.draft.update(current => ({ ...current, visibility,
+            building_link_role: current.building_link_role === 'represents' && visibility === 'private' ? 'reference' : current.building_link_role,
+            building_position: null,
+        }));
+    }
+
+    requestPoint(): void {
+        if (!this.canEditCoordinates()) return;
+        if (this.draft().building_link_role === 'represents' && this.draft().latitude !== null && this.draft().longitude !== null) {
+            this.update('building_position', { latitude: this.draft().latitude!, longitude: this.draft().longitude! });
+        }
+        this.pointRequested.emit();
+    }
+
+    iconSource(value: string): string {
+        return markerDataUrl({ ...this.appearance(), icon_name: value, background_enabled: false, border_enabled: false, marker_opacity: 1 });
+    }
+
+    applyPersonalStyle(id: number | null | undefined): void {
+        const style = this.personalStyles().find(item => item.id === id);
+        if (!style) return;
+        this.selectedStyle.set(style.id);
+        this.styleName.set(style.name);
+        this.draft.update(draft => ({ ...draft, ...style.appearance }));
+    }
+
+    requestStyle(action: 'create' | 'rename' | 'duplicate' | 'delete'): void {
+        const preset = this.personalStyles().find(item => item.id === this.selectedStyle());
+        const name = action === 'duplicate' ? (this.styleName().trim() || preset?.name || 'Стиль') + ' — копия' : this.styleName().trim();
+        if (action !== 'delete' && !name) return;
+        this.styleRequested.emit({ action, name, appearance: this.appearance(), preset });
     }
 
 
@@ -199,6 +280,8 @@ export class MapMarkerEditor {
                 latitude: Number(building.latitude),
                 longitude: Number(building.longitude),
             }));
+        } else {
+            this.draft.update(current => ({ ...current, latitude: null, longitude: null }));
         }
     }
 
@@ -207,14 +290,17 @@ export class MapMarkerEditor {
         field: 'latitude' | 'longitude' | 'border_width',
         value: string,
     ): void {
-        const parsed = Number(value.replace(',', '.'));
+        if (field !== 'border_width' && !this.canEditCoordinates()) return;
+        const parsed = Number(String(value).replace(',', '.'));
         if (Number.isFinite(parsed)) {
             this.update(field, parsed as never);
+            this.recordBuildingPosition();
         }
     }
 
 
     handleCoordinatePaste(event: ClipboardEvent): void {
+        if (!this.canEditCoordinates()) return;
         const text = event.clipboardData?.getData('text')?.trim() ?? '';
         const match = text.match(
             /^\s*(-?\d+(?:[.,]\d+)?)\s*[,;/\s]\s*(-?\d+(?:[.,]\d+)?)\s*$/,
@@ -230,6 +316,7 @@ export class MapMarkerEditor {
         ) {
             event.preventDefault();
             this.draft.update(current => ({ ...current, latitude, longitude }));
+            this.recordBuildingPosition();
         }
     }
 
@@ -284,6 +371,13 @@ export class MapMarkerEditor {
         }));
     }
 
+    private recordBuildingPosition(): void {
+        const d = this.draft();
+        if (d.building_link_role === 'represents' && d.latitude !== null && d.longitude !== null && this.canEditCoordinates()) {
+            this.update('building_position', { latitude: d.latitude, longitude: d.longitude });
+        }
+    }
+
 
     opacityPercent(field: OpacityField): number {
         return Math.round(this.draft()[field] * 100);
@@ -293,28 +387,6 @@ export class MapMarkerEditor {
     setOpacity(field: OpacityField, values: readonly number[]): void {
         const value = Math.min(100, Math.max(0, values[0] ?? 0));
         this.update(field, value / 100);
-    }
-
-
-    previewSize(): number {
-        return { small: 32, normal: 42, large: 54 }[this.draft().marker_size];
-    }
-
-
-    previewRadius(): string {
-        switch (this.draft().marker_shape) {
-            case 'circle': return '9999px';
-            case 'pill': return '9999px';
-            case 'icon': return '0';
-            default: return '10px';
-        }
-    }
-
-
-    previewWidth(): number {
-        return this.draft().marker_shape === 'pill'
-            ? Math.round(this.previewSize() * 1.4)
-            : this.previewSize();
     }
 
 

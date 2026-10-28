@@ -1,0 +1,7 @@
+<div class="flex flex-col items-center gap-1" [style.opacity]="appearance().marker_opacity">
+    <img [src]="source()" alt="Предпросмотр метки" />
+    @if (appearance().label_text) {
+    <span class="max-w-full break-words text-center text-[13px]" [style.color]="appearance().text_color"
+        [style.opacity]="appearance().text_opacity">{{ appearance().label_text }}</span>
+    }
+</div>

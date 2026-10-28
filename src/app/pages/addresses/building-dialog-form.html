@@ -68,7 +68,7 @@
                     </p>
                 </hlm-dialog-header>
                 <app-map-coordinate-picker #coordinatePicker
-                    [latitude]="latitude()" [longitude]="longitude()" />
+                    [latitude]="latitude()" [longitude]="longitude()" [buildingId]="buildingId()" />
                 <hlm-dialog-footer>
                     <button hlmBtn variant="outline" type="button" hlmDialogClose>Отмена</button>
                     <button hlmBtn type="button" data-testid="apply-coordinate-picker"

@@ -1,0 +1,22 @@
+<hlm-autocomplete autoHighlight [value]="value()" (valueChange)="select($event)"
+    [search]="query()" (searchChange)="searchChanged($event)" [itemToString]="toString"
+    [disabled]="disabled()" [state]="state()" (stateChanged)="state.set($event)">
+    <hlm-autocomplete-input placeholder="Дом или точка на карте" showClear (keydown.enter)="onEnter($event)" />
+    <hlm-autocomplete-content *hlmAutocompletePortal>
+        @if (loading()) { <hlm-autocomplete-status>Ищем объекты...</hlm-autocomplete-status> }
+        @if (error()) {
+        <div class="p-2"><button hlmBtn variant="outline" type="button" (click)="search()">Повторить поиск</button></div>
+        } @else {
+        <div hlmAutocompleteList>
+            @for (item of items(); track item.kind + ':' + item.id) {
+            <hlm-autocomplete-item [value]="item">
+                <span class="min-w-0 whitespace-normal">{{ item.name }}</span>
+                @if (item.latitude === null || item.longitude === null) { <span class="text-xs text-muted-foreground">Нет координат</span> }
+            </hlm-autocomplete-item>
+            }
+        </div>
+        @if (!loading() && items().length === 0) { <hlm-autocomplete-empty>Объекты не найдены</hlm-autocomplete-empty> }
+        @if (hasMore()) { <div class="p-2"><button hlmBtn variant="outline" class="w-full" type="button" [disabled]="loading()" (click)="search(true)">Показать ещё</button></div> }
+        }
+    </hlm-autocomplete-content>
+</hlm-autocomplete>

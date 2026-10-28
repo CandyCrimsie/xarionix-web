@@ -45,15 +45,24 @@ export interface MapAddressObjectBounds {
 
 export type MapMarkerSize = 'small' | 'normal' | 'large';
 export type MapMarkerShape = 'circle' | 'rounded' | 'pill' | 'icon';
+export type MapVisibility = 'company' | 'private';
+export type MapPointType = 'building' | 'network_node' | 'cabinet' | 'splice' | 'pole' | 'chamber' | 'equipment' | 'note';
+export type BuildingLinkRole = 'none' | 'represents' | 'located_at' | 'reference';
 
 
 export interface MapMarkerPayload {
+    visibility: MapVisibility;
+    point_type: MapPointType;
+    building_link_role: BuildingLinkRole;
     building_id: number | null;
     sync_building_coordinates: boolean;
+    building_position?: { latitude: number; longitude: number } | null;
+    binding_confirmation?: string;
+    expected_version?: number;
     name: string;
     description: string | null;
-    latitude: number;
-    longitude: number;
+    latitude: number | null;
+    longitude: number | null;
     icon_name: string | null;
     label_text: string | null;
     icon_color: string;
@@ -76,9 +85,78 @@ export interface MapMarkerPayload {
 export interface MapMarker extends MapMarkerPayload {
     id: number;
     company_id: number;
+    owner_user_id: number | null;
+    building_full_address: string | null;
+    version: number;
+    can_manage: boolean;
     created_at: string;
     updated_at: string;
 }
 
 
 export type MapMarkerUpdate = Partial<MapMarkerPayload>;
+
+export type MapMarkerAppearance = Pick<MapMarkerPayload,
+    'icon_name' | 'label_text' | 'icon_color' | 'icon_opacity' | 'text_color' | 'text_opacity'
+    | 'background_enabled' | 'background_color' | 'background_opacity' | 'border_enabled'
+    | 'border_color' | 'border_width' | 'border_opacity' | 'marker_opacity' | 'marker_size' | 'marker_shape'>;
+
+export type MapEndpoint = { kind: 'building'; id: number } | { kind: 'marker'; id: number };
+export type MapEndpointDetail = MapEndpoint & { name: string; latitude: number | null; longitude: number | null };
+export interface MapConnectionPayload {
+    source: MapEndpoint;
+    target: MapEndpoint;
+    visibility: MapVisibility;
+    name: string;
+    description: string | null;
+    medium: 'fiber' | 'utp';
+    status: 'planned' | 'construction' | 'active' | 'inactive';
+    fiber_count: number | null;
+    category: 'Cat 5e' | 'Cat 6' | 'Cat 6A' | null;
+    vertices: [number, number][];
+    expected_version?: number;
+}
+export interface MapConnection extends MapConnectionPayload {
+    id: number;
+    company_id: number;
+    owner_user_id: number | null;
+    source: MapEndpointDetail;
+    target: MapEndpointDetail;
+    geometry: GeoJSON.LineString | null;
+    length_m: number | null;
+    position_missing: boolean;
+    can_manage: boolean;
+    version: number;
+    created_at: string;
+    updated_at: string;
+}
+export interface MapStylePreset {
+    id: number;
+    company_id: number;
+    owner_user_id: number;
+    name: string;
+    appearance: MapMarkerAppearance;
+    version: number;
+    created_at: string;
+    updated_at: string;
+}
+export type MapConnectionDraft = Omit<MapConnectionPayload, 'source' | 'target'> & {
+    source: MapEndpointDetail | null;
+    target: MapEndpointDetail | null;
+};
+export function createConnectionDraft(visibility: MapVisibility = 'private'): MapConnectionDraft {
+    return { source: null, target: null, visibility, name: '', description: null, medium: 'fiber', status: 'planned', fiber_count: null, category: null, vertices: [] };
+}
+export interface BuildingBindingConflict {
+    code: 'building_binding_conflict';
+    message: string;
+    confirmation_token: string;
+    snapshot: {
+        marker: { id: number; version: number; name: string; building_id: number | null } | null;
+        previous_building: { id: number; address: string; position: unknown } | null;
+        target_building: { id: number; address: string; position: { latitude: number | null; longitude: number | null } };
+        previous_marker: { id: number; version: number; name: string } | null;
+        requested_name: string;
+        requested_position: { latitude: number; longitude: number } | null;
+    };
+}

@@ -9,6 +9,7 @@ import type { Building } from '../../../../core/addresses/address.models';
 
 import { createDefaultMapMarker } from '../../map-marker.config';
 import { MapMarkerEditor } from './map-marker-editor';
+import { pickMarkerAppearance } from '../../map-marker.config';
 
 
 describe('MapMarkerEditor', () => {
@@ -96,10 +97,10 @@ describe('MapMarkerEditor', () => {
         expect(component.draft().icon_opacity).toBe(0.45);
         expect(component.draft().text_opacity).toBe(0.72);
         const preview = fixture.nativeElement.querySelector(
-            '[data-testid="marker-live-preview"] > div',
+            '[data-testid="marker-live-preview"] app-map-marker-preview',
         ) as HTMLElement | null;
         expect(preview).not.toBeNull();
-        expect(preview?.classList.contains('flex-col')).toBe(true);
+        expect(preview?.querySelector('img')?.getAttribute('src')).toContain('data:image/svg+xml');
     });
 
     it('applies a preset and resets only appearance fields', () => {
@@ -109,8 +110,8 @@ describe('MapMarkerEditor', () => {
         expect(component.draft().name).toBe('Узел связи №1');
 
         component.resetAppearance();
-        expect(component.draft().icon_name).toBe('map-pin');
-        expect(component.draft().background_color).toBe('#2563EB');
+        expect(component.draft().icon_name).toBe('note');
+        expect(component.draft().background_color).toBe(createDefaultMapMarker().background_color);
         expect(component.draft().name).toBe('Узел связи №1');
         expect(component.draft().latitude).toBe(55.577276);
     });
@@ -127,7 +128,7 @@ describe('MapMarkerEditor', () => {
         expect(component.draft().longitude).toBe(37.618423);
     });
 
-    it('selects an unpositioned house in the overlay and submits its ID and explicit coordinate synchronization', async () => {
+    it('selects a suggested house as an informational link without moving the house', async () => {
         vi.mocked(TestBed.inject(AddressApiService).search).mockReturnValue(of({
             items: [{ kind: 'building', building, full_address: building.full_address }],
             total: 1, offset: 0, limit: 20,
@@ -148,7 +149,8 @@ describe('MapMarkerEditor', () => {
         await fixture.whenStable();
         fixture.detectChanges();
         expect(component.draft().building_id).toBe(building.id);
-        expect(component.draft().sync_building_coordinates).toBe(true);
+        expect(component.draft().building_link_role).toBe('reference');
+        expect(component.draft().sync_building_coordinates).toBe(false);
         expect(component.draft().latitude).toBe(55.577276);
         expect(component.draft().longitude).toBe(38.245099);
         expect(search.value).toBe(building.full_address);
@@ -157,10 +159,10 @@ describe('MapMarkerEditor', () => {
         component.saveRequested.subscribe(() => save(component.draft()));
         fixture.nativeElement.querySelector('[data-testid="save-map-marker"]').click();
         expect(save).toHaveBeenCalledWith(expect.objectContaining({
-            building_id: 20, sync_building_coordinates: true,
+            building_id: 20, building_link_role: 'reference', sync_building_coordinates: false,
             latitude: 55.577276, longitude: 38.245099,
         }));
-        expect(fixture.nativeElement.textContent).toContain('Координаты дома общие для всех компаний');
+        expect(fixture.nativeElement.textContent).toContain('не изменяет расположение дома');
     });
 
     it('displays the linked address while editing and can remove the binding without moving the marker', async () => {
@@ -207,38 +209,38 @@ describe('MapMarkerEditor', () => {
         expect(component.draft().building_id).toBeNull();
     });
 
-    it('uses existing house coordinates when binding instead of silently moving the house to the map centre', () => {
+    it('keeps informational coordinates independent and uses canonical coordinates for an explicit primary role', async () => {
+        fixture.componentRef.setInput('canManage', true);
+        component.selectPointType('building');
         vi.mocked(TestBed.inject(AddressApiService).getBuilding).mockReturnValue(of({
             ...building, latitude: 54.2, longitude: 37.1,
         }));
         component.selectBuilding({ ...building, latitude: 54.2, longitude: 37.1 });
         fixture.detectChanges();
+        await fixture.whenStable();
+        expect(component.draft().latitude).toBe(55.577276);
+        component.selectLinkRole('represents');
         expect(component.draft()).toEqual(expect.objectContaining({
-            building_id: building.id, sync_building_coordinates: true,
+            building_id: building.id, building_link_role: 'represents', sync_building_coordinates: false,
             latitude: 54.2, longitude: 37.1,
         }));
         component.updateNumber('latitude', '54.3');
+        expect(component.draft().latitude).toBe(54.2);
+        component.relocatingBuilding.set(true);
+        component.updateNumber('latitude', '54.3');
         expect(component.draft().latitude).toBe(54.3);
-        expect(component.draft().sync_building_coordinates).toBe(true);
+        expect(component.draft().building_position).toEqual({ latitude: 54.3, longitude: 37.1 });
     });
 
-    it('keeps old informational links independent until synchronization is explicitly enabled', async () => {
+    it('keeps informational links independent, without the legacy synchronization toggle', async () => {
         vi.mocked(TestBed.inject(AddressApiService).getBuilding).mockReturnValue(of(building));
         fixture.componentRef.setInput('draft', { ...component.draft(), building_id: building.id });
         fixture.detectChanges();
         await fixture.whenStable();
         fixture.detectChanges();
         expect(component.draft().sync_building_coordinates).toBe(false);
-        expect(fixture.nativeElement.textContent).toContain('Только справочная связь');
-        const toggle = fixture.nativeElement.querySelector(
-            '[data-testid="marker-building-sync"] button',
-        ) as HTMLButtonElement;
-        toggle.click();
-        fixture.detectChanges();
-        expect(component.draft().sync_building_coordinates).toBe(true);
-        toggle.click();
-        fixture.detectChanges();
-        expect(component.draft().sync_building_coordinates).toBe(false);
+        expect(fixture.nativeElement.textContent).toContain('не изменяет расположение дома');
+        expect(fixture.nativeElement.querySelector('[data-testid="marker-building-sync"]')).toBeNull();
         expect(component.draft().latitude).toBe(55.577276);
     });
 
@@ -269,5 +271,44 @@ describe('MapMarkerEditor', () => {
         component.update('name', '   ');
         component.submit();
         expect(save).toHaveBeenCalledOnce();
+    });
+
+    it('copies personal appearance without replacing coordinates, ownership or semantic type', () => {
+        const c = component;
+        const before = { ...c.draft() };
+        fixture.componentRef.setInput('personalStyles', [{ id: 1, company_id: 1, owner_user_id: 1, name: 'Личный стиль',
+            version: 1, created_at: '', updated_at: '', appearance: { ...pickMarkerAppearance(before), icon_name: 'cabinet', icon_color: '#123456' } }]);
+        c.applyPersonalStyle(1);
+        expect(c.draft()).toEqual(expect.objectContaining({ latitude: before.latitude, longitude: before.longitude,
+            point_type: 'note', visibility: 'private', building_link_role: 'none', icon_name: 'cabinet', icon_color: '#123456' }));
+        const save = vi.fn(); c.styleRequested.subscribe(save); c.requestStyle('create');
+        const event = save.mock.calls[0][0];
+        expect(event.appearance).not.toHaveProperty('latitude');
+        expect(event.appearance).not.toHaveProperty('building_id');
+        expect(event.appearance).not.toHaveProperty('name');
+    });
+
+    it('does not infer primary role from a house icon or allow a private primary marker', () => {
+        component.selectIcon('map-house');
+        expect(component.draft().point_type).toBe('note');
+        expect(component.draft().building_link_role).toBe('none');
+        component.selectLinkRole('represents');
+        expect(component.draft().building_link_role).toBe('none');
+        fixture.componentRef.setInput('canManage', true);
+        component.selectPointType('building');
+        expect(component.draft().visibility).toBe('company');
+        component.selectVisibility('private');
+        component.selectLinkRole('represents');
+        expect(component.draft().building_link_role).not.toBe('represents');
+    });
+
+    it('records pasted coordinates only after an explicit primary-house relocation action', () => {
+        fixture.componentRef.setInput('draft', { ...component.draft(), point_type: 'building', visibility: 'company', building_link_role: 'represents', building_id: 20 });
+        const event = { clipboardData: { getData: () => '55.6, 38.3' }, preventDefault: vi.fn() } as unknown as ClipboardEvent;
+        component.handleCoordinatePaste(event);
+        expect(component.draft().building_position).toBeUndefined();
+        component.relocatingBuilding.set(true);
+        component.handleCoordinatePaste(event);
+        expect(component.draft().building_position).toEqual({ latitude: 55.6, longitude: 38.3 });
     });
 });

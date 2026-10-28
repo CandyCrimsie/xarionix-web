@@ -94,6 +94,7 @@ export class AddressObjectDialogForm {
     templateUrl: './building-dialog-form.html',
 })
 export class BuildingDialogForm {
+    readonly buildingId = input<number | null>(null);
     readonly editing = input.required<boolean>();
     readonly addressObjectName = input.required<string>();
     readonly number = input.required<string>();

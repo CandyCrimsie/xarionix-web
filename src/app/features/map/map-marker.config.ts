@@ -15,9 +15,11 @@ import {
 } from '@ng-icons/lucide';
 
 import type { MapMarkerPayload } from './models/map.models';
+import { APPROVED_MAP_ICONS } from './icons/map-icons';
 
 
 export const MAP_MARKER_ICONS = [
+    ...APPROVED_MAP_ICONS.map(icon => ({ ...icon, icon: 'lucideMapPin', category: 'Инфраструктура' })),
     { value: 'map-pin', icon: 'lucideMapPin', label: 'Метка', category: 'Общие', svg: lucideMapPin },
     { value: 'house', icon: 'lucideHouse', label: 'Дом', category: 'Общие', svg: lucideHouse },
     { value: 'building-2', icon: 'lucideBuilding2', label: 'Здание', category: 'Общие', svg: lucideBuilding2 },
@@ -52,21 +54,21 @@ export const MAP_MARKER_ICON_PROVIDERS = {
 
 
 export const DEFAULT_MAP_MARKER_APPEARANCE = {
-    icon_name: 'map-pin',
-    icon_color: '#FFFFFF',
+    icon_name: 'note',
+    icon_color: '#E3EAF3',
     icon_opacity: 1,
-    text_color: '#FFFFFF',
+    text_color: '#E3EAF3',
     text_opacity: 1,
     background_enabled: true,
-    background_color: '#2563EB',
-    background_opacity: 0.9,
+    background_color: '#222E3E',
+    background_opacity: 1,
     border_enabled: true,
-    border_color: '#FFFFFF',
-    border_width: 2,
+    border_color: '#3B485A',
+    border_width: 1,
     border_opacity: 1,
     marker_opacity: 1,
     marker_size: 'normal',
-    marker_shape: 'rounded',
+    marker_shape: 'circle',
 } satisfies Pick<
     MapMarkerPayload,
     | 'icon_name'
@@ -92,6 +94,9 @@ export function createDefaultMapMarker(
     longitude = 37.618423,
 ): MapMarkerPayload {
     return {
+        visibility: 'private',
+        point_type: 'note',
+        building_link_role: 'none',
         building_id: null,
         sync_building_coordinates: false,
         name: '',
@@ -99,7 +104,7 @@ export function createDefaultMapMarker(
         latitude,
         longitude,
         label_text: null,
-        ...DEFAULT_MAP_MARKER_APPEARANCE,
+        ...mapAppearanceForTheme(),
     };
 }
 
@@ -113,8 +118,8 @@ export interface MapMarkerPreset {
 
 export const MAP_MARKER_PRESETS: readonly MapMarkerPreset[] = [
     { id: 'default', label: 'Стандартный', values: { ...DEFAULT_MAP_MARKER_APPEARANCE } },
-    { id: 'network', label: 'Узел связи', values: { ...DEFAULT_MAP_MARKER_APPEARANCE, icon_name: 'network', background_color: '#2563EB', border_color: '#BFDBFE' } },
-    { id: 'equipment', label: 'Оборудование', values: { ...DEFAULT_MAP_MARKER_APPEARANCE, icon_name: 'server', background_color: '#334155', border_color: '#CBD5E1' } },
+    { id: 'network', label: 'Узел связи', values: { ...DEFAULT_MAP_MARKER_APPEARANCE, icon_name: 'network-node' } },
+    { id: 'equipment', label: 'Оборудование', values: { ...DEFAULT_MAP_MARKER_APPEARANCE, icon_name: 'equipment' } },
     { id: 'important', label: 'Важный объект', values: { ...DEFAULT_MAP_MARKER_APPEARANCE, icon_name: 'zap', background_color: '#7C3AED', border_color: '#EDE9FE', marker_size: 'large' } },
     { id: 'warning', label: 'Предупреждение', values: { ...DEFAULT_MAP_MARKER_APPEARANCE, icon_name: 'circle-alert', background_color: '#DC2626', border_color: '#FEE2E2', marker_shape: 'circle' } },
     { id: 'minimal', label: 'Минималистичный', values: { ...DEFAULT_MAP_MARKER_APPEARANCE, icon_name: 'map-pin', background_enabled: false, border_enabled: false, icon_color: '#18181B', marker_shape: 'icon' } },
@@ -123,4 +128,34 @@ export const MAP_MARKER_PRESETS: readonly MapMarkerPreset[] = [
 
 export function mapMarkerIconSvg(iconName: string | null): string | null {
     return MAP_MARKER_ICONS.find(item => item.value === iconName)?.svg ?? null;
+}
+
+export function mapAppearanceForTheme(dark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+    return {
+        ...DEFAULT_MAP_MARKER_APPEARANCE,
+        ...(!dark ? { icon_color: '#465366', text_color: '#465366', background_color: '#FFFFFF', border_color: '#DAE1EB' } : {}),
+    };
+}
+
+export const MAP_POINT_TYPES = [
+    { value: 'building', label: 'Дом', icon: 'map-house' },
+    { value: 'network_node', label: 'Узел связи', icon: 'network-node' },
+    { value: 'cabinet', label: 'Шкаф', icon: 'cabinet' },
+    { value: 'splice', label: 'Муфта', icon: 'splice' },
+    { value: 'pole', label: 'Опора', icon: 'pole' },
+    { value: 'chamber', label: 'Колодец', icon: 'chamber' },
+    { value: 'equipment', label: 'Оборудование', icon: 'equipment' },
+    { value: 'note', label: 'Заметка', icon: 'note' },
+] as const;
+
+export const BUILDING_LINK_ROLES = [
+    { value: 'represents', label: 'Основная метка дома' },
+    { value: 'located_at', label: 'Объект расположен у дома' },
+    { value: 'reference', label: 'Справочная связь' },
+] as const;
+
+export function pickMarkerAppearance(marker: Partial<MapMarkerPayload>) {
+    return Object.fromEntries(
+        [...Object.keys(DEFAULT_MAP_MARKER_APPEARANCE), 'label_text'].map(key => [key, marker[key as keyof MapMarkerPayload] ?? (key === 'label_text' ? null : DEFAULT_MAP_MARKER_APPEARANCE[key as keyof typeof DEFAULT_MAP_MARKER_APPEARANCE])]),
+    ) as import('./models/map.models').MapMarkerAppearance;
 }

@@ -84,20 +84,40 @@ describe('MapDataService', () => {
         remove.flush(null);
     });
 
-    it('explicitly sends the house-coordinate synchronization mode when saving a map binding', () => {
+    it('sends an explicit primary role and canonical position operation, not the legacy sync flag', () => {
         service.createMarker({
             ...createDefaultMapMarker(55.577276, 38.245099),
-            name: 'Дом 53', building_id: 20, sync_building_coordinates: true,
+            name: 'Дом 53', building_id: 20, building_link_role: 'represents', point_type: 'building', visibility: 'company',
+            building_position: { latitude: 55.577276, longitude: 38.245099 },
         }).subscribe();
         const create = http.expectOne('/api/v1/map/markers');
         expect(create.request.body).toEqual(expect.objectContaining({
-            building_id: 20, sync_building_coordinates: true,
-            latitude: 55.577276, longitude: 38.245099,
+            building_id: 20, building_link_role: 'represents', sync_building_coordinates: false,
+            building_position: { latitude: 55.577276, longitude: 38.245099 },
         }));
         create.flush({ id: 1, ...create.request.body });
         service.updateMarker(1, { sync_building_coordinates: false }).subscribe();
         const update = http.expectOne('/api/v1/map/markers/1');
         expect(update.request.body).toEqual({ sync_building_coordinates: false });
         update.flush({ id: 1, ...create.request.body, sync_building_coordinates: false });
+    });
+
+    it('uses the protected typed graph and personal style contracts', () => {
+        service.searchEndpoints('Дом', 20).subscribe();
+        http.expectOne('/api/v1/map/endpoints?q=%D0%94%D0%BE%D0%BC&offset=20&limit=20').flush({ items: [], has_more: false });
+        service.getConnections({ west: 38, south: 55, east: 39, north: 56 }).subscribe();
+        http.expectOne('/api/v1/map/connections?west=38&south=55&east=39&north=56').flush([]);
+        service.getConnections(undefined, { kind: 'marker', id: 1 }).subscribe();
+        http.expectOne('/api/v1/map/connections?endpoint_kind=marker&endpoint_id=1').flush([]);
+        service.getBuildingMarker(42).subscribe();
+        http.expectOne('/api/v1/map/buildings/42/marker').flush(null);
+        service.getStyles().subscribe();
+        http.expectOne('/api/v1/map/marker-styles').flush([]);
+        service.deleteConnection(1).subscribe();
+        const remove = http.expectOne('/api/v1/map/connections/1');
+        expect(remove.request.method).toBe('DELETE'); remove.flush(null);
+        service.deleteStyle(1).subscribe();
+        const preset = http.expectOne('/api/v1/map/marker-styles/1');
+        expect(preset.request.method).toBe('DELETE'); preset.flush(null);
     });
 });

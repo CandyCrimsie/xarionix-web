@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MapDataService } from '../../services/map-data.service';
@@ -8,6 +8,7 @@ import {
     type MapLibreModule,
 } from '../../services/maplibre-loader.service';
 import { MapCoordinatePicker } from './map-coordinate-picker';
+import { CompanyContextService } from '../../../../core/company/company-context.service';
 
 
 class FakePickerMap {
@@ -73,11 +74,13 @@ describe('MapCoordinatePicker', () => {
     let fixture: ComponentFixture<MapCoordinatePicker>;
     let map: FakePickerMap;
     let latestMapOptions: Record<string, unknown> | null;
+    let companyChanged: Subject<number>;
     const loader = { load: vi.fn() };
     const mapData = { createTileSession: vi.fn() };
 
     beforeEach(async () => {
         map = new FakePickerMap();
+        companyChanged = new Subject();
         latestMapOptions = null;
         vi.clearAllMocks();
         const expiresAt = Math.floor(Date.now() / 1000) + 600;
@@ -106,6 +109,7 @@ describe('MapCoordinatePicker', () => {
             imports: [MapCoordinatePicker],
             providers: [
                 { provide: MapDataService, useValue: mapData },
+                { provide: CompanyContextService, useValue: { companyChanged$: companyChanged } },
                 { provide: MapLibreLoaderService, useValue: loader },
             ],
         }).compileComponents();
@@ -115,6 +119,19 @@ describe('MapCoordinatePicker', () => {
     afterEach(() => {
         fixture.destroy();
         vi.restoreAllMocks();
+    });
+
+    it('discards a coordinate preview and old map events when the company changes', async () => {
+        fixture.detectChanges();
+        await Promise.resolve(); await Promise.resolve();
+        map.emit('load');
+        map.emit('click', { lngLat: { lng: 38, lat: 55 } });
+        expect(fixture.componentInstance.selectedCoordinates()).not.toBeNull();
+        companyChanged.next(2);
+        expect(fixture.componentInstance.selectedCoordinates()).toBeNull();
+        expect(map.remove).toHaveBeenCalledOnce();
+        map.emit('click', { lngLat: { lng: 39, lat: 56 } });
+        expect(fixture.componentInstance.selectedCoordinates()).toBeNull();
     });
 
     it('keeps the MapLibre container at the full height of the picker', () => {

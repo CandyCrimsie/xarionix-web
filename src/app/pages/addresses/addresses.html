@@ -209,7 +209,7 @@
                             </button>
                             <hlm-dialog-content *hlmDialogPortal="let ctx"
                                 class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
-                                <app-building-dialog-form [editing]="editingBuilding() !== null"
+                                <app-building-dialog-form [buildingId]="editingBuilding()?.id ?? null" [editing]="editingBuilding() !== null"
                                     [addressObjectName]="buildingParentName()" [number]="buildingNumber()"
                                     [corpus]="buildingCorpus()" [structure]="buildingStructure()"
                                     [latitude]="buildingLatitude()" [longitude]="buildingLongitude()"
@@ -441,7 +441,7 @@
                             </button>
                             <hlm-dialog-content *hlmDialogPortal="let ctx"
                                 class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
-                                <app-building-dialog-form [editing]="editingBuilding() !== null"
+                                <app-building-dialog-form [buildingId]="editingBuilding()?.id ?? null" [editing]="editingBuilding() !== null"
                                     [addressObjectName]="buildingParentName()" [number]="buildingNumber()"
                                     [corpus]="buildingCorpus()" [structure]="buildingStructure()"
                                     [latitude]="buildingLatitude()" [longitude]="buildingLongitude()"
@@ -557,7 +557,7 @@
                             <hlm-dialog #editBuildingDialog>
                                 <hlm-dialog-content *hlmDialogPortal="let ctx"
                                     class="w-[calc(100vw-2rem)] sm:w-xl sm:max-w-xl">
-                                    <app-building-dialog-form [editing]="editingBuilding() !== null"
+                                    <app-building-dialog-form [buildingId]="editingBuilding()?.id ?? null" [editing]="editingBuilding() !== null"
                                         [addressObjectName]="buildingParentName()" [number]="buildingNumber()"
                                         [corpus]="buildingCorpus()" [structure]="buildingStructure()"
                                         [latitude]="buildingLatitude()" [longitude]="buildingLongitude()"
