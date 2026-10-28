@@ -7,6 +7,7 @@ import {
 
 import { MapDataService } from './map-data.service';
 import { createDefaultMapMarker } from '../map-marker.config';
+import { pickMarkerAppearance } from '../map-marker.config';
 
 
 describe('MapDataService', () => {
@@ -22,6 +23,17 @@ describe('MapDataService', () => {
     });
 
     afterEach(() => http.verify());
+
+    it('sends a typed atomic split snapshot without client ownership or company fields', () => {
+        const payload = { expected_version: 3, expected_geometry_token: 'a'.repeat(64), segment_index: 1, fraction: .37,
+            position: { latitude: 55.58, longitude: 38.25 }, marker: { ...pickMarkerAppearance(createDefaultMapMarker()), name: 'Муфта', description: null } };
+        service.splitConnection(17, payload).subscribe();
+        const request = http.expectOne('/api/v1/map/connections/17/split');
+        expect(request.request.method).toBe('POST');
+        expect(request.request.body).toEqual(payload);
+        expect(request.request.body).not.toHaveProperty('company_id');
+        request.flush({ marker: { id: 99 }, connections: [{ id: 17 }, { id: 18 }] });
+    });
 
     it('requests a protected tile session without an API key in the browser URL', () => {
         service.createTileSession().subscribe();

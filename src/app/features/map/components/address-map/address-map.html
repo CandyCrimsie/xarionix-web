@@ -24,7 +24,7 @@
     </div>
     }
 
-    <hlm-dialog #markerDialog="hlmDialog">
+    <hlm-dialog #markerDialog="hlmDialog" [disableClose]="markerSaving()" (closed)="onMarkerDialogClosed()">
         <div class="absolute left-3 top-3 z-10 isolate">
             <div hlmButtonGroup
                 class="rounded-lg bg-background shadow-md"
@@ -51,6 +51,7 @@
                 class="w-[calc(100vw-2rem)] min-w-0 max-w-none overflow-hidden sm:max-w-6xl"
                 data-testid="map-marker-dialog">
                 <app-map-marker-editor [(draft)]="markerDraft" [editing]="editingMarker() !== null"
+                    [spliceConnection]="spliceTarget()?.connection?.name ?? null"
                     [canManage]="canManage()" [personalStyles]="personalStyles()" (styleRequested)="savePersonalStyle($event)"
                     [saving]="markerSaving()" [error]="markerError()" (pointRequested)="startPointSelection()"
                     (saveRequested)="saveMarker()" />
@@ -160,10 +161,15 @@
     </hlm-alert>
     }
 
-    <details class="absolute bottom-16 left-3 z-10 max-w-64 rounded-lg border bg-background/95 p-2 text-xs">
-        <summary class="cursor-pointer">Легенда карты</summary>
-        <div class="grid gap-2 p-2"><p>FO — оптоволокно · UTP — витая пара</p><p>Сплошная — действует; пунктир — запланировано; штрих-точка — строится; приглушённая — не действует.</p><p>Личные отметки видны только вам.</p></div>
-    </details>
+    <app-map-legend class="absolute bottom-16 left-3 z-10" [markers]="legendMarkers()" [connections]="visibleConnections()"
+        [hasBuildings]="legendBuildings()" />
+    @if (spliceHover(); as hover) {
+    <button #spliceHoverAction hlmBtn type="button" variant="secondary" size="icon" class="absolute z-20 size-8 -translate-x-1/2 -translate-y-1/2 rounded-full border bg-popover text-popover-foreground shadow-md transition-colors hover:bg-accent active:not-aria-[haspopup]:-translate-y-1/2"
+        [style.left.px]="hover.x" [style.top.px]="hover.y" [hlmTooltip]="'Вставить муфту: ' + hover.targets[0].connection.name" aria-label="Вставить муфту"
+        data-testid="insert-splice-hover" (mouseenter)="holdSpliceHover(true)" (mouseleave)="holdSpliceHover(false)" (mousemove)="moveSpliceHover($event)"
+        (focus)="holdSpliceHover(true)" (blur)="holdSpliceHover(false)" (pointerdown)="$event.stopPropagation()"
+        (click)="$event.stopPropagation(); chooseHoveredSplice()"><ng-icon name="lucidePlus" /></button>
+    }
     <div class="absolute bottom-0 left-0 z-10 flex items-end">
         <a [href]="yandexMapsUrl()" target="_blank" rel="noopener noreferrer"
             aria-label="Открыть эту область в Яндекс Картах">
@@ -269,10 +275,39 @@
             <div class="grid gap-1"><span class="text-xs text-muted-foreground">Конец</span><button hlmBtn variant="link" class="h-auto justify-start whitespace-normal p-0 text-left" (click)="openEndpoint(line.target)">{{ line.target.name }}</button></div>
             @if (line.length_m !== null) { <p class="text-xs text-muted-foreground">Длина трассы по карте: {{ line.length_m.toFixed(1) }} м</p> }
             @if (line.position_missing) { <p class="text-sm text-muted-foreground">У одного из концов нет координат. Трасса временно не отображается полностью.</p> }
+            @if (canManage() && line.can_manage && line.geometry && line.geometry_token) {
+            <button hlmBtn variant="outline" size="sm" (click)="startAccessibleSplice(line)" data-testid="insert-splice-card"><ng-icon name="lucidePlus" />Вставить муфту</button>
+            }
             @if (line.can_manage) { <div class="flex gap-2"><button hlmBtn variant="outline" size="sm" (click)="startEditConnection(line)">Изменить</button><button hlmBtn variant="destructive" size="sm" (click)="requestDeleteConnection(line)">Удалить</button></div> }
         </div>
     </section>
 </ng-template>
+
+<hlm-dialog #spliceChoiceDialog="hlmDialog" [restoreFocus]="false" (closed)="focusChosenSplice()">
+    <hlm-dialog-content *hlmDialogPortal class="sm:max-w-sm">
+        <hlm-dialog-header><h3 hlmDialogTitle>Выберите соединение</h3><p hlmDialogDescription>Здесь проходят несколько трасс. После выбора подтвердите точку плюсом на нужной линии.</p></hlm-dialog-header>
+        <div class="grid gap-2">@for (target of spliceChoices(); track target.connection.id) {
+            <button hlmBtn variant="outline" class="h-auto justify-start whitespace-normal text-left" (click)="chooseSpliceConnection(target)">{{ target.connection.name }} · {{ connectionLabel(target.connection) }}</button>
+        }</div>
+    </hlm-dialog-content>
+</hlm-dialog>
+
+<hlm-dialog #splicePlacementDialog="hlmDialog">
+    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+        <hlm-dialog-header><h3 hlmDialogTitle>Место вставки муфты</h3><p hlmDialogDescription>«{{ alternativeSpliceLine()?.name }}». Выберите участок трассы и положение вдоль него. Это также доступно с клавиатуры.</p></hlm-dialog-header>
+        <div class="grid gap-4">
+            <hlm-select [value]="spliceSegment()" [itemToString]="spliceSegmentLabel" (valueChange)="spliceSegment.set($event ?? null)">
+                <hlm-select-trigger class="w-full" aria-label="Участок трассы"><hlm-select-value placeholder="Выберите участок" /></hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>@for (index of spliceSegments(); track index) { <hlm-select-item [value]="index">{{ spliceSegmentLabel(index) }}</hlm-select-item> }</hlm-select-content>
+            </hlm-select>
+            <div class="grid gap-3"><label class="text-sm" id="splice-position-label">Положение на участке: {{ (spliceFraction() * 100).toFixed(0) }}%</label>
+                <hlm-slider aria-labelledby="splice-position-label" [min]="0" [max]="100" [step]="1" [value]="[spliceFraction() * 100]" (valueChange)="spliceFraction.set($event[0] / 100)" />
+            </div>
+            @if (alternativeSplicePoint(); as point) { <p class="text-xs text-muted-foreground">{{ point[1].toFixed(7) }} / {{ point[0].toFixed(7) }}</p> }
+        </div>
+        <hlm-dialog-footer><button hlmBtn variant="outline" (click)="ctx.close()">Отмена</button><button hlmBtn [disabled]="!alternativeSplicePoint()" (click)="confirmAccessibleSplice()">Продолжить</button></hlm-dialog-footer>
+    </hlm-dialog-content>
+</hlm-dialog>
 
 <ng-template #choicesPopup let-choices>
     <section hlmCard class="max-h-80 w-[min(22rem,calc(100vw-3rem))] overflow-y-auto bg-popover text-popover-foreground ring-0">

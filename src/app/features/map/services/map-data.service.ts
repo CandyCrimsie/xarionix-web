@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from '../../../core/api/api.config';
-import type { MapConnection, MapConnectionPayload, MapEndpointDetail, MapMarkerAppearance, MapStylePreset } from '../models/map.models';
+import type { MapConnection, MapConnectionPayload, MapConnectionSplitPayload, MapConnectionSplitResponse, MapEndpointDetail, MapMarkerAppearance, MapStylePreset } from '../models/map.models';
 import type {
     MapAddressObjectBounds,
     MapBounds,
@@ -108,6 +108,10 @@ export class MapDataService {
 
     deleteConnection(id: number): Observable<void> {
         return this.http.delete<void>(`${API_BASE_URL}/map/connections/${id}`);
+    }
+
+    splitConnection(id: number, data: MapConnectionSplitPayload): Observable<MapConnectionSplitResponse> {
+        return this.http.post<MapConnectionSplitResponse>(`${API_BASE_URL}/map/connections/${id}/split`, data);
     }
 
     getStyles(): Observable<MapStylePreset[]> {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createDefaultMapMarker, pickMarkerAppearance, MAP_MARKER_ICONS } from './map-marker.config';
+import { createDefaultMapMarker, pickMarkerAppearance, MAP_MARKER_ICONS, LEGACY_MAP_MARKER_ICONS, mapMarkerIconSvg } from './map-marker.config';
 import { APPROVED_MAP_ICONS } from './icons/map-icons';
 import { markerSvg, markerImageKey, markerMetrics, createMarkerElement, MAP_FONT_FACES } from './map-marker-renderer';
 
@@ -13,8 +13,35 @@ describe('Shared map renderer', () => {
         expect(svg).not.toContain('undefined');
     });
     it('preserves old Lucide meanings instead of aliasing their IDs to unrelated shapes', () => {
-        expect(MAP_MARKER_ICONS.some(icon => icon.value === 'house')).toBe(true);
+        expect(LEGACY_MAP_MARKER_ICONS.some(icon => icon.value === 'house')).toBe(true);
         expect(markerSvg({ ...appearance, icon_name: 'house' })).not.toBe(markerSvg({ ...appearance, icon_name: 'map-house' }));
+    });
+    it('offers only distinct infrastructure icons while retaining all legacy renderers', () => {
+        expect(MAP_MARKER_ICONS).toHaveLength(11);
+        for (const icon of [...MAP_MARKER_ICONS, ...LEGACY_MAP_MARKER_ICONS]) {
+            expect(mapMarkerIconSvg(icon.value)).toContain('<svg');
+        }
+        for (const icon of MAP_MARKER_ICONS) {
+            expect(icon.svg).toContain('viewBox="0 0 24 24"');
+            expect(icon.svg).toContain('stroke-width="1.7"');
+        }
+    });
+    it('keeps explicit no-icon, zero opacity and disabled background instead of replacing them with note defaults', () => {
+        const values = pickMarkerAppearance({ icon_name: null, background_enabled: false, background_opacity: 0, icon_opacity: 0 });
+        expect(values.icon_name).toBeNull();
+        expect(values.background_enabled).toBe(false);
+        expect(values.background_opacity).toBe(0);
+        expect(markerSvg(values)).not.toContain('<circle');
+    });
+    it.each(['circle', 'rounded', 'pill', 'icon'] as const)('note has no internal opaque fill for shape %s', marker_shape => {
+        const svg = new DOMParser().parseFromString(markerSvg({ ...appearance, marker_shape, background_enabled: false, border_enabled: false, icon_color: '#123456', icon_opacity: .25 }), 'image/svg+xml');
+        expect(svg.querySelector('parsererror')).toBeNull();
+        expect(svg.querySelector('rect')?.getAttribute('fill')).toBe('none');
+        const glyph = svg.querySelector('svg svg');
+        expect(glyph?.getAttribute('fill')).toBe('none');
+        expect(glyph?.querySelector('g')?.getAttribute('fill')).toBe('none');
+        expect(glyph?.querySelector('g')?.getAttribute('stroke')).toBe('#123456');
+        expect(glyph?.parentElement?.getAttribute('opacity')).toBe('0.25');
     });
     it('reuses image resources for different labels and overall opacity, but not different geometry', () => {
         expect(markerImageKey(appearance)).toBe(markerImageKey({ ...appearance, label_text: 'Другая подпись', marker_opacity: .2 }));

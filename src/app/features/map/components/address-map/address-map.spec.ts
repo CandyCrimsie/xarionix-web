@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompanyContextService } from '../../../../core/company/company-context.service';
 import { AddressApiService } from '../../../../core/addresses/address-api.service';
 import type { AddressObject, Building } from '../../../../core/addresses/address.models';
-import { createConnectionDraft, type MapBuildingFeatureCollection, type MapMarker, type MapConnectionDraft } from '../../models/map.models';
+import { createConnectionDraft, type MapBuildingFeatureCollection, type MapMarker, type MapConnectionDraft, type MapConnection } from '../../models/map.models';
 import { MapDataService } from '../../services/map-data.service';
 import {
     MapLibreLoaderService,
@@ -265,6 +265,7 @@ describe('AddressMap', () => {
         getAddressObjectBounds: vi.fn(),
         getConnections: vi.fn(), getStyles: vi.fn(), getBuildingMarker: vi.fn(),
         createConnection: vi.fn(), updateConnection: vi.fn(), deleteConnection: vi.fn(),
+        splitConnection: vi.fn(),
         createStyle: vi.fn(), updateStyle: vi.fn(), deleteStyle: vi.fn(),
     };
     const loader = { load: vi.fn() };
@@ -1031,6 +1032,70 @@ describe('AddressMap', () => {
             source: { kind: 'building', id: 42, name: house.full_address, latitude: 55, longitude: 38 },
             target: { kind: 'marker', id: 7, name: marker.name, latitude: 56, longitude: 39 } };
     }
+
+    function splitLine(): MapConnection {
+        const draft = routeDraft();
+        return { ...draft, source: draft.source!, target: draft.target!, id: 71, company_id: 1, owner_user_id: null,
+            visibility: 'company', geometry: { type: 'LineString', coordinates: [[38, 55], [38.5, 55.3], [39, 56]] },
+            geometry_token: 'a'.repeat(64), length_m: 10000, position_missing: false, can_manage: true, version: 3,
+            created_at: marker.created_at, updated_at: marker.updated_at };
+    }
+
+    const snap = { segmentIndex: 0, fraction: .23, position: [38.115, 55.069119] as [number, number], screen: { x: 23, y: 0 }, distancePx: 0 };
+
+    it('opens a splice at the frozen snapped point, reuses the marker editor and cancels without requests', async () => {
+        await initialize();
+        const c = fixture.componentInstance;
+        fixture.componentRef.setInput('canManage', true);
+        c.openSpliceEditor({ connection: splitLine(), point: snap });
+        fixture.detectChanges();
+        expect(c.markerDraft()).toMatchObject({ point_type: 'splice', icon_name: 'splice', latitude: snap.position[1], longitude: snap.position[0] });
+        expect(document.body.textContent).toContain('Муфта разделит соединение');
+        c.markerDialog()?.close({}); await vi.advanceTimersByTimeAsync(200); fixture.detectChanges();
+        expect(c.spliceTarget()).toBeNull();
+        expect(mapData.splitConnection).not.toHaveBeenCalled();
+        expect(mapData.createMarker).not.toHaveBeenCalled();
+    });
+
+    it('sends the exact snapshot once and atomically updates only affected map data, preserving camera', async () => {
+        await initialize(); fixture.componentRef.setInput('canManage', true);
+        const c = fixture.componentInstance, line = splitLine(), pending = new Subject<any>();
+        c.connections.set([line]); mapData.splitConnection.mockReturnValue(pending);
+        c.openSpliceEditor({ connection: line, point: snap });
+        const moves = fakeMap.easeTo.mock.calls.length;
+        c.saveMarker(); c.saveMarker();
+        expect(mapData.splitConnection).toHaveBeenCalledTimes(1);
+        expect(mapData.splitConnection).toHaveBeenCalledWith(line.id, expect.objectContaining({ expected_version: 3,
+            expected_geometry_token: line.geometry_token, segment_index: 0, fraction: .23,
+            position: { longitude: snap.position[0], latitude: snap.position[1] }, marker: expect.objectContaining({ name: 'Муфта' }) }));
+        const result = { marker: { ...marker, id: 80, point_type: 'splice' }, connections: [{ ...line, version: 4 }, { ...line, id: 72 }] };
+        pending.next(result);
+        expect(c.connections().map(line => line.id)).toEqual([71, 72]);
+        expect(c.markers().some(point => point.id === 80)).toBe(true);
+        expect(c.markerSaving()).toBe(false);
+        expect(fakeMap.easeTo.mock.calls).toHaveLength(moves);
+    });
+
+    it('keeps the splice form after an error and ignores saves from a previous company', async () => {
+        await initialize(); fixture.componentRef.setInput('canManage', true);
+        const c = fixture.componentInstance, line = splitLine();
+        mapData.splitConnection.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409, error: { detail: { message: 'Трасса изменилась' } } })));
+        c.openSpliceEditor({ connection: line, point: snap }); c.saveMarker();
+        expect(c.markerError()).toBe('Трасса изменилась');
+        expect(c.markerDraft().name).toBe('Муфта');
+        expect(c.spliceTarget()?.connection.id).toBe(71);
+        const pending = new Subject<any>(); mapData.splitConnection.mockReturnValue(pending); c.saveMarker();
+        companyChanged.next(2);
+        pending.next({ marker, connections: [line, { ...line, id: 72 }] });
+        expect(c.connections()).toEqual([]); expect(c.spliceTarget()).toBeNull();
+    });
+
+    it('does not offer technical splice creation without manage, including on personal lines', async () => {
+        await initialize(); const c = fixture.componentInstance;
+        c.openSpliceEditor({ connection: { ...splitLine(), visibility: 'private', can_manage: true }, point: snap });
+        expect(c.spliceTarget()).toBeNull();
+        expect(c.spliceBusy()).toBe(true);
+    });
 
     it('adds, deletes and undoes only intermediate vertices; Escape cancels without saving', async () => {
         await initialize();

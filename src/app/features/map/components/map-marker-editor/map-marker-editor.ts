@@ -32,12 +32,14 @@ import {
     createDefaultMapMarker,
     MAP_MARKER_ICON_PROVIDERS,
     MAP_MARKER_ICONS,
+    LEGACY_MAP_MARKER_ICONS,
     MAP_MARKER_PRESETS,
     MAP_POINT_TYPES,
     BUILDING_LINK_ROLES,
     pickMarkerAppearance,
 } from '../../map-marker.config';
 import { MapMarkerPreview } from '../map-marker-preview/map-marker-preview';
+import { MapIcon } from '../map-icon/map-icon';
 import { markerDataUrl } from '../../map-marker-renderer';
 import type {
     MapMarkerPayload,
@@ -78,6 +80,7 @@ type OpacityField =
         HlmTooltipImports,
         BuildingAddressPicker,
         MapMarkerPreview,
+        MapIcon,
     ],
     providers: [provideIcons({
         ...MAP_MARKER_ICON_PROVIDERS,
@@ -94,6 +97,7 @@ type OpacityField =
 export class MapMarkerEditor {
     readonly draft = model.required<MapMarkerPayload>();
     readonly editing = input(false);
+    readonly spliceConnection = input<string | null>(null);
     readonly canManage = input(false);
     readonly personalStyles = input<MapStylePreset[]>([]);
     readonly styleRequested = output<{ action: 'create' | 'rename' | 'duplicate' | 'delete'; name: string; appearance: MapMarkerAppearance; preset?: MapStylePreset }>();
@@ -107,9 +111,9 @@ export class MapMarkerEditor {
     readonly visibilityLabel = (value: MapVisibility) => value === 'private' ? 'Личная отметка' : 'Общий объект компании';
     readonly styleLabel = (id: number) => this.personalStyles().find(style => style.id === id)?.name ?? '';
     readonly appearance = computed(() => pickMarkerAppearance(this.draft()));
-    readonly canEditCoordinates = computed(() => this.draft().building_link_role !== 'represents'
+    readonly canEditCoordinates = computed(() => !this.spliceConnection() && (this.draft().building_link_role !== 'represents'
         || this.relocatingBuilding() || !!this.draft().building_position
-        || this.draft().latitude === null || this.draft().longitude === null);
+        || this.draft().latitude === null || this.draft().longitude === null));
     readonly saving = input(false);
     readonly error = input<string | null>(null);
     readonly saveRequested = output<void>();
@@ -119,13 +123,15 @@ export class MapMarkerEditor {
     readonly iconSearch = signal('');
     readonly icons = computed(() => {
         const query = this.iconSearch().trim().toLocaleLowerCase('ru');
+        const legacy = LEGACY_MAP_MARKER_ICONS.find(icon => icon.value === this.draft().icon_name);
+        const options = [...MAP_MARKER_ICONS, ...(legacy ? [legacy] : [])];
         return query
-            ? MAP_MARKER_ICONS.filter(icon => (
+            ? options.filter(icon => (
                 `${icon.label} ${icon.category} ${icon.value}`
                     .toLocaleLowerCase('ru')
                     .includes(query)
             ))
-            : MAP_MARKER_ICONS;
+            : options;
     });
     readonly presets = MAP_MARKER_PRESETS;
     readonly sizes: readonly { value: MapMarkerSize; label: string }[] = [
@@ -391,7 +397,7 @@ export class MapMarkerEditor {
 
 
     selectedIconName(): string | null {
-        return MAP_MARKER_ICONS.find(
+        return [...MAP_MARKER_ICONS, ...LEGACY_MAP_MARKER_ICONS].find(
             item => item.value === this.draft().icon_name,
         )?.icon ?? null;
     }

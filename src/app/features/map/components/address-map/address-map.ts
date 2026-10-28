@@ -36,7 +36,10 @@ import {
     lucideCable,
     lucideListFilter,
     lucideUndo2,
+    lucidePlus,
 } from '@ng-icons/lucide';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmSliderImports } from '@spartan-ng/helm/slider';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmAlertDialog, HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -92,6 +95,9 @@ import {
     type MapLibreModule,
 } from '../../services/maplibre-loader.service';
 import { MapMarkerEditor } from '../map-marker-editor/map-marker-editor';
+import { MapLegend } from '../map-legend/map-legend';
+import { MapSpliceHover, type SpliceHover, type SpliceTarget } from '../../map-splice-hover';
+import { routePosition } from '../../map-connection-geometry';
 
 
 type MapInstance = import('maplibre-gl').Map;
@@ -139,6 +145,9 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         MapMarkerEditor,
         MapConnectionEditor,
         HlmCheckboxImports,
+        HlmSelectImports,
+        HlmSliderImports,
+        MapLegend,
     ],
     providers: [provideIcons({
         lucideBuilding2,
@@ -153,6 +162,7 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         lucideCable,
         lucideListFilter,
         lucideUndo2,
+        lucidePlus,
     })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './address-map.html',
@@ -223,6 +233,34 @@ export class AddressMap implements AfterViewInit {
     readonly mediumFilter = signal<'all' | 'fiber' | 'utp'>('all');
     readonly statusFilter = signal<'all' | MapConnection['status']>('all');
     readonly dark = signal(document.documentElement.classList.contains('dark'));
+    readonly spliceHover = signal<SpliceHover | null>(null);
+    readonly spliceTarget = signal<SpliceTarget | null>(null);
+    readonly spliceChoices = signal<SpliceTarget[]>([]);
+    readonly spliceChoiceDialog = viewChild<HlmDialog>('spliceChoiceDialog');
+    readonly spliceHoverAction = viewChild<ElementRef<HTMLButtonElement>>('spliceHoverAction');
+    readonly splicePlacementDialog = viewChild<HlmDialog>('splicePlacementDialog');
+    readonly alternativeSpliceLine = signal<MapConnection | null>(null);
+    readonly spliceSegment = signal<number | null>(null);
+    readonly spliceFraction = signal(.5);
+    readonly spliceSegments = computed(() => {
+        const points = this.alternativeSpliceLine()?.geometry?.coordinates ?? [];
+        return points.slice(0, -1).flatMap((point, index) => point[0] === points[index + 1][0] && point[1] === points[index + 1][1] ? [] : [index]);
+    });
+    readonly spliceSegmentLabel = (index: number) => `Участок ${index + 1}`;
+    readonly alternativeSplicePoint = computed(() => {
+        const line = this.alternativeSpliceLine(), index = this.spliceSegment();
+        return line?.geometry && index !== null ? routePosition(line.geometry.coordinates[index], line.geometry.coordinates[index + 1], this.spliceFraction()) : null;
+    });
+    readonly legendHasBuildings = signal(false);
+    readonly legendBuildings = computed(() => this.showBuildings() && (this.legendHasBuildings() || this.buildingCenter(this.selectedBuilding()) !== null));
+    readonly legendMarkers = computed(() => this.markers().filter(marker => marker.latitude !== null && marker.longitude !== null && this.visibleMarker(marker)));
+    readonly visibleConnections = computed(() => this.showConnections() ? this.connections().filter(line =>
+        (this.mediumFilter() === 'all' || line.medium === this.mediumFilter())
+        && (this.statusFilter() === 'all' || line.status === this.statusFilter())) : []);
+    readonly spliceBusy = computed(() => !this.canManage() || this.placingMarker() || this.connectionDraftActive()
+        || this.markerSaving() || this.connectionSaving() || this.state() !== 'ready'
+        || [this.markerDialog(), this.connectionDialog(), this.spliceChoiceDialog(), this.splicePlacementDialog(),
+            this.deleteMarkerDialog(), this.connectionDeleteDialog(), this.bindingDialog()].some(dialog => dialog?.stateComputed() === 'open'));
     readonly pointTypeLabel = (type: string) => MAP_POINT_TYPES.find(item => item.value === type)?.label ?? 'Объект';
     readonly linkRoleLabel = (role: string) => BUILDING_LINK_ROLES.find(item => item.value === role)?.label ?? '';
     readonly connectionLabel = connectionLabel;
@@ -255,6 +293,7 @@ export class AddressMap implements AfterViewInit {
     private readonly markerResources = new Set<string>();
     private usedMarkerImages = new Set<string>();
     private connectionLayer: MapConnectionLayer | null = null;
+    private spliceController: MapSpliceHover | null = null;
     private connectionViewportSubscription: Subscription | null = null;
     private contextGeneration = 0;
     private popupGeneration = 0;
@@ -284,6 +323,12 @@ export class AddressMap implements AfterViewInit {
             this.connectionViewportSubscription?.unsubscribe();
             this.focusSubscription?.unsubscribe();
             this.closePopup();
+            this.spliceController?.clear();
+            this.spliceTarget.set(null);
+            this.spliceChoices.set([]);
+            this.alternativeSpliceLine.set(null);
+            this.spliceChoiceDialog()?.close({});
+            this.splicePlacementDialog()?.close({});
             this.markerDialog()?.close({});
             this.deleteMarkerDialog()?.close({});
             this.bindingDialog()?.close({});
@@ -327,6 +372,13 @@ export class AddressMap implements AfterViewInit {
             this.scheduleViewportLoad(0);
         });
 
+        effect(() => {
+            if (this.spliceBusy()) this.spliceController?.clear();
+        });
+        effect(() => {
+            this.visibleConnections();
+            untracked(() => this.spliceController?.clear());
+        });
         effect(() => {
             const selectedObject = this.selectedObject();
             const selectedBuilding = this.selectedBuilding();
@@ -451,6 +503,7 @@ export class AddressMap implements AfterViewInit {
                     index => { this.rememberRoute(); this.activeVertex.set(index); },
                     (index, coordinate) => this.moveRouteVertex(index, coordinate),
                 );
+                this.spliceController = new MapSpliceHover(map, () => this.visibleConnections(), () => this.spliceBusy(), hover => this.spliceHover.set(hover));
                 this.state.set('ready');
                 this.scheduleSessionRefresh(session);
                 this.updateExternalMapLink();
@@ -897,6 +950,7 @@ export class AddressMap implements AfterViewInit {
 
 
     startCreateMarker(): void {
+        this.spliceTarget.set(null);
         this.popupGeneration++;
         const center = this.map?.getCenter();
         this.editingMarker.set(null);
@@ -907,6 +961,7 @@ export class AddressMap implements AfterViewInit {
 
 
     startEditMarker(marker: MapMarker): void {
+        this.spliceTarget.set(null);
         this.closePopup();
         this.editingMarker.set(marker);
         this.markerError.set(null);
@@ -923,6 +978,7 @@ export class AddressMap implements AfterViewInit {
 
     saveMarker(confirmation?: string): void {
         if (this.markerSaving()) return;
+        if (this.spliceTarget()) { this.saveSplice(); return; }
         const generation = ++this.markerMutationGeneration;
         const editing = this.editingMarker();
         const draft = { ...this.markerDraft(), ...(confirmation ? { binding_confirmation: confirmation } : {}) };
@@ -1109,9 +1165,112 @@ export class AddressMap implements AfterViewInit {
 
 
     private renderConnections(): void {
-        this.connectionLayer?.setConnections(this.showConnections() ? this.connections().filter(line =>
-            (this.mediumFilter() === 'all' || line.medium === this.mediumFilter())
-            && (this.statusFilter() === 'all' || line.status === this.statusFilter())) : [], this.selectedConnectionId());
+        this.connectionLayer?.setConnections(this.visibleConnections(), this.selectedConnectionId());
+    }
+
+    holdSpliceHover(held: boolean): void { this.spliceController?.hold(held); }
+
+    moveSpliceHover(event: MouseEvent): void {
+        if (event.buttons) return;
+        const bounds = this.mapContainer().nativeElement.getBoundingClientRect();
+        this.spliceController?.moveOverButton({ x: event.clientX - bounds.left, y: event.clientY - bounds.top });
+    }
+
+    chooseHoveredSplice(): void {
+        const hover = this.spliceHover();
+        if (!hover || this.spliceBusy()) return;
+        this.spliceController?.clear();
+        if (hover.targets.length === 1) this.openSpliceEditor(hover.targets[0]);
+        else { this.spliceChoices.set(hover.targets); this.spliceChoiceDialog()?.open(); }
+    }
+
+    chooseSpliceConnection(target: SpliceTarget): void {
+        this.spliceChoiceDialog()?.close({});
+        // A neighboring cable may have a slightly different snapped point.
+        // Reposition the one plus onto the explicitly chosen line; only the
+        // next activation fixes its position and opens the editor.
+        this.spliceController?.chooseConnection(target);
+        this.selectedConnectionId.set(target.connection.id);
+    }
+
+    focusChosenSplice(): void {
+        // Wait until the dialog's focus trap is actually disposed.
+        if (!this.destroyed && this.spliceHover()?.targets.length === 1) this.spliceHoverAction()?.nativeElement.focus();
+    }
+
+    openSpliceEditor(target: SpliceTarget): void {
+        if (!this.canManage() || !target.connection.can_manage || !target.connection.geometry_token) return;
+        this.spliceChoiceDialog()?.close({});
+        this.splicePlacementDialog()?.close({});
+        this.spliceController?.clear();
+        this.closePopup();
+        this.editingMarker.set(null);
+        this.markerError.set(null);
+        this.spliceTarget.set(structuredClone(target));
+        this.markerDraft.set({ ...createDefaultMapMarker(target.point.position[1], target.point.position[0]),
+            name: 'Муфта', point_type: 'splice', icon_name: 'splice', visibility: target.connection.visibility });
+        this.markerDialog()?.open();
+    }
+
+    onMarkerDialogClosed(): void {
+        if (!this.placingMarker()) this.spliceTarget.set(null);
+    }
+
+    startAccessibleSplice(line: MapConnection): void {
+        if (!this.canManage() || !line.can_manage || !line.geometry_token || !line.geometry) return;
+        this.closePopup();
+        this.spliceController?.clear();
+        this.alternativeSpliceLine.set(line);
+        this.spliceSegment.set(null);
+        this.spliceFraction.set(.5);
+        this.splicePlacementDialog()?.open();
+    }
+
+    confirmAccessibleSplice(): void {
+        const connection = this.alternativeSpliceLine(), position = this.alternativeSplicePoint(), index = this.spliceSegment();
+        if (!connection || !position || index === null || !this.map) return;
+        this.openSpliceEditor({ connection, point: { segmentIndex: index, fraction: this.spliceFraction(), position,
+            screen: this.map.project(position), distancePx: 0 } });
+    }
+
+    private saveSplice(): void {
+        const target = this.spliceTarget();
+        if (!target || this.markerSaving()) return;
+        const draft = this.markerDraft(), generation = ++this.markerMutationGeneration;
+        this.markerSaving.set(true);
+        this.markerError.set(null);
+        this.mapData.splitConnection(target.connection.id, {
+            expected_version: target.connection.version, expected_geometry_token: target.connection.geometry_token,
+            segment_index: target.point.segmentIndex, fraction: target.point.fraction,
+            position: { latitude: target.point.position[1], longitude: target.point.position[0] },
+            marker: { ...pickMarkerAppearance(draft), name: draft.name, description: draft.description },
+        }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: result => {
+                if (this.destroyed || generation !== this.markerMutationGeneration) return;
+                // Invalidate pre-split viewport HTTP responses before applying the
+                // atomic response. Keep camera, tree and unrelated graph objects.
+                this.viewportGeneration++;
+                this.markerViewportSubscription?.unsubscribe();
+                this.connectionViewportSubscription?.unsubscribe();
+                this.markerSaving.set(false);
+                this.markers.update(points => [...points.filter(point => point.id !== result.marker.id), result.marker]);
+                const ids = new Set(result.connections.map(line => line.id));
+                this.connections.update(lines => [...lines.filter(line => !ids.has(line.id)), ...result.connections]);
+                this.setMarkerData(this.markers());
+                this.renderConnections();
+                this.markerDialog()?.close({});
+                this.spliceTarget.set(null);
+                this.selectedMarkerId.set(result.marker.id);
+                toast.success('Муфта вставлена в соединение');
+            },
+            error: (error: HttpErrorResponse) => {
+                if (this.destroyed || generation !== this.markerMutationGeneration) return;
+                this.markerSaving.set(false);
+                const message = error.error?.detail?.message ?? 'Не удалось вставить муфту. Данные формы сохранены.';
+                this.markerError.set(message);
+                toast.error(message);
+            },
+        });
     }
 
 
@@ -1500,6 +1659,7 @@ export class AddressMap implements AfterViewInit {
 
     private setBuildingData(data: MapBuildingFeatureCollection): void {
         this.viewportBuildings = data;
+        this.legendHasBuildings.set(data.features.length > 0);
         this.renderBuildingData();
     }
 
@@ -1718,6 +1878,8 @@ export class AddressMap implements AfterViewInit {
         this.cleanupPointSelection();
         this.connectionLayer?.destroy();
         this.connectionLayer = null;
+        this.spliceController?.destroy();
+        this.spliceController = null;
         this.buildingImageSignature = null;
         this.markerResources.clear();
         this.usedMarkerImages.clear();

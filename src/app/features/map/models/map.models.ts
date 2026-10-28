@@ -123,12 +123,25 @@ export interface MapConnection extends MapConnectionPayload {
     source: MapEndpointDetail;
     target: MapEndpointDetail;
     geometry: GeoJSON.LineString | null;
+    geometry_token: string;
     length_m: number | null;
     position_missing: boolean;
     can_manage: boolean;
     version: number;
     created_at: string;
     updated_at: string;
+}
+export interface MapConnectionSplitPayload {
+    expected_version: number;
+    expected_geometry_token: string;
+    segment_index: number;
+    fraction: number;
+    position: { latitude: number; longitude: number };
+    marker: MapMarkerAppearance & { name: string; description: string | null };
+}
+export interface MapConnectionSplitResponse {
+    marker: MapMarker;
+    connections: [MapConnection, MapConnection];
 }
 export interface MapStylePreset {
     id: number;

@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 
 const base = process.env.MAP_VISUAL_BASE_URL || 'http://127.0.0.1:4217';
-const out = new URL('../docs/verification/stage25.17.2/', import.meta.url);
+const verifySplice = process.env.MAP_VERIFY_SPLICE === '1';
+const out = new URL(verifySplice ? '../docs/verification/map-splice/' : '../docs/verification/stage25.17.2/', import.meta.url);
 await mkdir(out, { recursive: true });
 const date = '2026-10-28T00:00:00Z';
 const appearance = { icon_name: 'map-house', label_text: 'Дом 53', icon_color: '#E3EAF3', icon_opacity: 1, text_color: '#E3EAF3', text_opacity: 1, background_enabled: true, background_color: '#222E3E', background_opacity: 1, border_enabled: true, border_color: '#3B485A', border_width: 1, border_opacity: 1, marker_opacity: 1, marker_size: 'normal', marker_shape: 'circle' };
@@ -21,6 +22,7 @@ const node = { ...marker, id: 8, building_id: null, building_full_address: null,
 const end = p => ({ kind: p.id === 42 ? 'building' : 'marker', id: p.id, name: p.full_address || p.name, longitude: p.longitude, latitude: p.latitude });
 const line = { id: 1, company_id: 1, owner_user_id: null, visibility: 'company', name: 'Магистраль Гагарина', description: 'Оптическая трасса до узла', source: end(house), target: end(node), medium: 'fiber', status: 'active', fiber_count: 24, category: null, vertices: [[38.2459, 55.578]], version: 1, created_at: date, updated_at: date, can_manage: true, length_m: 338.9, position_missing: false, geometry: { type: 'LineString', coordinates: [[house.longitude, house.latitude], [38.2459, 55.578], [node.longitude, node.latitude]] } };
 const conflict = { code: 'building_binding_conflict', confirmation_token: 'mock-confirmation-bound-to-snapshot', snapshot: { marker: null, previous_building: null, target_building: { id: 42, address: house.full_address, position: { latitude: house.latitude, longitude: house.longitude, updated_at: date } }, previous_marker: { id: 7, name: 'Дом 53', version: 1 }, requested_name: 'Дом 53 — новый стиль', requested_position: null } };
+line.geometry_token = 'a'.repeat(64);
 
 // A local neutral street-grid raster, encoded without another graphics package.
 function png() {
@@ -76,6 +78,19 @@ try {
                     lines.push(body);
                 }
                 else if (path === '/map/connections') body = lines;
+                else if (/^\/map\/connections\/\d+\/split$/.test(path) && method === 'POST') {
+                    const id = Number(path.split('/').at(-2)), data = route.request().postDataJSON();
+                    const original = lines.find(line => line.id === id), coordinates = original.geometry.coordinates;
+                    const point = [data.position.longitude, data.position.latitude];
+                    const splice = { ...node, ...data.marker, id: 9000, point_type: 'splice', name: data.marker.name,
+                        visibility: original.visibility, owner_user_id: original.owner_user_id, latitude: point[1], longitude: point[0] };
+                    const firstGeometry = [...coordinates.slice(0, data.segment_index + 1), point];
+                    const secondGeometry = [point, ...coordinates.slice(data.segment_index + 1)];
+                    const first = { ...original, target: end(splice), vertices: firstGeometry.slice(1,-1), geometry: { type: 'LineString', coordinates: firstGeometry }, version: original.version + 1, geometry_token: 'b'.repeat(64) };
+                    const second = { ...original, id: 9000, source: end(splice), vertices: secondGeometry.slice(1,-1), geometry: { type: 'LineString', coordinates: secondGeometry }, version: 1, geometry_token: 'c'.repeat(64) };
+                    lines = [...lines.filter(line => line.id !== id), first, second]; markers.push(splice);
+                    return route.fulfill({ status: 201, json: { marker: splice, connections: [first, second] } });
+                }
                 else if (/^\/map\/connections\/\d+$/.test(path)) {
                     const id = Number(path.split('/').at(-1));
                     if (method === 'DELETE') { lines = lines.filter(l => l.id !== id); return route.fulfill({ status: 204 }); }
@@ -99,7 +114,7 @@ try {
             const element = document.querySelector('app-address-map');
             const c = element && window.ng?.getComponent(element);
             return c?.state() === 'ready' && c.map.getLayer('connection-active') && c.map.hasImage('xarionix-building-marker') && c.map.queryRenderedFeatures({ layers: ['custom-marker-points'] }).length > 0;
-        }, undefined, { timeout: 12000 }).catch(async error => { console.log('map failed', errors, unknownApi, await page.locator('body').innerText(), await page.evaluate(() => { const c = window.ng.getComponent(document.querySelector('app-address-map')); return { state: c.state(), images: c.map?.listImages(), loaded: c.map?.loaded(), style: c.map?.getStyle(), markers: c.markers() }; })); await page.screenshot({ path: new URL('failure.png', out).pathname }); throw error; });
+        }, undefined, { timeout: 12000 }).catch(async error => { await page.screenshot({ path: new URL('failure.png', out).pathname }); console.log('map failed', errors, unknownApi, page.url(), await page.locator('body').innerText(), await page.evaluate(() => { const e = document.querySelector('app-address-map'); const c = e && window.ng.getComponent(e); return { state: c?.state(), images: c?.map?.listImages(), loaded: c?.map?.loaded(), markers: c?.markers() }; })); throw error; });
         const component = fn => page.evaluate(fn);
         await component(() => window.ng.getComponent(document.querySelector('app-address-map')).map.jumpTo({ center: [38.2455,55.5763], zoom: 15.3 }));
         const screenshot = async name => { await page.waitForTimeout(450); await page.screenshot({ path: new URL(`${theme}-dpr${dpr}-${name}.png`, out).pathname, fullPage: true }); };
@@ -190,6 +205,10 @@ try {
             assert(resources.images <= 20 && resources.domMarkers === 0);
             rendered.thousandPointResources = resources;
         }
+        if (verifySplice) {
+            const { verifyMapSplice } = await import('./verify-map-splice.mjs');
+            rendered.spliceChecks = await verifyMapSplice(page, screenshot);
+        }
         await page.getByTestId('close-address-map').click();
         await page.getByTestId('address-map').waitFor({ state: 'detached' });
         await page.getByTestId('open-address-map').click();
@@ -206,6 +225,12 @@ try {
         results.push({ theme, dpr, ...rendered, clusters, equalPixels, dragOffset, errors, unknownApi });
         await context.close();
     }
+} catch (error) {
+    for (const context of browser.contexts()) for (const page of context.pages()) {
+        await page.screenshot({ path: new URL('failure.png', out).pathname, fullPage: true }).catch(() => {});
+        console.log('Browser failure', page.url(), await page.locator('body').innerText().catch(() => ''));
+    }
+    throw error;
 } finally { await browser.close(); }
 await writeFile(new URL('browser-results.json', out), JSON.stringify(results, null, 2) + '\n');
 console.log(JSON.stringify(results, null, 2));

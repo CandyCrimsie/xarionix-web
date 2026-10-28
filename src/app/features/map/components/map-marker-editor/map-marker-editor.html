@@ -1,7 +1,9 @@
 <hlm-dialog-header class="shrink-0 pr-6">
-    <h3 hlmDialogTitle>{{ editing() ? 'Редактирование маркера' : 'Новый маркер' }}</h3>
+    <h3 hlmDialogTitle>{{ spliceConnection() ? 'Вставить муфту' : editing() ? 'Редактирование маркера' : 'Новый маркер' }}</h3>
     <p hlmDialogDescription>
-        Заполните основные данные, выберите иконку и при необходимости настройте оформление.
+        @if (spliceConnection(); as connection) {
+        Муфта разделит соединение «{{ connection }}» в выбранной точке. Видимость наследуется от трассы.
+        } @else { Заполните основные данные, выберите иконку и при необходимости настройте оформление. }
     </p>
 </hlm-dialog-header>
 
@@ -24,14 +26,14 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <hlm-field>
                         <label hlmFieldLabel>Тип объекта</label>
-                        <hlm-select [value]="draft().point_type" [itemToString]="pointTypeLabel" (valueChange)="selectPointType($event)">
+                        <hlm-select [value]="draft().point_type" [disabled]="!!spliceConnection()" [itemToString]="pointTypeLabel" (valueChange)="selectPointType($event)">
                             <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
                             <hlm-select-content *hlmSelectPortal>@for (type of pointTypes(); track type.value) { <hlm-select-item [value]="type.value">{{ type.label }}</hlm-select-item> }</hlm-select-content>
                         </hlm-select>
                     </hlm-field>
                     <hlm-field>
                         <label hlmFieldLabel>Видимость</label>
-                        <hlm-select [value]="draft().visibility" [itemToString]="visibilityLabel" [disabled]="!canManage()" (valueChange)="selectVisibility($event)">
+                        <hlm-select [value]="draft().visibility" [itemToString]="visibilityLabel" [disabled]="!canManage() || !!spliceConnection()" (valueChange)="selectVisibility($event)">
                             <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger>
                             <hlm-select-content *hlmSelectPortal><hlm-select-item value="private">Личная отметка</hlm-select-item><hlm-select-item value="company">Общий объект компании</hlm-select-item></hlm-select-content>
                         </hlm-select>
@@ -69,6 +71,7 @@
                             (ngModelChange)="updateNumber('longitude', $event)" />
                     </hlm-field>
                 </div>
+                @if (!spliceConnection()) {
                 <div class="flex flex-wrap items-center gap-2">
                     <button hlmBtn variant="outline" type="button" (click)="requestPoint()" [disabled]="!canEditCoordinates()"
                         data-testid="choose-marker-point">
@@ -85,6 +88,7 @@
                 <app-building-address-picker [buildingId]="draft().building_id" [disabled]="saving()"
                     (buildingIdChange)="update('building_id', $event)"
                     (buildingSelected)="selectBuilding($event)" />
+                }
                 @if (draft().building_id !== null) {
                 <hlm-field>
                     <label hlmFieldLabel>Связь с домом</label>
@@ -123,15 +127,16 @@
                 <input hlmInput class="pl-9" placeholder="Найти иконку" [ngModel]="iconSearch()"
                     (ngModelChange)="iconSearch.set($event)" data-testid="marker-icon-search" />
             </div>
-            <div class="grid max-h-72 grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2 overflow-y-auto p-1">
+            <div class="grid max-h-72 grid-cols-[repeat(auto-fill,2.75rem)] gap-2 overflow-y-auto p-1">
                 @for (icon of icons(); track icon.value) {
-                <button hlmBtn type="button" size="icon"
-                    [variant]="draft().icon_name === icon.value ? 'default' : 'outline'"
-                    class="size-11" [hlmTooltip]="icon.label"
+                <button hlmBtn type="button" size="icon" variant="ghost"
+                    class="size-11 shrink-0 rounded-xl border border-transparent p-0 transition-colors hover:bg-accent/50 data-[selected=true]:border-primary data-[selected=true]:bg-accent" [hlmTooltip]="icon.label"
                     [attr.aria-label]="icon.label"
+                    [attr.aria-pressed]="draft().icon_name === icon.value"
+                    [attr.data-selected]="draft().icon_name === icon.value" [disabled]="saving()"
                     [attr.data-testid]="'marker-icon-' + icon.value"
                     (click)="selectIcon(icon.value)">
-                    <img [src]="iconSource(icon.value)" class="size-8" alt="" />
+                    <app-map-icon [name]="icon.value" />
                 </button>
                 } @empty {
                 <p class="col-span-full py-8 text-center text-sm text-muted-foreground">

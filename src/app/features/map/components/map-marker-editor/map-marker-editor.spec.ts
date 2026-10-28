@@ -51,12 +51,10 @@ describe('MapMarkerEditor', () => {
     });
 
     it('filters the safe icon allowlist and changes the selected icon', () => {
-        component.iconSearch.set('сервер');
-        expect(component.icons().map(icon => icon.value)).toEqual(['server']);
-
-        component.selectIcon('server');
-        expect(component.draft().icon_name).toBe('server');
-        expect(component.selectedIconName()).toBe('lucideServer');
+        component.iconSearch.set('маршрутизатор');
+        expect(component.icons().map(icon => icon.value)).toEqual(['router']);
+        component.selectIcon('router');
+        expect(component.draft().icon_name).toBe('router');
     });
 
     it('groups settings into clear tabs and keeps icon names in accessible tooltips', () => {
@@ -74,10 +72,10 @@ describe('MapMarkerEditor', () => {
         fixture.detectChanges();
 
         const server = fixture.nativeElement.querySelector(
-            '[data-testid="marker-icon-server"]',
+            '[data-testid="marker-icon-router"]',
         ) as HTMLButtonElement | null;
         expect(server).not.toBeNull();
-        expect(server?.getAttribute('aria-label')).toBe('Сервер');
+        expect(server?.getAttribute('aria-label')).toBe('Маршрутизатор');
         expect(server?.textContent?.trim()).toBe('');
     });
 
@@ -105,7 +103,7 @@ describe('MapMarkerEditor', () => {
 
     it('applies a preset and resets only appearance fields', () => {
         component.applyPreset('warning');
-        expect(component.draft().icon_name).toBe('circle-alert');
+        expect(component.draft().icon_name).toBe('note');
         expect(component.draft().background_color).toBe('#DC2626');
         expect(component.draft().name).toBe('Узел связи №1');
 
@@ -114,6 +112,41 @@ describe('MapMarkerEditor', () => {
         expect(component.draft().background_color).toBe(createDefaultMapMarker().background_color);
         expect(component.draft().name).toBe('Узел связи №1');
         expect(component.draft().latitude).toBe(55.577276);
+    });
+
+    it('uses a fixed ghost-button grid with an inherited-color glyph, including selected note', () => {
+        const tabs = fixture.nativeElement.querySelectorAll('[role="tab"]');
+        tabs[1].click(); fixture.detectChanges();
+        const note = fixture.nativeElement.querySelector('[data-testid="marker-icon-note"]') as HTMLButtonElement;
+        expect(note.classList.contains('size-11')).toBe(true);
+        expect(note.getAttribute('aria-pressed')).toBe('true');
+        expect(note.getAttribute('data-selected')).toBe('true');
+        expect(note.querySelector('img')).toBeNull();
+        expect(note.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 24 24');
+        component.selectIcon('router'); fixture.detectChanges();
+        expect(note.getAttribute('aria-pressed')).toBe('false');
+        expect(note.classList.contains('size-11')).toBe(true);
+    });
+
+    it('allows editing an existing hidden legacy icon but does not offer it for new records', () => {
+        expect(component.icons().some(icon => icon.value === 'server')).toBe(false);
+        component.update('icon_name', 'server');
+        expect(component.icons().some(icon => icon.value === 'server')).toBe(true);
+        expect(component.selectedIconName()).toBe('lucideServer');
+        component.selectIcon('equipment');
+        expect(component.icons().some(icon => icon.value === 'server')).toBe(false);
+    });
+
+    it('locks topology coordinates, point type and building binding when inserting a splice', async () => {
+        fixture.componentRef.setInput('spliceConnection', 'Магистраль');
+        fixture.componentRef.setInput('draft', { ...component.draft(), point_type: 'splice', icon_name: 'splice' });
+        fixture.detectChanges();
+        await fixture.whenStable(); fixture.detectChanges();
+        expect(component.canEditCoordinates()).toBe(false);
+        expect(fixture.nativeElement.textContent).toContain('разделит соединение «Магистраль»');
+        expect(fixture.nativeElement.querySelector('[data-testid="choose-marker-point"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('app-building-address-picker')).toBeNull();
+        expect(fixture.nativeElement.querySelector('#marker-latitude').disabled).toBe(true);
     });
 
     it('parses pasted latitude and longitude without reversing GeoJSON order', () => {
