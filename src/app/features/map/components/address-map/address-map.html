@@ -1,393 +1,1003 @@
 <div class="relative h-full min-h-[32rem] overflow-hidden rounded-lg" data-testid="address-map">
-    <div #mapContainer class="h-full w-full" aria-label="Карта адресов"></div>
+  <div #mapContainer class="h-full w-full" aria-label="Карта адресов"></div>
 
-    @if (state() === 'loading') {
+  @if (state() === 'loading') {
     <div class="absolute inset-0 z-20 flex items-center justify-center bg-background/80">
-        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-            <ng-icon name="lucideLoaderCircle" class="animate-spin" />
-            Загружаем карту...
-        </div>
+      <div class="flex items-center gap-2 text-sm text-muted-foreground">
+        <ng-icon name="lucideLoaderCircle" class="animate-spin" />
+        Загружаем карту...
+      </div>
     </div>
-    } @else if (state() === 'error') {
+  } @else if (state() === 'error') {
     <div class="absolute inset-0 z-20 flex items-center justify-center bg-background/90 p-6">
-        <hlm-alert class="max-w-md" variant="destructive">
-            <ng-icon name="lucideTriangleAlert" />
-            <h4 hlmAlertTitle>Карта недоступна</h4>
-            <div hlmAlertDescription>{{ setupError() }}</div>
-            <div hlmAlertAction>
-                <button hlmBtn variant="outline" size="sm" type="button" (click)="retrySetup()">
-                    <ng-icon name="lucideRefreshCw" />
-                    Повторить
-                </button>
-            </div>
-        </hlm-alert>
-    </div>
-    }
-
-    <hlm-dialog #markerDialog="hlmDialog" [disableClose]="markerSaving()" (closed)="onMarkerDialogClosed()">
-        <div class="absolute left-3 top-3 z-10 isolate">
-            <div hlmButtonGroup
-                class="rounded-lg bg-background shadow-md"
-                aria-label="Управление картой"
-                data-testid="map-toolbar-button-group">
-                <button hlmBtn variant="outline" size="icon" type="button" aria-label="Закрыть карту"
-                    class="bg-background dark:bg-background dark:hover:bg-muted"
-                    data-testid="close-address-map" (click)="closeRequested.emit()">
-                    <ng-icon name="lucideX" />
-                </button>
-
-                <button hlmDialogTrigger hlmBtn variant="outline" type="button" data-testid="add-map-marker"
-                    class="bg-background dark:bg-background dark:hover:bg-muted"
-                    (click)="startCreateMarker()">
-                    <ng-icon name="lucideMapPinPlus" />
-                    Добавить маркер
-                </button>
-                <button hlmBtn variant="outline" type="button" class="bg-background dark:bg-background dark:hover:bg-muted" data-testid="add-map-connection" (click)="startCreateConnection()"><ng-icon name="lucideCable" />Добавить соединение</button>
-                <button hlmBtn variant="outline" size="icon" type="button" aria-label="Фильтры карты" hlmTooltip="Фильтры" class="bg-background dark:bg-background dark:hover:bg-muted" (click)="filterPanelOpen.set(!filterPanelOpen())"><ng-icon name="lucideListFilter" /></button>
-            </div>
-        </div>
-
-            <hlm-dialog-content *hlmDialogPortal="let ctx"
-                class="w-[calc(100vw-2rem)] min-w-0 max-w-none overflow-hidden sm:max-w-6xl"
-                data-testid="map-marker-dialog">
-                <app-map-marker-editor [(draft)]="markerDraft" [editing]="editingMarker() !== null"
-                    [spliceConnection]="spliceTarget()?.connection?.name ?? null"
-                    [(routeOperation)]="routeOperation" [(installationAfter)]="routeInstallationAfter" [routeAttachment]="editingMarker()?.route_attachment ?? null"
-                    [canManage]="canManage()" [personalStyles]="personalStyles()" (styleRequested)="savePersonalStyle($event)"
-                    [saving]="markerSaving()" [error]="markerError()" (pointRequested)="startPointSelection()"
-                    (saveRequested)="saveMarker()" />
-            </hlm-dialog-content>
-    </hlm-dialog>
-
-    <hlm-dialog #connectionDialog="hlmDialog" (closed)="onConnectionDialogClosed()" [disableClose]="connectionSaving()">
-        <hlm-dialog-content *hlmDialogPortal class="w-[calc(100vw-2rem)] sm:max-w-2xl">
-            <app-map-connection-editor [(draft)]="connectionDraft" [canManage]="canManage()"
-                [editing]="editingConnection() !== null" [saving]="connectionSaving()" [error]="connectionError()"
-                (mapRequested)="startConnectionMap($event)" (saveRequested)="saveConnection()" />
-        </hlm-dialog-content>
-    </hlm-dialog>
-
-    @if (filterPanelOpen()) {
-    <section class="absolute left-3 top-16 z-10 grid max-w-[calc(100%-1.5rem)] gap-3 rounded-lg border bg-popover p-4 text-sm shadow-md" aria-label="Фильтры карты">
-        <label class="flex items-center gap-2"><hlm-checkbox [checked]="showBuildings()" (checkedChange)="showBuildings.set($event)" />Дома</label>
-        <label class="flex items-center gap-2"><hlm-checkbox [checked]="showInfrastructure()" (checkedChange)="showInfrastructure.set($event)" />Инфраструктура и общие точки</label>
-        <label class="flex items-center gap-2"><hlm-checkbox [checked]="showPersonal()" (checkedChange)="showPersonal.set($event)" />Личные отметки</label>
-        <label class="flex items-center gap-2"><hlm-checkbox [checked]="showConnections()" (checkedChange)="showConnections.set($event)" />Соединения</label>
-        <div class="flex flex-wrap gap-1" aria-label="Среда соединения">
-            <button hlmBtn size="sm" [variant]="mediumFilter() === 'all' ? 'secondary' : 'ghost'" (click)="mediumFilter.set('all')">Все</button>
-            <button hlmBtn size="sm" [variant]="mediumFilter() === 'fiber' ? 'secondary' : 'ghost'" (click)="mediumFilter.set('fiber')">Оптоволокно</button>
-            <button hlmBtn size="sm" [variant]="mediumFilter() === 'utp' ? 'secondary' : 'ghost'" (click)="mediumFilter.set('utp')">UTP</button>
-        </div>
-        <div class="flex flex-wrap gap-1" aria-label="Состояние соединения">
-            <button hlmBtn size="sm" [variant]="statusFilter() === 'all' ? 'secondary' : 'ghost'" (click)="statusFilter.set('all')">Все состояния</button>
-            @for (status of ['planned', 'construction', 'active', 'inactive']; track status) {
-            <button hlmBtn size="sm" [variant]="statusFilter() === status ? 'secondary' : 'ghost'" (click)="statusFilter.set($any(status))">{{ connectionStatusLabel($any(status)) }}</button>
-            }
-        </div>
-    </section>
-    }
-
-    @if (connectionMapMode(); as mode) {
-    <section class="absolute bottom-16 left-1/2 z-10 grid w-[min(38rem,calc(100%-2rem))] -translate-x-1/2 gap-3 rounded-lg border bg-background/95 p-3 shadow-md" aria-label="Размещение соединения">
-        <p class="text-sm">{{ mode === 'source' ? 'Выберите начало: нажмите на дом или самостоятельную точку.' : mode === 'target' ? 'Выберите конец: нажмите на дом или самостоятельную точку.' : 'Нажимайте на карту, чтобы добавить вершины. Перетаскивайте ручки для правки трассы.' }}</p>
-        <div class="flex flex-wrap items-center gap-2">
-            <button hlmBtn variant="outline" size="sm" type="button" (click)="cancelConnectionMap()">Отмена · Esc</button>
-            @if (mode === 'vertices') {
-            <button hlmBtn variant="outline" size="sm" type="button" [disabled]="!routeHistory().length" (click)="undoRoute()"><ng-icon name="lucideUndo2" />Отменить действие</button>
-            <button hlmBtn variant="outline" size="sm" type="button" [disabled]="activeVertex() === null" (click)="removeRouteVertex()">Удалить вершину</button>
-            }
-            <button hlmBtn size="sm" type="button" (click)="finishConnectionMap()">Продолжить · Enter</button>
-        </div>
-    </section>
-    }
-
-    @if (placingMarker()) {
-    <div class="absolute bottom-16 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-md"
-        data-testid="marker-placement-controls">
-        <span class="px-2 text-sm">Нажмите на карту или перетащите метку</span>
-        <button hlmBtn variant="outline" size="sm" type="button" (click)="cancelPointSelection()">Отмена</button>
-        <button hlmBtn size="sm" type="button" (click)="confirmPointSelection()">Подтвердить точку</button>
-    </div>
-    }
-
-    <hlm-alert-dialog #deleteMarkerDialog="hlmAlertDialog">
-        <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
-            <hlm-alert-dialog-header>
-                <h3 hlmAlertDialogTitle>Удалить маркер?</h3>
-                <p hlmAlertDialogDescription>
-                    @if (markerToDelete(); as marker) {
-                    «{{ marker.name }}» будет удалён без возможности восстановления.
-                    }
-                </p>
-                @if (markerDependencies().length) {
-                <p class="text-sm">Сначала удалите или переназначьте присоединённые линии:</p>
-                <ul class="list-inside list-disc text-sm">@for (line of markerDependencies(); track line.id) { <li>{{ line.name }} · {{ connectionLabel(line) }}</li> }</ul>
-                }
-                @if (markerDeleteError()) { <p class="text-sm text-destructive" role="alert">{{ markerDeleteError() }}</p> }
-            </hlm-alert-dialog-header>
-            <hlm-alert-dialog-footer>
-                <button hlmAlertDialogCancel type="button" [disabled]="markerDeleting()">Отмена</button>
-                <button hlmBtn variant="destructive" type="button" [disabled]="markerDeleting() || markerDependencies().length > 0"
-                    (click)="deleteMarker()">
-                    <ng-icon name="lucideTrash2" />
-                    {{ markerDeleting() ? 'Удаляем...' : 'Удалить' }}
-                </button>
-            </hlm-alert-dialog-footer>
-        </hlm-alert-dialog-content>
-    </hlm-alert-dialog>
-
-    @if (viewportError(); as message) {
-    <hlm-alert class="absolute left-1/2 top-3 z-10 w-[min(28rem,calc(100%-8rem))] -translate-x-1/2"
-        variant="destructive">
+      <hlm-alert class="max-w-md" variant="destructive">
         <ng-icon name="lucideTriangleAlert" />
-        <h4 hlmAlertTitle>Данные карты</h4>
-        <div hlmAlertDescription>{{ message }}</div>
+        <h4 hlmAlertTitle>Карта недоступна</h4>
+        <div hlmAlertDescription>{{ setupError() }}</div>
         <div hlmAlertAction>
-            <button hlmBtn variant="outline" size="xs" type="button" (click)="retryViewport()">
-                Повторить
-            </button>
+          <button hlmBtn variant="outline" size="sm" type="button" (click)="retrySetup()">
+            <ng-icon name="lucideRefreshCw" />
+            Повторить
+          </button>
         </div>
-    </hlm-alert>
-    }
+      </hlm-alert>
+    </div>
+  }
 
-    @if (coordinateNotice(); as message) {
+  <hlm-dialog
+    #markerDialog="hlmDialog"
+    [disableClose]="markerSaving()"
+    (closed)="onMarkerDialogClosed()"
+  >
+    <div class="absolute left-3 top-3 z-10 isolate">
+      <div
+        hlmButtonGroup
+        class="rounded-lg bg-background shadow-md"
+        aria-label="Управление картой"
+        data-testid="map-toolbar-button-group"
+      >
+        <button
+          hlmBtn
+          variant="outline"
+          size="icon"
+          type="button"
+          aria-label="Закрыть карту"
+          class="bg-background dark:bg-background dark:hover:bg-muted"
+          data-testid="close-address-map"
+          (click)="closeRequested.emit()"
+        >
+          <ng-icon name="lucideX" />
+        </button>
+
+        <button
+          hlmDialogTrigger
+          hlmBtn
+          variant="outline"
+          type="button"
+          data-testid="add-map-marker"
+          class="bg-background dark:bg-background dark:hover:bg-muted"
+          (click)="startCreateMarker()"
+        >
+          <ng-icon name="lucideMapPinPlus" />
+          Добавить маркер
+        </button>
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          class="bg-background dark:bg-background dark:hover:bg-muted"
+          data-testid="add-map-connection"
+          (click)="startCreateConnection()"
+        >
+          <ng-icon name="lucideCable" />Добавить соединение
+        </button>
+        <button
+          hlmBtn
+          variant="outline"
+          size="icon"
+          type="button"
+          aria-label="Фильтры карты"
+          hlmTooltip="Фильтры"
+          class="bg-background dark:bg-background dark:hover:bg-muted"
+          (click)="filterPanelOpen.set(!filterPanelOpen())"
+        >
+          <ng-icon name="lucideListFilter" />
+        </button>
+      </div>
+    </div>
+
+    <hlm-dialog-content
+      *hlmDialogPortal="let ctx"
+      class="w-[calc(100vw-2rem)] min-w-0 max-w-none overflow-hidden sm:max-w-6xl"
+      data-testid="map-marker-dialog"
+    >
+      <app-map-marker-editor
+        [(draft)]="markerDraft"
+        [(positionChosen)]="markerPositionChosen"
+        [editing]="editingMarker() !== null"
+        [spliceConnection]="spliceTarget()?.connection?.name ?? null"
+        [(routeOperation)]="routeOperation"
+        [(installationAfter)]="routeInstallationAfter"
+        [routeAttachment]="editingMarker()?.route_attachment ?? null"
+        [canManage]="canManage()"
+        [personalStyles]="personalStyles()"
+        (styleRequested)="savePersonalStyle($event)"
+        [saving]="markerSaving()"
+        [error]="markerError()"
+        (pointRequested)="startPointSelection()"
+        (saveRequested)="saveMarker()"
+      />
+    </hlm-dialog-content>
+  </hlm-dialog>
+
+  <hlm-dialog
+    #connectionDialog="hlmDialog"
+    (closed)="onConnectionDialogClosed()"
+    [disableClose]="connectionSaving()"
+  >
+    <hlm-dialog-content *hlmDialogPortal class="w-[calc(100vw-2rem)] sm:max-w-2xl">
+      <app-map-connection-editor
+        [(draft)]="connectionDraft"
+        [canManage]="canManage()"
+        [editing]="editingConnection() !== null"
+        [saving]="connectionSaving()"
+        [error]="connectionError()"
+        (mapRequested)="startConnectionMap($event)"
+        (saveRequested)="saveConnection()"
+      />
+    </hlm-dialog-content>
+  </hlm-dialog>
+
+  @if (filterPanelOpen()) {
+    <section
+      class="absolute left-3 top-16 z-10 grid max-w-[calc(100%-1.5rem)] gap-3 rounded-lg border bg-popover p-4 text-sm shadow-md"
+      aria-label="Фильтры карты"
+    >
+      <label class="flex items-center gap-2"
+        ><hlm-checkbox
+          [checked]="showBuildings()"
+          (checkedChange)="showBuildings.set($event)"
+        />Дома</label
+      >
+      <label class="flex items-center gap-2"
+        ><hlm-checkbox
+          [checked]="showInfrastructure()"
+          (checkedChange)="showInfrastructure.set($event)"
+        />Инфраструктура и общие точки</label
+      >
+      <label class="flex items-center gap-2"
+        ><hlm-checkbox
+          [checked]="showPersonal()"
+          (checkedChange)="showPersonal.set($event)"
+        />Личные отметки</label
+      >
+      <label class="flex items-center gap-2"
+        ><hlm-checkbox
+          [checked]="showConnections()"
+          (checkedChange)="showConnections.set($event)"
+        />Соединения</label
+      >
+      <div class="flex flex-wrap gap-1" aria-label="Среда соединения">
+        <button
+          hlmBtn
+          size="sm"
+          [variant]="mediumFilter() === 'all' ? 'secondary' : 'ghost'"
+          (click)="mediumFilter.set('all')"
+        >
+          Все
+        </button>
+        <button
+          hlmBtn
+          size="sm"
+          [variant]="mediumFilter() === 'fiber' ? 'secondary' : 'ghost'"
+          (click)="mediumFilter.set('fiber')"
+        >
+          Оптоволокно
+        </button>
+        <button
+          hlmBtn
+          size="sm"
+          [variant]="mediumFilter() === 'utp' ? 'secondary' : 'ghost'"
+          (click)="mediumFilter.set('utp')"
+        >
+          UTP
+        </button>
+      </div>
+      <div class="flex flex-wrap gap-1" aria-label="Состояние соединения">
+        <button
+          hlmBtn
+          size="sm"
+          [variant]="statusFilter() === 'all' ? 'secondary' : 'ghost'"
+          (click)="statusFilter.set('all')"
+        >
+          Все состояния
+        </button>
+        @for (status of ['planned', 'construction', 'active', 'inactive']; track status) {
+          <button
+            hlmBtn
+            size="sm"
+            [variant]="statusFilter() === status ? 'secondary' : 'ghost'"
+            (click)="statusFilter.set($any(status))"
+          >
+            {{ connectionStatusLabel($any(status)) }}
+          </button>
+        }
+      </div>
+    </section>
+  }
+
+  @if (connectionMapMode(); as mode) {
+    <section
+      class="absolute bottom-16 left-1/2 z-10 grid w-[min(38rem,calc(100%-2rem))] -translate-x-1/2 gap-3 rounded-lg border bg-background/95 p-3 shadow-md"
+      aria-label="Размещение соединения"
+    >
+      <p class="text-sm">
+        {{
+          mode === 'source'
+            ? 'Выберите начало: нажмите на дом или самостоятельную точку.'
+            : mode === 'target'
+              ? 'Выберите конец: нажмите на дом или самостоятельную точку.'
+              : 'Нажимайте на карту, чтобы добавить вершины. Перетаскивайте ручки для правки трассы.'
+        }}
+      </p>
+      <div class="flex flex-wrap items-center gap-2">
+        <button hlmBtn variant="outline" size="sm" type="button" (click)="cancelConnectionMap()">
+          Отмена · Esc
+        </button>
+        @if (mode === 'vertices') {
+          <button
+            hlmBtn
+            variant="outline"
+            size="sm"
+            type="button"
+            [disabled]="!routeHistory().length"
+            (click)="undoRoute()"
+          >
+            <ng-icon name="lucideUndo2" />Отменить действие
+          </button>
+          <button
+            hlmBtn
+            variant="outline"
+            size="sm"
+            type="button"
+            [disabled]="activeVertex() === null"
+            (click)="removeRouteVertex()"
+          >
+            Удалить вершину
+          </button>
+        }
+        <button hlmBtn size="sm" type="button" (click)="finishConnectionMap()">
+          Продолжить · Enter
+        </button>
+      </div>
+    </section>
+  }
+
+  @if (placingMarker()) {
+    <div
+      class="absolute bottom-16 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-background/95 p-2 shadow-md"
+      data-testid="marker-placement-controls"
+    >
+      <span class="px-2 text-sm"> Нажмите на карту или перетащите метку </span>
+
+      <div hlmButtonGroup aria-label="Управление размещением метки">
+        <button
+          hlmBtn
+          variant="outline"
+          size="icon"
+          type="button"
+          aria-label="Отменить"
+          (click)="cancelPointSelection()"
+        >
+          <ng-icon name="lucideX" />
+        </button>
+
+        <button
+          hlmBtn
+          variant="outline"
+          size="icon"
+          type="button"
+          aria-label="Подтвердить"
+          (click)="confirmPointSelection()"
+        >
+          <ng-icon name="lucideCheck" />
+        </button>
+      </div>
+    </div>
+  }
+
+  <hlm-alert-dialog #deleteMarkerDialog="hlmAlertDialog">
+    <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+      <hlm-alert-dialog-header>
+        <h3 hlmAlertDialogTitle>Удалить маркер?</h3>
+        <p hlmAlertDialogDescription>
+          @if (markerToDelete(); as marker) {
+            «{{ marker.name }}» будет удалён без возможности восстановления.
+          }
+        </p>
+        @if (markerDependencies().length) {
+          <p class="text-sm">Сначала удалите или переназначьте присоединённые линии:</p>
+          <ul class="list-inside list-disc text-sm">
+            @for (line of markerDependencies(); track line.id) {
+              <li>{{ line.name }} · {{ connectionLabel(line) }}</li>
+            }
+          </ul>
+        }
+        @if (markerDeleteError()) {
+          <p class="text-sm text-destructive" role="alert">{{ markerDeleteError() }}</p>
+        }
+      </hlm-alert-dialog-header>
+      <hlm-alert-dialog-footer>
+        <button hlmAlertDialogCancel type="button" [disabled]="markerDeleting()">Отмена</button>
+        <button
+          hlmBtn
+          variant="destructive"
+          type="button"
+          [disabled]="markerDeleting() || markerDependencies().length > 0"
+          (click)="deleteMarker()"
+        >
+          <ng-icon name="lucideTrash2" />
+          {{ markerDeleting() ? 'Удаляем...' : 'Удалить' }}
+        </button>
+      </hlm-alert-dialog-footer>
+    </hlm-alert-dialog-content>
+  </hlm-alert-dialog>
+
+  @if (viewportError(); as message) {
     <hlm-alert
-        class="absolute bottom-12 left-1/2 z-10 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 bg-background/95">
-        <ng-icon name="lucideBuilding2" />
-        <h4 hlmAlertTitle>Нет координат</h4>
-        <div hlmAlertDescription>{{ message }}</div>
-        @if (canManage() && selectedBuilding(); as building) {
-        <div hlmAlertAction><button hlmBtn variant="outline" size="sm" (click)="startBuildingStyle(building.id)">Указать расположение дома</button></div>
-        }
+      class="absolute left-1/2 top-3 z-10 w-[min(28rem,calc(100%-8rem))] -translate-x-1/2"
+      variant="destructive"
+    >
+      <ng-icon name="lucideTriangleAlert" />
+      <h4 hlmAlertTitle>Данные карты</h4>
+      <div hlmAlertDescription>{{ message }}</div>
+      <div hlmAlertAction>
+        <button hlmBtn variant="outline" size="xs" type="button" (click)="retryViewport()">
+          Повторить
+        </button>
+      </div>
     </hlm-alert>
-    }
+  }
 
-    <app-map-legend class="absolute bottom-16 left-3 z-10" [markers]="legendMarkers()" [connections]="visibleConnections()"
-        [hasBuildings]="legendBuildings()" />
-    @if (routeAnchor(); as hover) {
-    <hlm-popover [state]="routeMenuTarget() ? 'open' : 'closed'" [attachTo]="spliceHoverAction" align="start" [sideOffset]="8" (closed)="closeRouteMenu()">
-    <button #spliceHoverAction hlmBtn type="button" variant="ghost" size="icon" animate.enter="route-plus-enter" animate.leave="route-plus-leave" class="absolute z-20 size-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-300/35 bg-slate-900/85 text-slate-100 shadow-sm shadow-black/25 backdrop-blur-md transition-[scale,background-color,border-color,opacity] duration-150 ease-out hover:scale-110 hover:border-sky-300/70 hover:bg-slate-800/95 hover:text-slate-100 dark:hover:bg-slate-800/95 aria-expanded:bg-slate-900/95 aria-expanded:text-slate-100 focus-visible:ring-sky-400"
-        [style.left.px]="hover.x" [style.top.px]="hover.y" [hlmTooltip]="'Добавить на трассу: ' + hover.targets[0].connection.name" aria-label="Добавить на трассу" aria-haspopup="dialog" [attr.aria-expanded]="routeMenuTarget() !== null"
-        data-testid="insert-splice-hover" (mouseenter)="holdSpliceHover(true)" (mouseleave)="holdSpliceHover(false)" (mousemove)="moveSpliceHover($event)"
-        (focus)="holdSpliceHover(true)" (blur)="holdSpliceHover(false)" (pointerdown)="$event.stopPropagation()"
-        (click)="$event.stopPropagation(); chooseHoveredSplice()"><ng-icon name="lucidePlus" /></button>
-    <div hlmPopoverContent *hlmPopoverPortal class="w-72 gap-1 rounded-xl border border-white/10 bg-slate-950/95 p-2 text-slate-100 shadow-lg backdrop-blur-md" data-testid="route-object-menu">
+  @if (coordinateNotice(); as message) {
+    <hlm-alert
+      class="absolute bottom-12 left-1/2 z-10 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 bg-background/95"
+    >
+      <ng-icon name="lucideBuilding2" />
+      <h4 hlmAlertTitle>Нет координат</h4>
+      <div hlmAlertDescription>{{ message }}</div>
+      @if (canManage() && selectedBuilding(); as building) {
+        <div hlmAlertAction>
+          <button hlmBtn variant="outline" size="sm" (click)="startBuildingStyle(building.id)">
+            Указать расположение дома
+          </button>
+        </div>
+      }
+    </hlm-alert>
+  }
+
+  <app-map-legend
+    class="absolute bottom-16 left-3 z-10"
+    [markers]="legendMarkers()"
+    [connections]="visibleConnections()"
+    [hasBuildings]="legendBuildings()"
+  />
+  @if (routeAnchor(); as hover) {
+    <hlm-popover
+      [state]="routeMenuTarget() ? 'open' : 'closed'"
+      [attachTo]="spliceHoverAction"
+      align="start"
+      [sideOffset]="8"
+      (closed)="closeRouteMenu()"
+    >
+      <button
+        #spliceHoverAction
+        hlmBtn
+        type="button"
+        variant="ghost"
+        size="icon"
+        animate.enter="route-plus-enter"
+        animate.leave="route-plus-leave"
+        class="absolute z-20 size-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-300/35 bg-slate-900/85 text-slate-100 shadow-sm shadow-black/25 backdrop-blur-md transition-[scale,background-color,border-color,opacity] duration-150 ease-out hover:scale-110 hover:border-sky-300/70 hover:bg-slate-800/95 hover:text-slate-100 dark:hover:bg-slate-800/95 aria-expanded:bg-slate-900/95 aria-expanded:text-slate-100 focus-visible:ring-sky-400"
+        [style.left.px]="hover.x"
+        [style.top.px]="hover.y"
+        [hlmTooltip]="'Добавить на трассу: ' + hover.targets[0].connection.name"
+        aria-label="Добавить на трассу"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="routeMenuTarget() !== null"
+        data-testid="insert-splice-hover"
+        (mouseenter)="holdSpliceHover(true)"
+        (mouseleave)="holdSpliceHover(false)"
+        (mousemove)="moveSpliceHover($event)"
+        (focus)="holdSpliceHover(true)"
+        (blur)="holdSpliceHover(false)"
+        (pointerdown)="$event.stopPropagation()"
+        (click)="$event.stopPropagation(); chooseHoveredSplice()"
+      >
+        <ng-icon name="lucidePlus" />
+      </button>
+      <div
+        hlmPopoverContent
+        *hlmPopoverPortal
+        class="w-72 gap-1 rounded-xl border border-white/10 bg-slate-950/95 p-2 text-slate-100 shadow-lg backdrop-blur-md"
+        data-testid="route-object-menu"
+      >
         <h3 class="px-2 py-1.5 text-xs font-medium">Добавить на трассу</h3>
-        <p class="px-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400">Сетевой узел · разделить кабель</p>
+        <p class="px-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400">
+          Сетевой узел · разделить кабель
+        </p>
         @for (item of routeNodeOptions; track item.type) {
-        <button hlmBtn variant="ghost" type="button" class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10" [hlmTooltip]="item.description" [attr.data-testid]="'route-node-' + item.type" (click)="selectRouteObject(item.type,'split')"><app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}</button>
+          <button
+            hlmBtn
+            variant="ghost"
+            type="button"
+            class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10"
+            [hlmTooltip]="item.description"
+            [attr.data-testid]="'route-node-' + item.type"
+            (click)="selectRouteObject(item.type, 'split')"
+          >
+            <app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}
+          </button>
         }
-        <p class="mt-1 border-t border-white/10 px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400">Вдоль трассы · без разрыва</p>
+        <p
+          class="mt-1 border-t border-white/10 px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400"
+        >
+          Вдоль трассы · без разрыва
+        </p>
         @for (item of routePassOptions; track item.type) {
-        <button hlmBtn variant="ghost" type="button" class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10" [hlmTooltip]="item.description" [attr.data-testid]="'route-place-' + item.type" (click)="selectRouteObject(item.type,'place')"><app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}</button>
+          <button
+            hlmBtn
+            variant="ghost"
+            type="button"
+            class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10"
+            [hlmTooltip]="item.description"
+            [attr.data-testid]="'route-place-' + item.type"
+            (click)="selectRouteObject(item.type, 'place')"
+          >
+            <app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}
+          </button>
         }
-        <button hlmBtn variant="ghost" type="button" class="mt-1 h-8 justify-start gap-2 rounded-lg border-t border-white/10 px-2 text-xs text-slate-300 hover:bg-white/10 hover:text-white dark:hover:bg-white/10" data-testid="route-installation-boundary" (click)="startInstallationBoundary()">Изменить прокладку отсюда…</button>
-    </div>
+        <button
+          hlmBtn
+          variant="ghost"
+          type="button"
+          class="mt-1 h-8 justify-start gap-2 rounded-lg border-t border-white/10 px-2 text-xs text-slate-300 hover:bg-white/10 hover:text-white dark:hover:bg-white/10"
+          data-testid="route-installation-boundary"
+          (click)="startInstallationBoundary()"
+        >
+          Изменить прокладку отсюда…
+        </button>
+      </div>
     </hlm-popover>
-    }
-    <div class="absolute bottom-0 left-0 z-10 flex items-end">
-        <a [href]="yandexMapsUrl()" target="_blank" rel="noopener noreferrer"
-            aria-label="Открыть эту область в Яндекс Картах">
-            <img [src]="yandexLogoUrl" alt="Яндекс" class="h-12 w-[88px]" />
-        </a>
-    </div>
-    <div class="absolute bottom-1 right-1 z-10 flex items-center gap-2 rounded bg-background/90 px-2 py-1 text-[11px]">
-        <a class="underline underline-offset-2" [href]="yandexMapsUrl()" target="_blank"
-            rel="noopener noreferrer">Открыть в Картах</a>
-        <a class="underline underline-offset-2" [href]="yandexTermsUrl" target="_blank"
-            rel="noopener noreferrer">Условия использования</a>
-    </div>
+  }
 </div>
 
 <ng-template #markerPopup let-marker>
-    <section hlmCard class="max-h-[min(28rem,calc(100dvh-6rem))] w-[min(20rem,calc(100vw-3rem))] bg-popover text-popover-foreground ring-0"
-        aria-label="Информация о метке" data-testid="map-marker-popup">
-        <header hlmCardHeader class="flex shrink-0 flex-row items-center justify-between gap-3 border-b">
-            <span class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <ng-icon name="lucideMapPin" />
-                {{ pointTypeLabel(marker.point_type) }}
-            </span>
-            <div hlmButtonGroup aria-label="Действия с меткой" data-testid="marker-popup-actions">
-                @if (marker.can_manage) {
-                <button hlmBtn variant="outline" size="icon-sm" type="button"
-                    aria-label="Редактировать маркер" hlmTooltip="Редактировать"
-                    data-testid="edit-marker-popup" (click)="startEditMarker(marker)">
-                    <ng-icon name="lucidePencil" />
-                </button>
-                <button hlmBtn variant="outline" size="icon-sm" type="button"
-                    class="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10"
-                    aria-label="Удалить маркер" hlmTooltip="Удалить"
-                    data-testid="delete-marker-popup" (click)="requestDeleteMarker(marker)">
-                    <ng-icon name="lucideTrash2" />
-                </button>
-                }
-                <button hlmBtn variant="outline" size="icon-sm" type="button"
-                    aria-label="Закрыть карточку метки" hlmTooltip="Закрыть"
-                    data-testid="close-marker-popup" (click)="closePopup()">
-                    <ng-icon name="lucideX" />
-                </button>
-            </div>
-        </header>
-        <div hlmCardContent class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain">
-            <div class="space-y-1">
-                <h3 hlmCardTitle class="break-words">{{ marker.name }}</h3>
-                @if (marker.label_text) {
-                <p class="break-words text-sm text-muted-foreground">{{ marker.label_text }}</p>
-                }
-            </div>
-            @if (marker.description) {
-            <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">{{ marker.description }}</p>
-            }
-            <dl class="grid gap-3 border-t pt-3 text-xs">
-                <div class="grid gap-1">
-                    <dt class="text-muted-foreground">Координаты</dt>
-                    <dd class="font-mono tabular-nums">
-                        {{ marker.latitude?.toFixed(6) ?? 'Не задана' }}, {{ marker.longitude?.toFixed(6) ?? 'Не задана' }}
-                    </dd>
-                </div>
-                @if (marker.building_id !== null) {
-                <div class="grid gap-1">
-                    <dt class="text-muted-foreground">{{ linkRoleLabel(marker.building_link_role) }}</dt>
-                    <dd class="font-medium">{{ marker.building_full_address }}</dd>
-                    <button hlmBtn variant="outline" size="sm" (click)="openEndpoint({ kind: 'building', id: marker.building_id, name: marker.building_full_address ?? '', latitude: null, longitude: null })">Открыть дом</button>
-                </div>
-                }
-            </dl>
-            <div class="grid gap-1">
-                <h4 class="text-sm font-medium">Присоединённые линии</h4>
-                @for (line of popupConnections(); track line.id) {
-                <button hlmBtn variant="ghost" size="sm" class="justify-start whitespace-normal text-left" (click)="openConnectionPopup(line.id)">{{ line.name }} · {{ connectionLabel(line) }} · {{ connectionStatusLabel(line.status) }}</button>
-                } @empty { <p class="text-xs text-muted-foreground">Нет соединений</p> }
-            </div>
+  <section
+    hlmCard
+    class="max-h-[min(28rem,calc(100dvh-6rem))] w-[min(20rem,calc(100vw-3rem))] bg-popover text-popover-foreground ring-0"
+    aria-label="Информация о метке"
+    data-testid="map-marker-popup"
+  >
+    <header
+      hlmCardHeader
+      class="flex shrink-0 flex-row items-center justify-between gap-3 border-b"
+    >
+      <span class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <ng-icon name="lucideMapPin" />
+        {{ pointTypeLabel(marker.point_type) }}
+      </span>
+      <div hlmButtonGroup aria-label="Действия с меткой" data-testid="marker-popup-actions">
+        @if (marker.can_manage) {
+          <button
+            hlmBtn
+            variant="outline"
+            size="icon-sm"
+            type="button"
+            class="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10"
+            aria-label="Удалить маркер"
+            hlmTooltip="Удалить"
+            data-testid="delete-marker-popup"
+            (click)="requestDeleteMarker(marker)"
+          >
+            <ng-icon name="lucideTrash2" />
+          </button>
+          <button
+            hlmBtn
+            variant="outline"
+            size="icon-sm"
+            type="button"
+            aria-label="Редактировать маркер"
+            hlmTooltip="Редактировать"
+            data-testid="edit-marker-popup"
+            (click)="startEditMarker(marker)"
+          >
+            <ng-icon name="lucidePencil" />
+          </button>
+        }
+        <button
+          hlmBtn
+          variant="outline"
+          size="icon-sm"
+          type="button"
+          aria-label="Закрыть карточку метки"
+          hlmTooltip="Закрыть"
+          data-testid="close-marker-popup"
+          (click)="closePopup()"
+        >
+          <ng-icon name="lucideX" />
+        </button>
+      </div>
+    </header>
+    <div hlmCardContent class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain">
+      <div class="space-y-1">
+        <h3 hlmCardTitle class="break-words">{{ marker.name }}</h3>
+        @if (marker.label_text) {
+          <p class="break-words text-sm text-muted-foreground">{{ marker.label_text }}</p>
+        }
+      </div>
+      @if (marker.description) {
+        <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">
+          {{ marker.description }}
+        </p>
+      }
+      <dl class="grid gap-3 border-t pt-3 text-xs">
+        <div class="grid gap-1">
+          <dt class="text-muted-foreground">Координаты</dt>
+          <dd class="font-mono tabular-nums">
+            {{ marker.latitude?.toFixed(6) ?? 'Не задана' }},
+            {{ marker.longitude?.toFixed(6) ?? 'Не задана' }}
+          </dd>
         </div>
-    </section>
+        @if (marker.building_id !== null) {
+          <div class="grid gap-1">
+            <dt class="text-muted-foreground">{{ linkRoleLabel(marker.building_link_role) }}</dt>
+            <dd class="font-medium">{{ marker.building_full_address }}</dd>
+            <button
+              hlmBtn
+              variant="outline"
+              size="sm"
+              (click)="
+                openEndpoint({
+                  kind: 'building',
+                  id: marker.building_id,
+                  name: marker.building_full_address ?? '',
+                  latitude: null,
+                  longitude: null,
+                })
+              "
+            >
+              Открыть дом
+            </button>
+          </div>
+        }
+      </dl>
+      <div class="grid gap-1">
+        <h4 class="text-sm font-medium">Присоединённые линии</h4>
+        @for (line of popupConnections(); track line.id) {
+          <button
+            hlmBtn
+            variant="ghost"
+            size="sm"
+            class="justify-start whitespace-normal text-left"
+            (click)="openConnectionPopup(line.id)"
+          >
+            {{ line.name }} · {{ connectionLabel(line) }} · {{ connectionStatusLabel(line.status) }}
+          </button>
+        } @empty {
+          <p class="text-xs text-muted-foreground">Нет соединений</p>
+        }
+      </div>
+    </div>
+  </section>
 </ng-template>
 
 <ng-template #buildingPopup let-building>
-    <section hlmCard class="w-[min(22rem,calc(100vw-3rem))] bg-popover text-popover-foreground ring-0" aria-label="Дом на карте">
-        <header hlmCardHeader class="flex flex-row items-center justify-between gap-3 border-b"><span class="text-xs text-muted-foreground">Дом</span><button hlmBtn variant="ghost" size="icon-sm" aria-label="Закрыть карточку" (click)="closePopup()"><ng-icon name="lucideX" /></button></header>
-        <div hlmCardContent class="grid min-w-0 gap-3">
-            <h3 hlmCardTitle class="break-words">{{ building.full_address }}</h3>
-            <div class="flex flex-wrap gap-2">
-                <button hlmBtn size="sm" data-testid="open-building-popup" (click)="openEndpoint({ kind: 'building', id: building.id, name: building.full_address, latitude: null, longitude: null })">Открыть дом</button>
-                @if (canManage()) { <button hlmBtn variant="outline" size="sm" (click)="startBuildingStyle(building.id)">Оформление и расположение</button> }
-            </div>
-            <h4 class="text-sm font-medium">Присоединённые линии</h4>
-            @for (line of popupConnections(); track line.id) { <button hlmBtn variant="ghost" size="sm" class="justify-start whitespace-normal text-left" (click)="openConnectionPopup(line.id)">{{ line.name }} · {{ connectionLabel(line) }} · {{ connectionStatusLabel(line.status) }}</button> }
-            @empty { <p class="text-xs text-muted-foreground">Нет соединений</p> }
-        </div>
-    </section>
+  <section
+    hlmCard
+    class="w-[min(22rem,calc(100vw-3rem))] bg-popover text-popover-foreground ring-0"
+    aria-label="Дом на карте"
+  >
+    <header hlmCardHeader class="flex flex-row items-center justify-between gap-3 border-b">
+      <span class="text-xs text-muted-foreground">Дом</span
+      ><button
+        hlmBtn
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Закрыть карточку"
+        (click)="closePopup()"
+      >
+        <ng-icon name="lucideX" />
+      </button>
+    </header>
+    <div hlmCardContent class="grid min-w-0 gap-3">
+      <h3 hlmCardTitle class="break-words">{{ building.full_address }}</h3>
+      <div class="flex flex-wrap gap-2">
+        <button
+          hlmBtn
+          size="sm"
+          data-testid="open-building-popup"
+          (click)="
+            openEndpoint({
+              kind: 'building',
+              id: building.id,
+              name: building.full_address,
+              latitude: null,
+              longitude: null,
+            })
+          "
+        >
+          Открыть дом
+        </button>
+        @if (canManage()) {
+          <button hlmBtn variant="outline" size="sm" (click)="startBuildingStyle(building.id)">
+            Оформление и расположение
+          </button>
+        }
+      </div>
+      <h4 class="text-sm font-medium">Присоединённые линии</h4>
+      @for (line of popupConnections(); track line.id) {
+        <button
+          hlmBtn
+          variant="ghost"
+          size="sm"
+          class="justify-start whitespace-normal text-left"
+          (click)="openConnectionPopup(line.id)"
+        >
+          {{ line.name }} · {{ connectionLabel(line) }} · {{ connectionStatusLabel(line.status) }}
+        </button>
+      } @empty {
+        <p class="text-xs text-muted-foreground">Нет соединений</p>
+      }
+    </div>
+  </section>
 </ng-template>
 
 <ng-template #connectionPopup let-line>
-    <section hlmCard class="max-h-[min(30rem,80dvh)] w-[min(23rem,calc(100vw-3rem))] overflow-y-auto bg-popover text-popover-foreground ring-0" aria-label="Соединение на карте">
-        <header hlmCardHeader class="flex flex-row items-center justify-between gap-3 border-b"><span class="text-xs text-muted-foreground">{{ connectionLabel(line) }}</span><button hlmBtn variant="ghost" size="icon-sm" aria-label="Закрыть карточку" (click)="closePopup()"><ng-icon name="lucideX" /></button></header>
-        <div hlmCardContent class="grid min-w-0 gap-3">
-            <h3 hlmCardTitle class="break-words">{{ line.name }}</h3>
-            <p class="text-sm">{{ connectionStatusLabel(line.status) }}</p>
-            @if (line.description) { <p class="break-words text-sm text-muted-foreground">{{ line.description }}</p> }
-            <div class="grid gap-1"><span class="text-xs text-muted-foreground">Начало</span><button hlmBtn variant="link" class="h-auto justify-start whitespace-normal p-0 text-left" (click)="openEndpoint(line.source)">{{ line.source.name }}</button></div>
-            <div class="grid gap-1"><span class="text-xs text-muted-foreground">Конец</span><button hlmBtn variant="link" class="h-auto justify-start whitespace-normal p-0 text-left" (click)="openEndpoint(line.target)">{{ line.target.name }}</button></div>
-            @if (line.length_m !== null) { <p class="text-xs text-muted-foreground">Длина трассы по карте: {{ line.length_m.toFixed(1) }} м</p> }
-            @if (line.position_missing) { <p class="text-sm text-muted-foreground">У одного из концов нет координат. Трасса временно не отображается полностью.</p> }
-            @if (line.route_objects?.length) {
-            <div class="grid gap-2 border-t pt-3"><h4 class="text-xs text-muted-foreground">Объекты вдоль трассы · без разрыва кабеля</h4>
-                @for (object of line.route_objects; track object.marker_id) {
-                <div class="flex items-center justify-between gap-2"><button hlmBtn variant="link" size="sm" class="h-auto min-w-0 justify-start whitespace-normal p-0 text-left" (click)="openEndpoint({kind:'marker',id:object.marker_id,name:object.name,latitude:object.latitude,longitude:object.longitude})">{{ object.name }}</button>
-                    @if (canManage() && line.can_manage) { <button hlmBtn variant="ghost" size="sm" (click)="requestDetachObject(line,object.marker_id,object.name)">Отвязать</button> }
-                </div>
-                @if (object.state === 'needs_attention') { <p class="text-xs text-destructive">Проверьте привязку: геометрия трассы изменена.</p> }
-                }
+  <section
+    hlmCard
+    class="max-h-[min(30rem,80dvh)] w-[min(23rem,calc(100vw-3rem))] overflow-y-auto bg-popover text-popover-foreground ring-0"
+    aria-label="Соединение на карте"
+  >
+    <header hlmCardHeader class="flex flex-row items-center justify-between gap-3 border-b">
+      <span class="text-xs text-muted-foreground">{{ connectionLabel(line) }}</span
+      ><button
+        hlmBtn
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Закрыть карточку"
+        (click)="closePopup()"
+      >
+        <ng-icon name="lucideX" />
+      </button>
+    </header>
+    <div hlmCardContent class="grid min-w-0 gap-3">
+      <h3 hlmCardTitle class="break-words">{{ line.name }}</h3>
+      <p class="text-sm">{{ connectionStatusLabel(line.status) }}</p>
+      @if (line.description) {
+        <p class="break-words text-sm text-muted-foreground">{{ line.description }}</p>
+      }
+      <div class="grid gap-1">
+        <span class="text-xs text-muted-foreground">Начало</span
+        ><button
+          hlmBtn
+          variant="link"
+          class="h-auto justify-start whitespace-normal p-0 text-left"
+          (click)="openEndpoint(line.source)"
+        >
+          {{ line.source.name }}
+        </button>
+      </div>
+      <div class="grid gap-1">
+        <span class="text-xs text-muted-foreground">Конец</span
+        ><button
+          hlmBtn
+          variant="link"
+          class="h-auto justify-start whitespace-normal p-0 text-left"
+          (click)="openEndpoint(line.target)"
+        >
+          {{ line.target.name }}
+        </button>
+      </div>
+      @if (line.length_m !== null) {
+        <p class="text-xs text-muted-foreground">
+          Длина трассы по карте: {{ line.length_m.toFixed(1) }} м
+        </p>
+      }
+      @if (line.position_missing) {
+        <p class="text-sm text-muted-foreground">
+          У одного из концов нет координат. Трасса временно не отображается полностью.
+        </p>
+      }
+      @if (line.route_objects?.length) {
+        <div class="grid gap-2 border-t pt-3">
+          <h4 class="text-xs text-muted-foreground">Объекты вдоль трассы · без разрыва кабеля</h4>
+          @for (object of line.route_objects; track object.marker_id) {
+            <div class="flex items-center justify-between gap-2">
+              <button
+                hlmBtn
+                variant="link"
+                size="sm"
+                class="h-auto min-w-0 justify-start whitespace-normal p-0 text-left"
+                (click)="
+                  openEndpoint({
+                    kind: 'marker',
+                    id: object.marker_id,
+                    name: object.name,
+                    latitude: object.latitude,
+                    longitude: object.longitude,
+                  })
+                "
+              >
+                {{ object.name }}
+              </button>
+              @if (canManage() && line.can_manage) {
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="sm"
+                  (click)="requestDetachObject(line, object.marker_id, object.name)"
+                >
+                  Отвязать
+                </button>
+              }
             </div>
+            @if (object.state === 'needs_attention') {
+              <p class="text-xs text-destructive">Проверьте привязку: геометрия трассы изменена.</p>
             }
-            @if (canManage() && line.can_manage && line.geometry && line.geometry_token) {
-            <button hlmBtn variant="outline" size="sm" (click)="startAccessibleSplice(line)" data-testid="insert-splice-card"><ng-icon name="lucidePlus" />Добавить на трассу</button>
-            }
-            @if (line.can_manage) { <div class="flex gap-2"><button hlmBtn variant="outline" size="sm" (click)="startEditConnection(line)">Изменить</button><button hlmBtn variant="destructive" size="sm" (click)="requestDeleteConnection(line)">Удалить</button></div> }
+          }
         </div>
-    </section>
+      }
+      @if (canManage() && line.can_manage && line.geometry && line.geometry_token) {
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          (click)="startAccessibleSplice(line)"
+          data-testid="insert-splice-card"
+        >
+          <ng-icon name="lucidePlus" />Добавить на трассу
+        </button>
+      }
+      @if (line.can_manage) {
+        <div class="flex gap-2">
+          <button hlmBtn variant="outline" size="sm" (click)="startEditConnection(line)">
+            Изменить</button
+          ><button hlmBtn variant="destructive" size="sm" (click)="requestDeleteConnection(line)">
+            Удалить
+          </button>
+        </div>
+      }
+    </div>
+  </section>
 </ng-template>
 
 <hlm-dialog #spliceChoiceDialog="hlmDialog" [restoreFocus]="false" (closed)="focusChosenSplice()">
-    <hlm-dialog-content *hlmDialogPortal class="sm:max-w-sm">
-        <hlm-dialog-header><h3 hlmDialogTitle>Выберите соединение</h3><p hlmDialogDescription>Здесь проходят несколько трасс. После выбора подтвердите точку плюсом на нужной линии.</p></hlm-dialog-header>
-        <div class="grid gap-2">@for (target of spliceChoices(); track target.connection.id) {
-            <button hlmBtn variant="outline" class="h-auto justify-start whitespace-normal text-left" (click)="chooseSpliceConnection(target)">{{ target.connection.name }} · {{ connectionLabel(target.connection) }}</button>
-        }</div>
-    </hlm-dialog-content>
+  <hlm-dialog-content *hlmDialogPortal class="sm:max-w-sm">
+    <hlm-dialog-header
+      ><h3 hlmDialogTitle>Выберите соединение</h3>
+      <p hlmDialogDescription>
+        Здесь проходят несколько трасс. После выбора подтвердите точку плюсом на нужной линии.
+      </p></hlm-dialog-header
+    >
+    <div class="grid gap-2">
+      @for (target of spliceChoices(); track target.connection.id) {
+        <button
+          hlmBtn
+          variant="outline"
+          class="h-auto justify-start whitespace-normal text-left"
+          (click)="chooseSpliceConnection(target)"
+        >
+          {{ target.connection.name }} · {{ connectionLabel(target.connection) }}
+        </button>
+      }
+    </div>
+  </hlm-dialog-content>
 </hlm-dialog>
 
 <hlm-dialog #boundaryDialog="hlmDialog" [disableClose]="boundarySaving()">
-    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md" data-testid="installation-boundary-dialog">
-        <hlm-dialog-header><h3 hlmDialogTitle>Способ прокладки</h3><p hlmDialogDescription>«{{ boundaryTarget()?.connection?.name }}». Граница добавится точно в выбранной точке, без нового физического узла.</p></hlm-dialog-header>
-        <div class="grid gap-4">
-            <hlm-select [value]="boundaryMethod()" [itemToString]="installationLabel" (valueChange)="$event && boundaryMethod.set($event)">
-                <hlm-select-trigger class="w-full" aria-label="Способ прокладки"><hlm-select-value /></hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal>@for (style of installationStyles; track style.value) { <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item> }</hlm-select-content>
-            </hlm-select>
-            <hlm-select [value]="boundaryUntil()" [itemToString]="boundaryUntilLabel" (valueChange)="$event && boundaryUntil.set($event)">
-                <hlm-select-trigger class="w-full" aria-label="Протяжённость участка"><hlm-select-value /></hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal><hlm-select-item value="end">До конца трассы</hlm-select-item><hlm-select-item value="next_vertex">До следующей вершины</hlm-select-item></hlm-select-content>
-            </hlm-select>
-            @if (boundaryTarget(); as target) { <p class="text-xs text-muted-foreground">{{ target.point.position[1].toFixed(7) }} / {{ target.point.position[0].toFixed(7) }}</p> }
-            @if (boundaryError()) { <p role="alert" class="text-sm text-destructive">{{ boundaryError() }}</p> }
-        </div>
-        <hlm-dialog-footer><button hlmBtn variant="outline" [disabled]="boundarySaving()" (click)="ctx.close()">Отмена</button><button hlmBtn data-testid="save-installation-boundary" [disabled]="boundarySaving()" (click)="saveInstallationBoundary()">{{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}</button></hlm-dialog-footer>
-    </hlm-dialog-content>
+  <hlm-dialog-content
+    *hlmDialogPortal="let ctx"
+    class="sm:max-w-md"
+    data-testid="installation-boundary-dialog"
+  >
+    <hlm-dialog-header
+      ><h3 hlmDialogTitle>Способ прокладки</h3>
+      <p hlmDialogDescription>
+        «{{ boundaryTarget()?.connection?.name }}». Граница добавится точно в выбранной точке, без
+        нового физического узла.
+      </p></hlm-dialog-header
+    >
+    <div class="grid gap-4">
+      <hlm-select
+        [value]="boundaryMethod()"
+        [itemToString]="installationLabel"
+        (valueChange)="$event && boundaryMethod.set($event)"
+      >
+        <hlm-select-trigger class="w-full" aria-label="Способ прокладки"
+          ><hlm-select-value
+        /></hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          @for (style of installationStyles; track style.value) {
+            <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item>
+          }
+        </hlm-select-content>
+      </hlm-select>
+      <hlm-select
+        [value]="boundaryUntil()"
+        [itemToString]="boundaryUntilLabel"
+        (valueChange)="$event && boundaryUntil.set($event)"
+      >
+        <hlm-select-trigger class="w-full" aria-label="Протяжённость участка"
+          ><hlm-select-value
+        /></hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal
+          ><hlm-select-item value="end">До конца трассы</hlm-select-item
+          ><hlm-select-item value="next_vertex"
+            >До следующей вершины</hlm-select-item
+          ></hlm-select-content
+        >
+      </hlm-select>
+      @if (boundaryTarget(); as target) {
+        <p class="text-xs text-muted-foreground">
+          {{ target.point.position[1].toFixed(7) }} / {{ target.point.position[0].toFixed(7) }}
+        </p>
+      }
+      @if (boundaryError()) {
+        <p role="alert" class="text-sm text-destructive">{{ boundaryError() }}</p>
+      }
+    </div>
+    <hlm-dialog-footer
+      ><button hlmBtn variant="outline" [disabled]="boundarySaving()" (click)="ctx.close()">
+        Отмена</button
+      ><button
+        hlmBtn
+        data-testid="save-installation-boundary"
+        [disabled]="boundarySaving()"
+        (click)="saveInstallationBoundary()"
+      >
+        {{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}
+      </button></hlm-dialog-footer
+    >
+  </hlm-dialog-content>
 </hlm-dialog>
 
 <hlm-alert-dialog #detachDialog="hlmAlertDialog">
-    <hlm-alert-dialog-content *hlmAlertDialogPortal>
-        <hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Отвязать объект от трассы?</h3><p hlmAlertDialogDescription>«{{ objectToDetach()?.name }}» останется в прежней точке на карте. Топология кабеля не изменится.</p></hlm-alert-dialog-header>
-        <hlm-alert-dialog-footer><button hlmAlertDialogCancel [disabled]="objectDetaching()">Отмена</button><button hlmBtn [disabled]="objectDetaching()" (click)="detachObject()">Отвязать</button></hlm-alert-dialog-footer>
-    </hlm-alert-dialog-content>
+  <hlm-alert-dialog-content *hlmAlertDialogPortal>
+    <hlm-alert-dialog-header
+      ><h3 hlmAlertDialogTitle>Отвязать объект от трассы?</h3>
+      <p hlmAlertDialogDescription>
+        «{{ objectToDetach()?.name }}» останется в прежней точке на карте. Топология кабеля не
+        изменится.
+      </p></hlm-alert-dialog-header
+    >
+    <hlm-alert-dialog-footer
+      ><button hlmAlertDialogCancel [disabled]="objectDetaching()">Отмена</button
+      ><button hlmBtn [disabled]="objectDetaching()" (click)="detachObject()">
+        Отвязать
+      </button></hlm-alert-dialog-footer
+    >
+  </hlm-alert-dialog-content>
 </hlm-alert-dialog>
 
 <hlm-dialog #splicePlacementDialog="hlmDialog">
-    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
-        <hlm-dialog-header><h3 hlmDialogTitle>Место добавления объекта</h3><p hlmDialogDescription>«{{ alternativeSpliceLine()?.name }}». Выберите участок трассы и положение вдоль него. Это также доступно с клавиатуры.</p></hlm-dialog-header>
-        <div class="grid gap-4">
-            <hlm-select [value]="spliceSegment()" [itemToString]="spliceSegmentLabel" (valueChange)="spliceSegment.set($event ?? null)">
-                <hlm-select-trigger class="w-full" aria-label="Участок трассы"><hlm-select-value placeholder="Выберите участок" /></hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal>@for (index of spliceSegments(); track index) { <hlm-select-item [value]="index">{{ spliceSegmentLabel(index) }}</hlm-select-item> }</hlm-select-content>
-            </hlm-select>
-            <div class="grid gap-3"><label class="text-sm" id="splice-position-label">Положение на участке: {{ (spliceFraction() * 100).toFixed(0) }}%</label>
-                <hlm-slider aria-labelledby="splice-position-label" [min]="0" [max]="100" [step]="1" [value]="[spliceFraction() * 100]" (valueChange)="spliceFraction.set($event[0] / 100)" />
-            </div>
-            @if (alternativeSplicePoint(); as point) { <p class="text-xs text-muted-foreground">{{ point[1].toFixed(7) }} / {{ point[0].toFixed(7) }}</p> }
-        </div>
-        <hlm-dialog-footer><button hlmBtn variant="outline" (click)="ctx.close()">Отмена</button><button hlmBtn [disabled]="!alternativeSplicePoint()" (click)="confirmAccessibleSplice()">Продолжить</button></hlm-dialog-footer>
-    </hlm-dialog-content>
+  <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+    <hlm-dialog-header
+      ><h3 hlmDialogTitle>Место добавления объекта</h3>
+      <p hlmDialogDescription>
+        «{{ alternativeSpliceLine()?.name }}». Выберите участок трассы и положение вдоль него. Это
+        также доступно с клавиатуры.
+      </p></hlm-dialog-header
+    >
+    <div class="grid gap-4">
+      <hlm-select
+        [value]="spliceSegment()"
+        [itemToString]="spliceSegmentLabel"
+        (valueChange)="spliceSegment.set($event ?? null)"
+      >
+        <hlm-select-trigger class="w-full" aria-label="Участок трассы"
+          ><hlm-select-value placeholder="Выберите участок"
+        /></hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          @for (index of spliceSegments(); track index) {
+            <hlm-select-item [value]="index">{{ spliceSegmentLabel(index) }}</hlm-select-item>
+          }
+        </hlm-select-content>
+      </hlm-select>
+      <div class="grid gap-3">
+        <label class="text-sm" id="splice-position-label"
+          >Положение на участке: {{ (spliceFraction() * 100).toFixed(0) }}%</label
+        >
+        <hlm-slider
+          aria-labelledby="splice-position-label"
+          [min]="0"
+          [max]="100"
+          [step]="1"
+          [value]="[spliceFraction() * 100]"
+          (valueChange)="spliceFraction.set($event[0] / 100)"
+        />
+      </div>
+      @if (alternativeSplicePoint(); as point) {
+        <p class="text-xs text-muted-foreground">
+          {{ point[1].toFixed(7) }} / {{ point[0].toFixed(7) }}
+        </p>
+      }
+    </div>
+    <hlm-dialog-footer
+      ><button hlmBtn variant="outline" (click)="ctx.close()">Отмена</button
+      ><button hlmBtn [disabled]="!alternativeSplicePoint()" (click)="confirmAccessibleSplice()">
+        Продолжить
+      </button></hlm-dialog-footer
+    >
+  </hlm-dialog-content>
 </hlm-dialog>
 
 <ng-template #choicesPopup let-choices>
-    <section hlmCard class="max-h-80 w-[min(22rem,calc(100vw-3rem))] overflow-y-auto bg-popover text-popover-foreground ring-0">
-        <header hlmCardHeader><h3 hlmCardTitle>Выберите объект в этой точке</h3></header>
-        <div hlmCardContent class="grid gap-1">@for (choice of choices; track choice.kind + ':' + choice.id) { <button hlmBtn variant="ghost" class="h-auto justify-start whitespace-normal text-left" (click)="selectMapChoice(choice)">{{ choice.name }}</button> }</div>
-    </section>
+  <section
+    hlmCard
+    class="max-h-80 w-[min(22rem,calc(100vw-3rem))] overflow-y-auto bg-popover text-popover-foreground ring-0"
+  >
+    <header hlmCardHeader><h3 hlmCardTitle>Выберите объект в этой точке</h3></header>
+    <div hlmCardContent class="grid gap-1">
+      @for (choice of choices; track choice.kind + ':' + choice.id) {
+        <button
+          hlmBtn
+          variant="ghost"
+          class="h-auto justify-start whitespace-normal text-left"
+          (click)="selectMapChoice(choice)"
+        >
+          {{ choice.name }}
+        </button>
+      }
+    </div>
+  </section>
 </ng-template>
 
-<hlm-alert-dialog #bindingDialog="hlmAlertDialog" [disableClose]="markerSaving()" (closed)="bindingConflict.set(null)">
-    <hlm-alert-dialog-content *hlmAlertDialogPortal>
-        <hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Перепривязать дом?</h3><p hlmAlertDialogDescription>Проверьте все изменения перед подтверждением.</p></hlm-alert-dialog-header>
-        @if (bindingConflict(); as conflict) {
-        <div class="grid gap-3 text-sm">
-            <p>Дом «{{ conflict.snapshot.target_building.address }}».</p>
-            @if (conflict.snapshot.previous_marker; as previous) { <p>У метки «{{ previous.name }}» будет снята основная привязка. Она сохранит оформление и последнюю точку как самостоятельный объект.</p> }
-            @if (conflict.snapshot.previous_building; as previous) { <p>Прежний дом «{{ previous.address }}» получит стандартное отображение.</p> }
-            <p>Новая основная метка: «{{ conflict.snapshot.requested_name }}».</p>
-            @if (conflict.snapshot.requested_position; as position) {
-            <p>Расположение общего дома изменится с {{ conflict.snapshot.target_building.position.latitude ?? 'не задано' }}, {{ conflict.snapshot.target_building.position.longitude ?? 'не задано' }} на {{ position.latitude }}, {{ position.longitude }}.</p>
-            } @else { <p>Координаты дома останутся текущими.</p> }
-        </div>
+<hlm-alert-dialog
+  #bindingDialog="hlmAlertDialog"
+  [disableClose]="markerSaving()"
+  (closed)="bindingConflict.set(null)"
+>
+  <hlm-alert-dialog-content *hlmAlertDialogPortal>
+    <hlm-alert-dialog-header
+      ><h3 hlmAlertDialogTitle>Перепривязать дом?</h3>
+      <p hlmAlertDialogDescription>
+        Проверьте все изменения перед подтверждением.
+      </p></hlm-alert-dialog-header
+    >
+    @if (bindingConflict(); as conflict) {
+      <div class="grid gap-3 text-sm">
+        <p>Дом «{{ conflict.snapshot.target_building.address }}».</p>
+        @if (conflict.snapshot.previous_marker; as previous) {
+          <p>
+            У метки «{{ previous.name }}» будет снята основная привязка. Она сохранит оформление и
+            последнюю точку как самостоятельный объект.
+          </p>
         }
-        <hlm-alert-dialog-footer><button hlmAlertDialogCancel type="button" [disabled]="markerSaving()">Отмена</button><button hlmBtn type="button" [disabled]="markerSaving()" (click)="confirmBinding()">{{ markerSaving() ? 'Сохраняем...' : 'Перепривязать' }}</button></hlm-alert-dialog-footer>
-    </hlm-alert-dialog-content>
+        @if (conflict.snapshot.previous_building; as previous) {
+          <p>Прежний дом «{{ previous.address }}» получит стандартное отображение.</p>
+        }
+        <p>Новая основная метка: «{{ conflict.snapshot.requested_name }}».</p>
+        @if (conflict.snapshot.requested_position; as position) {
+          <p>
+            Расположение общего дома изменится с
+            {{ conflict.snapshot.target_building.position.latitude ?? 'не задано' }},
+            {{ conflict.snapshot.target_building.position.longitude ?? 'не задано' }} на
+            {{ position.latitude }}, {{ position.longitude }}.
+          </p>
+        } @else {
+          <p>Координаты дома останутся текущими.</p>
+        }
+      </div>
+    }
+    <hlm-alert-dialog-footer
+      ><button hlmAlertDialogCancel type="button" [disabled]="markerSaving()">Отмена</button
+      ><button hlmBtn type="button" [disabled]="markerSaving()" (click)="confirmBinding()">
+        {{ markerSaving() ? 'Сохраняем...' : 'Перепривязать' }}
+      </button></hlm-alert-dialog-footer
+    >
+  </hlm-alert-dialog-content>
 </hlm-alert-dialog>
 
 <hlm-alert-dialog #connectionDeleteDialog="hlmAlertDialog">
-    <hlm-alert-dialog-content *hlmAlertDialogPortal>
-        <hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Удалить соединение?</h3><p hlmAlertDialogDescription>«{{ connectionToDelete()?.name }}» будет удалено. Его конечные объекты сохранятся.</p></hlm-alert-dialog-header>
-        <hlm-alert-dialog-footer><button hlmAlertDialogCancel type="button" [disabled]="connectionDeleting()">Отмена</button><button hlmBtn variant="destructive" type="button" [disabled]="connectionDeleting()" (click)="deleteConnection()">{{ connectionDeleting() ? 'Удаляем...' : 'Удалить' }}</button></hlm-alert-dialog-footer>
-    </hlm-alert-dialog-content>
+  <hlm-alert-dialog-content *hlmAlertDialogPortal>
+    <hlm-alert-dialog-header
+      ><h3 hlmAlertDialogTitle>Удалить соединение?</h3>
+      <p hlmAlertDialogDescription>
+        «{{ connectionToDelete()?.name }}» будет удалено. Его конечные объекты сохранятся.
+      </p></hlm-alert-dialog-header
+    >
+    <hlm-alert-dialog-footer
+      ><button hlmAlertDialogCancel type="button" [disabled]="connectionDeleting()">Отмена</button
+      ><button
+        hlmBtn
+        variant="destructive"
+        type="button"
+        [disabled]="connectionDeleting()"
+        (click)="deleteConnection()"
+      >
+        {{ connectionDeleting() ? 'Удаляем...' : 'Удалить' }}
+      </button></hlm-alert-dialog-footer
+    >
+  </hlm-alert-dialog-content>
 </hlm-alert-dialog>

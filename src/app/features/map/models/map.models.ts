@@ -93,6 +93,7 @@ export interface MapMarkerPayload {
 
 
 export interface MapMarker extends MapMarkerPayload {
+    binding_effects?: Pick<MapMarker, 'id' | 'building_id' | 'building_link_role' | 'latitude' | 'longitude' | 'version'>[];
     route_attachment?: RouteAttachment | null;
     id: number;
     company_id: number;

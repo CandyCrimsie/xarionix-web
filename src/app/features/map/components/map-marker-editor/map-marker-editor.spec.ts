@@ -265,6 +265,25 @@ describe('MapMarkerEditor', () => {
         expect(component.draft().building_position).toEqual({ latitude: 54.3, longitude: 37.1 });
     });
 
+    it('keeps an explicitly selected point when binding an unpositioned house as primary', async () => {
+        fixture.componentRef.setInput('canManage', true); component.selectPointType('building');
+        fixture.componentRef.setInput('positionChosen', true);
+        component.draft.update(d => ({ ...d, latitude: 55.57, longitude: 38.24 }));
+        vi.mocked(TestBed.inject(AddressApiService).getBuilding).mockReturnValue(of(building));
+        component.selectBuilding(building); fixture.detectChanges(); await fixture.whenStable();
+        component.selectLinkRole('represents');
+        expect(component.draft()).toMatchObject({ latitude: 55.57, longitude: 38.24,
+            building_position: { latitude: 55.57, longitude: 38.24 } });
+    });
+
+    it('does not treat the default map centre as a chosen canonical building position', async () => {
+        fixture.componentRef.setInput('canManage', true); component.selectPointType('building');
+        vi.mocked(TestBed.inject(AddressApiService).getBuilding).mockReturnValue(of(building));
+        component.selectBuilding(building); fixture.detectChanges(); await fixture.whenStable();
+        component.selectLinkRole('represents');
+        expect(component.draft().latitude).toBeNull(); expect(component.draft().building_position).toBeNull();
+    });
+
     it('keeps informational links independent, without the legacy synchronization toggle', async () => {
         vi.mocked(TestBed.inject(AddressApiService).getBuilding).mockReturnValue(of(building));
         fixture.componentRef.setInput('draft', { ...component.draft(), building_id: building.id });

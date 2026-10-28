@@ -1,43 +1,107 @@
-<hlm-collapsible [expanded]="expanded()" (expandedChange)="expanded.set($event)"
-    class="block w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-xl border border-white/10 bg-zinc-950/75 text-zinc-100 shadow-sm backdrop-blur-md" data-testid="map-legend">
-    <button hlmBtn hlmCollapsibleTrigger variant="ghost" size="sm" type="button"
-        class="w-full justify-between rounded-none px-3 text-xs text-zinc-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10 aria-expanded:bg-white/5 aria-expanded:text-zinc-100 focus-visible:ring-white/30"
-        hlmTooltip="Условные обозначения видимых объектов" data-testid="map-legend-toggle">
-        <span class="flex items-center gap-2"><ng-icon name="lucideMap" class="size-3.5" />Легенда карты</span>
-        <ng-icon name="lucideChevronDown" class="size-3.5 transition-transform" [class.rotate-180]="expanded()" />
-    </button>
-    <div hlmCollapsibleContent class="max-h-[min(22rem,45dvh)] overflow-y-auto px-3 pb-3 text-[11px]">
-        @if (objects().length) {
-        <p class="mb-2 text-zinc-400">Объекты</p>
-        <div class="grid grid-cols-2 gap-x-3 gap-y-2">
-            @for (icon of objects(); track icon.value) {
-            <span class="flex items-center gap-2"><app-map-icon [name]="icon.value" class="size-5" /><span>{{ icon.label }}</span></span>
-            }
-        </div>
+<hlm-collapsible
+  [expanded]="expanded()"
+  (expandedChange)="expanded.set($event)"
+  class="block w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border bg-background/95 text-foreground shadow-md backdrop-blur-md"
+  data-testid="map-legend"
+>
+  <button
+    hlmBtn
+    hlmCollapsibleTrigger
+    variant="ghost"
+    size="sm"
+    type="button"
+    class="h-9 w-full justify-between rounded-none px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+    hlmTooltip="Условные обозначения видимых объектов"
+    data-testid="map-legend-toggle"
+  >
+    <span class="flex items-center gap-2">
+      <ng-icon name="lucideMap" class="size-4" />
+      Легенда карты
+    </span>
+
+    <ng-icon
+      name="lucideChevronDown"
+      class="size-4 text-muted-foreground transition-transform duration-200"
+      [class.rotate-180]="expanded()"
+    />
+  </button>
+
+  <div
+    hlmCollapsibleContent
+    class="max-h-[min(22rem,45dvh)] overflow-y-auto px-3 pb-3 pt-2 text-xs"
+  >
+    @if (objects().length) {
+      <p class="mb-2 text-xs font-medium text-muted-foreground">Объекты</p>
+
+      <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+        @for (icon of objects(); track icon.value) {
+          <span class="flex items-center gap-2">
+            <app-map-icon [name]="icon.value" class="size-5 shrink-0" />
+            <span>{{ icon.label }}</span>
+          </span>
         }
-        @if (media().length) {
-        @if (objects().length) { <hlm-separator class="my-3 bg-white/10" /> }
-        <p class="mb-2 text-zinc-400">Типы кабеля</p>
-        <div class="grid gap-2">
-            @for (medium of media(); track medium[0]) {
-            <span class="flex items-center gap-2"><app-map-line-sample [medium]="$any(medium[0])" />{{ medium[0] === 'fiber' ? 'Оптоволокно' : 'Витая пара' }}</span>
-            }
-        </div>
-        <hlm-separator class="my-3 bg-white/10" />
-        <hlm-collapsible [expanded]="true">
-            <button hlmCollapsibleTrigger class="mb-2 flex w-full items-center justify-between text-left text-zinc-400" type="button">Способ прокладки<ng-icon name="lucideChevronDown" class="size-3" /></button>
-            <div hlmCollapsibleContent class="grid gap-2">@for (method of methods(); track method.value) {
-                <span class="flex items-center gap-2"><app-map-line-sample [method]="method.value" />{{ method.label }}</span>
-            }</div>
-        </hlm-collapsible>
-        <hlm-separator class="my-3 bg-white/10" />
-        <p class="mb-2 text-zinc-400">Состояния</p>
-        <div class="grid grid-cols-2 gap-2">
-            @for (status of statuses(); track status.value) {
-            <span class="flex items-center gap-2"><app-map-line-sample class="w-7" [status]="status.value" />{{ status.label }}</span>
-            }
-        </div>
+      </div>
+    }
+
+    @if (media().length) {
+      @if (objects().length) {
+        <hlm-separator class="my-3" />
+      }
+
+      <p class="mb-2 text-xs font-medium text-muted-foreground">Типы кабеля</p>
+
+      <div class="grid gap-2">
+        @for (medium of media(); track medium[0]) {
+          <span class="flex items-center gap-2">
+            <app-map-line-sample [medium]="$any(medium[0])" />
+            {{ medium[0] === 'fiber' ? 'Оптоволокно' : 'Витая пара' }}
+          </span>
         }
-        @if (!objects().length && !media().length) { <p class="text-zinc-400">В этой области пока нет объектов.</p> }
-    </div>
+      </div>
+
+      <hlm-separator class="my-3" />
+
+      <hlm-collapsible [expanded]="true">
+        <button
+          hlmBtn
+          hlmCollapsibleTrigger
+          variant="ghost"
+          size="sm"
+          type="button"
+          class="mb-2 h-8 w-full justify-between px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          <span>Способ прокладки</span>
+          <ng-icon name="lucideChevronDown" class="size-3.5" />
+        </button>
+
+        <div hlmCollapsibleContent class="grid gap-2">
+          @for (method of methods(); track method.value) {
+            <span class="flex items-center gap-2">
+              <app-map-line-sample [method]="method.value" />
+              {{ method.label }}
+            </span>
+          }
+        </div>
+      </hlm-collapsible>
+
+      <hlm-separator class="my-3" />
+
+      <p class="mb-2 text-xs font-medium text-muted-foreground">Состояния</p>
+
+      <div class="grid grid-cols-2 gap-2">
+        @for (status of statuses(); track status.value) {
+          <span class="flex items-center gap-2">
+            <app-map-line-sample class="w-7" [status]="status.value" />
+            {{ status.label }}
+          </span>
+        }
+      </div>
+    }
+
+    @if (!objects().length && !media().length) {
+      <p class="py-2 text-center text-xs text-muted-foreground">
+        В этой области пока нет объектов.
+      </p>
+    }
+  </div>
 </hlm-collapsible>

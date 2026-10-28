@@ -98,6 +98,7 @@ type OpacityField =
     templateUrl: './map-marker-editor.html',
 })
 export class MapMarkerEditor {
+    readonly positionChosen = model(false);
     readonly draft = model.required<MapMarkerPayload>();
     readonly editing = input(false);
     readonly spliceConnection = input<string | null>(null);
@@ -301,7 +302,12 @@ export class MapMarkerEditor {
                 longitude: Number(building.longitude),
             }));
         } else {
-            this.draft.update(current => ({ ...current, latitude: null, longitude: null }));
+            this.draft.update(current => {
+                if (this.positionChosen() && current.latitude !== null && current.longitude !== null) {
+                    return { ...current, building_position: { latitude: current.latitude, longitude: current.longitude } };
+                }
+                return { ...current, latitude: null, longitude: null };
+            });
         }
     }
 
@@ -314,6 +320,7 @@ export class MapMarkerEditor {
         const parsed = Number(String(value).replace(',', '.'));
         if (Number.isFinite(parsed)) {
             this.update(field, parsed as never);
+            if (field !== 'border_width') this.positionChosen.set(true);
             this.recordBuildingPosition();
         }
     }
@@ -336,6 +343,7 @@ export class MapMarkerEditor {
         ) {
             event.preventDefault();
             this.draft.update(current => ({ ...current, latitude, longitude }));
+            this.positionChosen.set(true);
             this.recordBuildingPosition();
         }
     }

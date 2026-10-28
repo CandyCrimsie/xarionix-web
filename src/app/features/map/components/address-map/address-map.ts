@@ -205,6 +205,8 @@ export class AddressMap implements AfterViewInit {
     readonly markerDraft = signal<MapMarkerPayload>(createDefaultMapMarker());
     readonly editingMarker = signal<MapMarker | null>(null);
     readonly markerSaving = signal(false);
+    readonly markerPositionChosen = signal(false);
+    private placementWasChosen = false;
     readonly markerError = signal<string | null>(null);
     readonly placingMarker = signal(false);
     readonly markerToDelete = signal<MapMarker | null>(null);
@@ -350,6 +352,9 @@ export class AddressMap implements AfterViewInit {
             this.markerViewportSubscription?.unsubscribe();
             this.connectionViewportSubscription?.unsubscribe();
             this.focusSubscription?.unsubscribe();
+            this.coordinateNotice.set(null);
+            this.suppressFocusForBuildingId = null;
+            this.selectedMarkerId.set(null);
             this.closePopup();
             this.spliceController?.clear();
             this.spliceTarget.set(null);
@@ -368,6 +373,7 @@ export class AddressMap implements AfterViewInit {
             this.editingMarker.set(null);
             this.markerToDelete.set(null);
             this.markerSaving.set(false);
+            this.markerPositionChosen.set(false);
             this.markerDeleting.set(false);
             this.markerError.set(null);
             this.markerDeleteError.set(null);
@@ -899,9 +905,9 @@ export class AddressMap implements AfterViewInit {
 
     private selectedBuildingMarker(): MapMarker | undefined {
         const building = this.selectedBuilding();
-        const center = this.buildingCenter(building);
-        return building && center
-            ? this.markers().find(marker => this.markerRepresentsBuilding(marker, building.id, center))
+        return building
+            ? this.markers().find(marker => this.markerRepresentsBuilding(marker, building.id)
+                && marker.latitude !== null && marker.longitude !== null)
             : undefined;
     }
 
@@ -983,6 +989,9 @@ export class AddressMap implements AfterViewInit {
 
 
     startCreateMarker(): void {
+        this.markerMutationGeneration++;
+        this.markerSaving.set(false);
+        this.markerPositionChosen.set(false);
         this.spliceTarget.set(null);
         this.popupGeneration++;
         const center = this.map?.getCenter();
@@ -994,6 +1003,10 @@ export class AddressMap implements AfterViewInit {
 
 
     startEditMarker(marker: MapMarker): void {
+        this.markerMutationGeneration++;
+        this.markerSaving.set(false);
+        this.markerPositionChosen.set(false);
+        this.bindingConflict.set(null);
         this.spliceTarget.set(null);
         this.closePopup();
         this.editingMarker.set(marker);
@@ -1029,10 +1042,16 @@ export class AddressMap implements AfterViewInit {
                 this.markerSaving.set(false);
                 this.bindingConflict.set(null);
                 this.bindingDialog()?.close({});
-                this.markers.update(current => [...current.filter(item => item.id !== saved.id), saved]);
+                this.closePopup();
+                const effects = new Map(saved.binding_effects?.map(effect => [effect.id, effect]));
+                this.markers.update(current => [...current.filter(item => item.id !== saved.id)
+                    .map(item => effects.has(item.id) ? { ...item, ...effects.get(item.id)! } : item), saved]);
+                this.selectedMarkerId.set(saved.id);
                 this.setMarkerData(this.markers());
                 this.markerDialog()?.close({});
                 this.editingMarker.set(null);
+                this.focusGeneration++;
+                this.focusSubscription?.unsubscribe();
                 if (draft.building_position && saved.building_id !== null && saved.building_link_role === 'represents') {
                     this.suppressFocusForBuildingId = saved.building_id;
                     this.buildingCoordinatesChanged.emit({
@@ -1040,6 +1059,7 @@ export class AddressMap implements AfterViewInit {
                         longitude: saved.longitude === null ? null : String(saved.longitude),
                     });
                 }
+                if (saved.latitude !== null && saved.longitude !== null) this.coordinateNotice.set(null);
                 this.loadViewport();
                 toast.success(editing ? 'Маркер изменён' : 'Маркер создан');
             },
@@ -1290,7 +1310,12 @@ export class AddressMap implements AfterViewInit {
     }
 
     onMarkerDialogClosed(): void {
-        if (!this.placingMarker()) this.spliceTarget.set(null);
+        if (this.placingMarker() || this.markerDialog()?.stateComputed() === 'open') return;
+        if (this.markerSaving()) { this.markerMutationGeneration++; this.markerSaving.set(false); }
+        this.spliceTarget.set(null);
+        this.editingMarker.set(null);
+        this.markerPositionChosen.set(false);
+        this.bindingConflict.set(null);
     }
 
     startAccessibleSplice(line: MapConnection): void {
@@ -1625,6 +1650,7 @@ export class AddressMap implements AfterViewInit {
             return;
         }
         const draft = this.markerDraft();
+        this.placementWasChosen = this.markerPositionChosen();
         const center = map.getCenter();
         this.placementOriginalDraft = structuredClone(draft);
         this.placingMarker.set(true);
@@ -1656,6 +1682,7 @@ export class AddressMap implements AfterViewInit {
     confirmPointSelection(): void {
         const position = this.placementMarker?.getLngLat();
         if (position) this.applyDraftCoordinates(position.lng, position.lat);
+        this.markerPositionChosen.set(true);
         this.placingMarker.set(false);
         this.cleanupPointSelection();
         this.markerDialog()?.open();
@@ -1667,6 +1694,7 @@ export class AddressMap implements AfterViewInit {
         if (original) {
             this.markerDraft.set(original);
         }
+        this.markerPositionChosen.set(this.placementWasChosen);
         this.placingMarker.set(false);
         this.cleanupPointSelection();
         this.markerDialog()?.open();
@@ -1786,7 +1814,7 @@ export class AddressMap implements AfterViewInit {
         const source = this.map?.getSource(MAP_BUILDINGS_SOURCE_ID) as GeoJSONSource | undefined;
         if (!this.showBuildings()) { source?.setData(EMPTY_FEATURES); return; }
         const selected = this.selectedBuilding();
-        const selectedId = this.buildingCenter(selected) ? selected?.id : null;
+        const selectedId = this.buildingCenter(selected) || this.selectedBuildingMarker() ? selected?.id : null;
         const linked = new Map<number, MapMarker[]>();
         for (const marker of this.markers()) {
             if (marker.building_id !== null) {
@@ -1822,16 +1850,20 @@ export class AddressMap implements AfterViewInit {
         addressObject: AddressObject | null,
         building: Building | null,
     ): void {
+        const generation = ++this.focusGeneration;
+        this.focusSubscription?.unsubscribe();
         const map = this.map;
         if (!map || !map.getSource(MAP_BUILDINGS_SOURCE_ID)) {
             return;
         }
         const center = this.buildingCenter(building);
-        if (building && this.suppressFocusForBuildingId === building.id) { this.suppressFocusForBuildingId = null; return; }
+        if (building && this.suppressFocusForBuildingId === building.id) {
+            this.suppressFocusForBuildingId = null;
+            this.coordinateNotice.set(center ? null : 'Для выбранного здания координаты ещё не заданы.');
+            return;
+        }
         if (center) {
             this.coordinateNotice.set(null);
-            this.focusGeneration += 1;
-            this.focusSubscription?.unsubscribe();
             map.easeTo({
                 center,
                 zoom: Math.min(map.getMaxZoom(), MAP_BUILDING_FOCUS_ZOOM),
@@ -1846,8 +1878,6 @@ export class AddressMap implements AfterViewInit {
         if (!addressObject) {
             return;
         }
-        const generation = ++this.focusGeneration;
-        this.focusSubscription?.unsubscribe();
         this.focusSubscription = this.mapData
             .getAddressObjectBounds(addressObject.id)
             .subscribe({

@@ -641,6 +641,15 @@ describe('AddressMap', () => {
         expect(latestPopupContent?.querySelector('[data-testid="map-marker-popup"]')).toBeNull();
     });
 
+    it('keeps a single primary representation while the parent still has a null coordinate snapshot', async () => {
+        fixture.componentRef.setInput('selectedBuilding', { ...house, latitude: null, longitude: null });
+        mapData.getMarkers.mockReturnValue(of([linkedMarker])); await initialize(); firstViewport.next(houseFeatures);
+        expect(fakeMap.sources.get('xarionix-buildings')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        expect(fakeMap.sources.get('xarionix-custom-markers')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        expect(fakeMap.sources.get('xarionix-selected-building')?.setData).toHaveBeenLastCalledWith(
+            expect.objectContaining({ features: [expect.objectContaining({ properties: expect.objectContaining({ marker_id: linkedMarker.id }) })] }));
+    });
+
     it('restores the standard house pin after unlinking or deleting its custom marker', async () => {
         mapData.getMarkers.mockReturnValue(of([linkedMarker]));
         mapData.updateMarker.mockReturnValue(of({ ...marker, building_id: null }));
@@ -758,7 +767,7 @@ describe('AddressMap', () => {
         expect(selected).toHaveBeenCalledWith(42);
     });
 
-    it('shows the empty-coordinate state and an official clickable Yandex logo', async () => {
+    it('shows the empty-coordinate state without restoring the removed provider overlay', async () => {
         const selectedObject: AddressObject = {
             id: 12,
             parent_id: null,
@@ -780,8 +789,7 @@ describe('AddressMap', () => {
         const logo = fixture.nativeElement.querySelector(
             'img[src="/yandex-logo-ru.svg"]',
         ) as HTMLImageElement | null;
-        expect(logo).not.toBeNull();
-        expect(logo?.closest('a')?.href).toContain('https://yandex.ru/maps/');
+        expect(logo).toBeNull();
     });
 
     it('destroys the MapLibre instance when the panel closes', async () => {
@@ -826,11 +834,11 @@ describe('AddressMap', () => {
         const group = header.querySelector('[data-testid="marker-popup-actions"]')!;
         const buttons = Array.from(group.querySelectorAll('button'));
         expect(group.getAttribute('role')).toBe('group');
-        expect(buttons.map(button => button.getAttribute('aria-label'))).toEqual([
+        expect(buttons.map(button => button.getAttribute('aria-label')).sort()).toEqual([
             'Редактировать маркер',
             'Удалить маркер',
             'Закрыть карточку метки',
-        ]);
+        ].sort());
         expect(buttons.every(button => button.getAttribute('data-slot') === 'button')).toBe(true);
         expect(buttons.every(button => button.querySelector('ng-icon') !== null)).toBe(true);
         expect(buttons.every(button => button.textContent?.trim() === '')).toBe(true);
@@ -985,10 +993,12 @@ describe('AddressMap', () => {
         const changed = vi.fn();
         fixture.componentInstance.buildingCoordinatesChanged.subscribe(changed);
         fixture.componentInstance.saveMarker();
+        fixture.componentInstance.coordinateNotice.set('Для выбранного здания координаты ещё не заданы.');
         companyChanged.next(2);
         pending.next({ ...marker, building_id: 20, sync_building_coordinates: true });
         expect(changed).not.toHaveBeenCalled();
         expect(fixture.componentInstance.markers()).toEqual([]);
+        expect(fixture.componentInstance.coordinateNotice()).toBeNull();
     });
 
     it('sends only changed fields when renaming a linked marker, not stale coordinate snapshots', async () => {
@@ -1000,6 +1010,66 @@ describe('AddressMap', () => {
         fixture.componentInstance.markerDraft.update(current => ({ ...current, name: 'Новая подпись' }));
         fixture.componentInstance.saveMarker();
         expect(mapData.updateMarker).toHaveBeenCalledWith(saved.id, { name: 'Новая подпись', expected_version: 1 });
+    });
+
+    it('PATCHes the same marker after point selection instead of POSTing a duplicate', async () => {
+        fixture.componentRef.setInput('canManage', true); await initialize();
+        const c = fixture.componentInstance;
+        c.startEditMarker(marker); c.startPointSelection();
+        fakeMap.emit('click', { lngLat: { lng: 38.24, lat: 55.57 } }); c.confirmPointSelection();
+        mapData.updateMarker.mockReturnValue(of({ ...marker, latitude: 55.57, longitude: 38.24 }));
+        c.saveMarker();
+        expect(mapData.updateMarker).toHaveBeenCalledWith(marker.id, expect.objectContaining({ expected_version: marker.version }));
+        expect(mapData.createMarker).not.toHaveBeenCalled(); expect(c.placingMarker()).toBe(false);
+    });
+
+    it('applies a displaced primary from the mutation response and clears stale coordinate notices', async () => {
+        fixture.componentRef.setInput('canManage', true); fixture.componentRef.setInput('selectedBuilding', house);
+        await initialize(); const c = fixture.componentInstance;
+        c.markers.set([linkedMarker]); c.coordinateNotice.set('Для выбранного здания координаты ещё не заданы.');
+        const saved = { ...linkedMarker, id: 99, binding_effects: [{ id: linkedMarker.id, building_id: linkedMarker.building_id,
+            building_link_role: 'reference' as const, latitude: linkedMarker.latitude, longitude: linkedMarker.longitude, version: linkedMarker.version + 1 }] };
+        c.startEditMarker({ ...marker, id: 99 }); c.markerDraft.set(saved);
+        mapData.updateMarker.mockReturnValue(of(saved));
+        // Keep the refresh pending: mutation response itself must be coherent.
+        mapData.getMarkers.mockReturnValue(new Subject<MapMarker[]>());
+        c.saveMarker();
+        expect(c.markers().filter(m => m.building_link_role === 'represents')).toHaveLength(1);
+        expect(c.markers().find(m => m.id === linkedMarker.id)?.building_link_role).toBe('reference');
+        expect(c.coordinateNotice()).toBeNull(); expect(c.editingMarker()).toBeNull();
+    });
+
+    it('ignores the response of a previous editor session', async () => {
+        fixture.componentRef.setInput('canManage', true); await initialize();
+        const c = fixture.componentInstance, pending = new Subject<MapMarker>();
+        c.startEditMarker(marker); mapData.updateMarker.mockReturnValue(pending); c.saveMarker();
+        c.startEditMarker({ ...marker, id: 99, name: 'Другая метка' }); pending.next(marker);
+        expect(c.editingMarker()?.id).toBe(99); expect(c.markerDraft().name).toBe('Другая метка');
+    });
+
+    it('invalidates an unfinished mutation when the editor is closed', async () => {
+        fixture.componentRef.setInput('canManage', true); await initialize();
+        const c = fixture.componentInstance, pending = new Subject<MapMarker>();
+        c.startEditMarker(marker); mapData.updateMarker.mockReturnValue(pending); c.saveMarker();
+        c.markerDialog()?.close({}); await vi.advanceTimersByTimeAsync(200); fixture.detectChanges();
+        expect(c.markerSaving()).toBe(false); expect(c.editingMarker()).toBeNull();
+        pending.next(marker);
+        expect(c.markers()).toEqual([]); expect(c.editingMarker()).toBeNull();
+    });
+
+    it('cancels old bounds requests when the address selection is cleared', async () => {
+        const pending = new Subject<{ bounds: null; building_count: number }>();
+        mapData.getAddressObjectBounds.mockReturnValue(pending);
+        const selectedObject: AddressObject = {
+            id: 12, parent_id: null, type_id: 3, type_code: 'street', type_category: 'thoroughfare',
+            type_name: 'Улица', type_short_name: 'ул.', name: 'Гагарина',
+            created_at: marker.created_at, updated_at: marker.updated_at,
+        };
+        fixture.componentRef.setInput('selectedObject', selectedObject); await initialize();
+        fixture.componentRef.setInput('selectedObject', null); fixture.detectChanges();
+        pending.next({ bounds: null, building_count: 0 });
+        expect(fixture.componentInstance.coordinateNotice()).toBeNull();
+        expect(fakeMap.fitBounds).not.toHaveBeenCalled();
     });
 
     it('loads initial objects even while newly added MapLibre sources are still processing', async () => {

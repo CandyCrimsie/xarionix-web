@@ -5,9 +5,13 @@ import {
     effect,
     inject,
     signal,
+    viewChild,
+    untracked,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { forkJoin, of } from 'rxjs';
+import { forkJoin, of, type Observable } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AddressDependenciesDialog, type AddressDependencyConflict } from './address-dependencies-dialog';
 
 import {
     CdkDrag,
@@ -157,6 +161,7 @@ const DEFAULT_ADDRESS_PANEL_LAYOUT = [28, 72];
         LocationDialogForm,
         AddressTypeManager,
         AddressMap,
+        AddressDependenciesDialog,
     ],
     providers: [
         provideIcons({
@@ -217,6 +222,8 @@ export class Addresses {
     readonly locations = signal<Location[]>([]);
     readonly detailsState = signal<LoadState>('idle');
     readonly actionError = signal<string | null>(null);
+    readonly deletePending = signal(false);
+    readonly dependenciesDialog = viewChild(AddressDependenciesDialog);
     readonly mapOpen = signal(false);
 
     readonly searchQuery = signal('');
@@ -347,6 +354,8 @@ export class Addresses {
         effect(onCleanup => {
             this.reloadVersion();
             const contextGeneration = ++this.contextGeneration;
+            untracked(() => this.dependenciesDialog()?.clear());
+            this.deletePending.set(false);
             this.invalidatePendingRequests();
             const companyId = this.companyContext.activeCompanyId();
             const canRead = this.canReadAddresses();
@@ -1245,16 +1254,18 @@ export class Addresses {
 
 
     deleteSelectedObject(): void {
+        if (this.deletePending()) return;
         const selected = this.selectedObject();
         if (!selected) {
             return;
         }
-        this.addressApi.deleteObject(selected.id).subscribe({
-            next: () => {
+        this.runDelete(this.addressApi.deleteObject(selected.id), () => {
+                const stillSelected = this.selectedObject()?.id === selected.id;
                 const parent = selected.parent_id === null
                     ? null
                     : this.findTreeNode(selected.parent_id);
                 this.removeAddressFromTree(selected.id);
+                if (!stillSelected) return;
                 if (parent) {
                     this.selectObjectFromTree(
                         this.findTreeNode(parent.id) ?? parent,
@@ -1268,13 +1279,7 @@ export class Addresses {
                 toast.success('Адресный объект удалён', {
                     description: this.objectDisplayName(selected),
                 });
-            },
-            error: error => {
-                const message = this.apiError(error, 'Не удалось удалить адресный объект');
-                this.actionError.set(message);
-                toast.error('Адресный объект не удалён', { description: message });
-            },
-        });
+        }, 'Адресный объект не удалён', 'Не удалось удалить адресный объект');
     }
 
 
@@ -1346,25 +1351,23 @@ export class Addresses {
 
 
     deleteSelectedBuilding(): void {
+        if (this.deletePending()) return;
         const building = this.selectedBuilding();
         const addressObject = this.selectedObject();
         if (!building || !addressObject) {
             return;
         }
-        this.addressApi.deleteBuilding(building.id).subscribe({
-            next: () => {
+        this.runDelete(this.addressApi.deleteBuilding(building.id), () => {
+                const remove = (nodes: AddressTreeNode[]): AddressTreeNode[] => nodes.map(node => ({ ...node,
+                    buildings: node.buildings.filter(item => item.id !== building.id), children: remove(node.children) }));
+                this.roots.update(remove);
+                if (this.selectedBuilding()?.id !== building.id) return;
                 this.backToAddressObject();
                 this.loadBuildings(addressObject.id);
                 toast.success('Здание удалено', {
                     description: `Дом ${building.number}`,
                 });
-            },
-            error: error => {
-                const message = this.apiError(error, 'Не удалось удалить здание');
-                this.actionError.set(message);
-                toast.error('Здание не удалено', { description: message });
-            },
-        });
+        }, 'Здание не удалено', 'Не удалось удалить здание', 'building-actions');
     }
 
 
@@ -1416,23 +1419,18 @@ export class Addresses {
 
 
     deleteEntrance(entrance: Entrance): void {
+        if (this.deletePending()) return;
         const building = this.selectedBuilding();
         if (!building) {
             return;
         }
-        this.addressApi.deleteEntrance(entrance.id).subscribe({
-            next: () => {
+        this.runDelete(this.addressApi.deleteEntrance(entrance.id), () => {
+                if (this.selectedBuilding()?.id !== building.id) return;
                 this.selectBuilding(building);
                 toast.success('Подъезд удалён', {
                     description: `Подъезд ${entrance.number}`,
                 });
-            },
-            error: error => {
-                const message = this.apiError(error, 'Не удалось удалить подъезд');
-                this.actionError.set(message);
-                toast.error('Подъезд не удалён', { description: message });
-            },
-        });
+        }, 'Подъезд не удалён', 'Не удалось удалить подъезд', `entrance-actions-${entrance.id}`);
     }
 
 
@@ -1521,21 +1519,48 @@ export class Addresses {
 
 
     deleteLocation(location: Location): void {
+        if (this.deletePending()) return;
         const building = this.selectedBuilding();
         if (!building) {
             return;
         }
-        this.addressApi.deleteLocation(location.id).subscribe({
-            next: () => {
+        this.runDelete(this.addressApi.deleteLocation(location.id), () => {
+                if (this.selectedBuilding()?.id !== building.id) return;
                 this.selectBuilding(building);
                 toast.success('Место размещения удалено', {
                     description: location.name,
                 });
+        }, 'Место размещения не удалено', 'Не удалось удалить место размещения', `location-actions-${location.id}`);
+    }
+
+    private runDelete(request: Observable<void>, success: () => void, title: string, fallback: string,
+        focusTestId = 'address-object-actions'): void {
+        if (this.deletePending()) return;
+        const generation = this.contextGeneration;
+        const objectId = this.selectedObject()?.id, buildingId = this.selectedBuilding()?.id;
+        const trigger = document.querySelector<HTMLElement>(`[data-testid="${focusTestId}"]`);
+        const focus = trigger?.querySelector<HTMLButtonElement>('button') ?? trigger
+            ?? document.querySelector<HTMLInputElement>('hlm-autocomplete input');
+        this.deletePending.set(true);
+        this.actionError.set(null);
+        request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: () => {
+                if (generation !== this.contextGeneration) return;
+                this.deletePending.set(false);
+                success();
             },
             error: error => {
-                const message = this.apiError(error, 'Не удалось удалить место размещения');
+                if (generation !== this.contextGeneration) return;
+                this.deletePending.set(false);
+                if (objectId !== this.selectedObject()?.id || buildingId !== this.selectedBuilding()?.id) return;
+                const detail = error instanceof HttpErrorResponse && error.status === 409 ? error.error?.detail : null;
+                if (detail?.code === 'object_has_dependencies' && Array.isArray(detail.dependencies)) {
+                    this.dependenciesDialog()?.show(detail as AddressDependencyConflict, focus);
+                    return;
+                }
+                const message = this.apiError(error, fallback);
                 this.actionError.set(message);
-                toast.error('Место размещения не удалено', { description: message });
+                toast.error(title, { description: message });
             },
         });
     }

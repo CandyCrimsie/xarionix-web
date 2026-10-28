@@ -249,6 +249,49 @@ describe('Addresses', () => {
         fixture.detectChanges();
     }
 
+    it('shows only one dependency dialog for a blocked delete, not toast or persistent panel errors', async () => {
+        createComponent();
+        component.selectedObject.set(street); component.selectedBuilding.set(building); fixture.detectChanges();
+        const detail = { code: 'object_has_dependencies', message: 'Невозможно удалить дом', object: { kind: 'building', id: building.id },
+            dependencies: [{ type: 'entrance', count: 2 }] };
+        addressApi.deleteBuilding.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 409, error: { detail } })));
+        const errorToast = vi.spyOn(toast, 'error');
+        const menu = await openActionMenu('building-actions');
+        menu.querySelector<HTMLElement>('[data-testid="delete-building-action"]')!.click();
+        fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+        const confirmation = document.body.querySelector<HTMLElement>('[role="alertdialog"]')!;
+        expect(confirmation.textContent).toContain('Удалить здание?');
+        confirmation.querySelector<HTMLButtonElement>('[hlmAlertDialogAction]')!.click();
+        fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+        expect(document.body.querySelectorAll('[data-testid="address-dependency-dialog"]')).toHaveLength(1);
+        expect(document.body.querySelectorAll('[role="alertdialog"]')).toHaveLength(1);
+        expect(document.body.querySelector('[role="alertdialog"]')?.textContent).not.toContain('Удалить здание?');
+        expect(component.actionError()).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="address-action-error"]')).toBeNull();
+        expect(errorToast).not.toHaveBeenCalled();
+        expect(component.selectedBuilding()?.id).toBe(building.id);
+    });
+
+    it('keeps normal network errors visible and does not suppress unrelated failures', () => {
+        createComponent(); component.selectedObject.set(street); component.selectedBuilding.set(building);
+        addressApi.deleteBuilding.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+        const errorToast = vi.spyOn(toast, 'error'); component.deleteSelectedBuilding();
+        expect(component.actionError()).toBeTruthy(); expect(errorToast).toHaveBeenCalled();
+        expect(document.body.querySelector('[data-testid="address-dependency-dialog"]')).toBeNull();
+    });
+
+    it('prevents repeated delete requests and ignores a late conflict from the old company', async () => {
+        createComponent(); component.selectedObject.set(street); component.selectedBuilding.set(building);
+        const pending = new Subject<void>(); addressApi.deleteBuilding.mockReturnValue(pending);
+        component.deleteSelectedBuilding(); component.deleteSelectedBuilding();
+        expect(addressApi.deleteBuilding).toHaveBeenCalledOnce();
+        activeCompanyId.set(2); fixture.detectChanges();
+        pending.error(new HttpErrorResponse({ status: 409, error: { detail: { code: 'object_has_dependencies', dependencies: [] } } }));
+        fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+        expect(component.actionError()).toBeNull();
+        expect(document.body.querySelector('[data-testid="address-dependency-dialog"]')).toBeNull();
+    });
+
 
     async function openDialog(triggerTestId: string): Promise<HTMLElement> {
         const selector = `[data-testid="${triggerTestId}"]`;
