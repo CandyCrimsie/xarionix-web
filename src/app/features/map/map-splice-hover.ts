@@ -12,15 +12,17 @@ export class MapSpliceHover {
     private held = false;
     private disposed = false;
     private preferredId: number | null = null;
+    private generation = 0;
     private readonly leave = () => {
         this.cancelTimer();
-        this.timer = setTimeout(() => { if (!this.held) this.clear(); }, 140);
+        const generation = this.generation;
+        this.timer = setTimeout(() => { if (!this.disposed && generation === this.generation && !this.held) this.clear(); }, 140);
     };
     private readonly move = (event: MapMouseEvent) => {
         if (this.disposed) return;
         if (this.busy() || event.originalEvent?.buttons || this.map.isMoving?.()) { this.clear(); return; }
+        if(this.blocked(event.point)){this.clear();return;}
         if (this.held) return;
-        if(this.blocked(event.point)){this.leave();return;}
         const hits = this.map.queryRenderedFeatures(event.point, { layers: [CONNECTION_HIT_LAYER] });
         const ids = new Set(hits.map(feature => Number(feature.properties['id'])));
         if (this.preferredId !== null && !ids.has(this.preferredId)) this.preferredId = null;
@@ -28,7 +30,7 @@ export class MapSpliceHover {
             && (this.preferredId === null || line.id === this.preferredId));
         const targets = candidates.flatMap(connection => {
             const point = nearestRoutePoint(connection.geometry!.coordinates, event.point, this.map);
-            return point && point.distancePx <= 10 ? [{ connection, point }] : [];
+            return point && point.distancePx <= 10 && !this.blocked(point.screen) ? [{ connection, point }] : [];
         }).sort((a, b) => a.point.distancePx - b.point.distancePx || a.connection.id - b.connection.id);
         if (!targets.length) { this.leave(); return; }
         this.cancelTimer();
@@ -58,11 +60,14 @@ export class MapSpliceHover {
         // is at the outer edge of the button rather than the line's hit area.
         if (this.disposed || this.busy() || this.map.isMoving?.()) { this.clear(); return; }
         const held = this.held;
+        const generation = this.generation;
         this.held = false;
         this.move({ point, originalEvent: { buttons: 0 } } as MapMouseEvent);
-        this.held = held;
+        // move() may invalidate the overlay after a marker/editor appeared.
+        // Never resurrect its old held state after clear().
+        if (generation === this.generation) this.held = held;
     }
-    clear() { this.cancelTimer(); this.held = false; this.preferredId = null; this.changed(null); }
+    clear() { this.generation++; this.cancelTimer(); this.held = false; this.preferredId = null; this.changed(null); }
     private cancelTimer() { if (this.timer !== null) clearTimeout(this.timer); this.timer = null; }
     destroy() {
         this.disposed = true;

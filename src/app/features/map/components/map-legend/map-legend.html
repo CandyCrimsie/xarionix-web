@@ -21,9 +21,8 @@
     </span>
 
     <ng-icon
-      name="lucideChevronDown"
+      [name]="expanded() ? 'lucideChevronDown' : 'lucideChevronRight'"
       class="size-4 text-muted-foreground transition-transform duration-200"
-      [class.rotate-180]="expanded()"
     />
   </button>
   } @else { <h3 class="px-3 pt-3 text-sm font-medium">Легенда карты</h3> }
@@ -63,7 +62,7 @@
 
       <hlm-separator class="my-3" />
 
-      <hlm-collapsible [expanded]="true">
+      <hlm-collapsible [expanded]="methodsExpanded()" (expandedChange)="methodsExpanded.set($event)">
         <button
           hlmBtn
           hlmCollapsibleTrigger
@@ -73,7 +72,7 @@
           class="mb-2 h-8 w-full justify-between px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
         >
           <span>Способ прокладки</span>
-          <ng-icon name="lucideChevronDown" class="size-3.5" />
+          <ng-icon [name]="methodsExpanded() ? 'lucideChevronDown' : 'lucideChevronRight'" class="size-3.5" />
         </button>
 
         <div hlmCollapsibleContent class="grid gap-2">

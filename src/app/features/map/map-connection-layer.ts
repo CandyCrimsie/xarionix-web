@@ -7,6 +7,7 @@ import type {
 } from 'maplibre-gl';
 import type { MapConnection, MapConnectionDraft } from './models/map.models';
 import { MAP_TEXT_FONT } from './map-marker-renderer';
+import { installationBoundaryPoints } from './map-installation-boundaries';
 import {
   CONNECTION_COLORS,
   CONNECTION_SELECTED_COLOR,
@@ -31,6 +32,8 @@ export const ROUTE_DRAFT_SOURCE = 'xarionix-route-draft';
 export const ROUTE_VERTICES_SOURCE = 'xarionix-route-vertices';
 export const CONNECTION_HIT_LAYER = 'connection-hit-target';
 export const CONNECTION_MAIN_LAYER = 'connection-method-unknown';
+export const INSTALLATION_BOUNDARY_SOURCE = 'xarionix-installation-boundaries';
+export const INSTALLATION_BOUNDARY_LAYER = 'installation-boundary-points';
 
 export function routeCoordinates(draft: MapConnectionDraft): [number, number][] | null {
   if (
@@ -67,6 +70,7 @@ export class MapConnectionLayer {
   private draftConnectionId: number | null = null;
   private footprintIndex: FootprintIndex | null = null;
   private haloIndex: FootprintIndex | null = null;
+  private insertionIndex: FootprintIndex | null = null;
   private featureIds: { id: string; connection: number }[] = [];
   private readonly styledStates = new Map<string, number>();
   private readonly before: string | undefined;
@@ -91,7 +95,8 @@ export class MapConnectionLayer {
     this.map.getCanvas().style.cursor = 'grabbing';
   };
   private readonly click = (event: MapMouseEvent & { features?: GeoJSON.Feature[] }) => {
-    if (this.editing) return;
+    if (this.editing || this.isOccluded(event.point)) return;
+    if (typeof this.map.queryRenderedFeatures === 'function' && this.map.queryRenderedFeatures(event.point, {layers:[INSTALLATION_BOUNDARY_LAYER]}).length) return;
     const markerLayers = [
       'building-points',
       'selected-building-marker',
@@ -109,7 +114,7 @@ export class MapConnectionLayer {
     ]);
   };
   private readonly hover = (event: MapMouseEvent & { features?: GeoJSON.Feature[] }) => {
-    const id = this.editing ? null : Number(event.features?.[0]?.properties?.['id']);
+    const id = this.editing || this.isOccluded(event.point) ? null : Number(event.features?.[0]?.properties?.['id']);
     if (id === this.hovered) return;
     this.hovered = id;
     this.applyStates();
@@ -118,6 +123,19 @@ export class MapConnectionLayer {
     this.hovered = null;
     this.applyStates();
   };
+  private readonly boundaryClick = (event: MapMouseEvent & {features?: GeoJSON.Feature[]}) => {
+    if(this.editing || this.isOccluded(event.point))return;
+    const markerLayers=['building-points','selected-building-marker','custom-marker-points'].filter(id=>this.map.getLayer(id));
+    if(markerLayers.length&&typeof this.map.queryRenderedFeatures==='function'&&this.map.queryRenderedFeatures(event.point,{layers:markerLayers}).length)return;
+    const feature=event.features?.[0],id=Number(feature?.properties?.['connection_id']),vertex=Number(feature?.properties?.['vertex']);
+    if(!Number.isInteger(id)||!Number.isInteger(vertex))return;
+    const line=this.connections.find(line=>line.id===id);
+    // A GeoJSON worker may still expose a point from the preceding snapshot.
+    if(!line||feature?.properties?.['version']!==line.version||feature?.properties?.['geometry_token']!==line.geometry_token)return;
+    event.preventDefault();this.onBoundarySelect(id,vertex);
+  };
+  private readonly boundaryHover = () => {this.leave();this.map.getCanvas().style.cursor='pointer';};
+  private readonly boundaryLeave = () => {this.map.getCanvas().style.cursor='';};
   private readonly sourceChanged = (event: { sourceId?: string }) => {
     if (
       event.sourceId &&
@@ -134,6 +152,7 @@ export class MapConnectionLayer {
     private readonly onVertexStart: (index: number) => void,
     private readonly onVertexMove: (index: number, coordinate: [number, number]) => void,
     private readonly footprints: () => MarkerFootprint[] = () => [],
+    private readonly onBoundarySelect: (id: number, vertex: number) => void = () => {},
   ) {
     this.before = map.getLayer('building-clusters') ? 'building-clusters' : undefined;
     if (map.getSource(CONNECTION_SOURCE)) return;
@@ -143,6 +162,7 @@ export class MapConnectionLayer {
       CONNECTION_HALO_SOURCE,
       ROUTE_DRAFT_SOURCE,
       ROUTE_VERTICES_SOURCE,
+      INSTALLATION_BOUNDARY_SOURCE,
     ])
       map.addSource(source, { type: 'geojson', data: empty() });
     const selected: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false];
@@ -237,6 +257,11 @@ export class MapConnectionLayer {
       },
       this.before,
     );
+    // Opaque annotations on loaded routes. Only the selected cable gets DOM handles.
+    map.addLayer({id:INSTALLATION_BOUNDARY_LAYER,type:'circle',source:INSTALLATION_BOUNDARY_SOURCE,
+      paint:{'circle-radius':5,'circle-color':'#0F172A','circle-opacity':1,'circle-stroke-color':'#BAE6FD','circle-stroke-width':1,'circle-stroke-opacity':1}},this.before);
+    map.addLayer({id:'installation-boundary-centers',type:'circle',source:INSTALLATION_BOUNDARY_SOURCE,
+      paint:{'circle-radius':2,'circle-color':'#EAF4FF','circle-opacity':1}},this.before);
     map.addLayer({
       id: 'route-edit-vertices',
       type: 'circle',
@@ -251,6 +276,9 @@ export class MapConnectionLayer {
     map.on('click', CONNECTION_HIT_LAYER, this.click);
     map.on('mousemove', CONNECTION_HIT_LAYER, this.hover);
     map.on('mouseleave', CONNECTION_HIT_LAYER, this.leave);
+    map.on('click', INSTALLATION_BOUNDARY_LAYER, this.boundaryClick);
+    map.on('mousemove', INSTALLATION_BOUNDARY_LAYER, this.boundaryHover);
+    map.on('mouseleave', INSTALLATION_BOUNDARY_LAYER, this.boundaryLeave);
     map.on('mousedown', 'route-edit-vertices', this.down);
     map.on('mousemove', this.move);
     map.on('mouseup', this.up);
@@ -283,14 +311,15 @@ export class MapConnectionLayer {
       ),
     };
     (this.map.getSource(CONNECTION_HIT_SOURCE) as GeoJSONSource)?.setData(hits);
+    this.renderBoundaryPoints();
     this.refreshClipping();
   }
   clear(): void {
     if (this.frame !== null) cancelAnimationFrame(this.frame);
     this.frame = null; this.connections = []; this.selected = null; this.hovered = null;
     for (const id of this.styledStates.keys()) this.map.removeFeatureState?.({ source: CONNECTION_SOURCE, id });
-    this.styledStates.clear(); this.featureIds = []; this.footprintIndex = null; this.haloIndex = null;
-    for (const source of [CONNECTION_SOURCE, CONNECTION_HIT_SOURCE, CONNECTION_HALO_SOURCE])
+    this.styledStates.clear(); this.featureIds = []; this.footprintIndex = null; this.haloIndex = null; this.insertionIndex = null;
+    for (const source of [CONNECTION_SOURCE, CONNECTION_HIT_SOURCE, CONNECTION_HALO_SOURCE, INSTALLATION_BOUNDARY_SOURCE])
       (this.map.getSource(source) as GeoJSONSource | undefined)?.setData(empty());
     this.map.getCanvas().style.cursor = '';
   }
@@ -302,7 +331,7 @@ export class MapConnectionLayer {
       this.render();
     });
   };
-  private render() {
+  refreshFootprints(resetHover = false) {
     const canvas = this.map.getCanvas(),
       footprints = this.footprints(),
       index = new FootprintIndex(
@@ -318,6 +347,21 @@ export class MapConnectionLayer {
       canvas.clientHeight || 1000,
       4.8,
     );
+    const boundaries=typeof this.map.project==='function'?this.connections.flatMap(line=>installationBoundaryPoints(line).map(boundary=>({center:this.map.project(boundary.position),width:12,height:12,radius:6}))):[];
+    this.insertionIndex = new FootprintIndex([...footprints.map(f=>f.hitBox?{...f,...f.hitBox,radius:0}:f),...boundaries], canvas.clientWidth || 1600, canvas.clientHeight || 1000, 17);
+    if (resetHover && this.hovered !== null) this.leave();
+  }
+  private renderBoundaryPoints() {
+    const data:FeatureCollection<Point>={type:'FeatureCollection',features:this.editing?[]:this.connections.flatMap(line=>
+      line.id===this.selected||line.id===this.draftConnectionId?[]:installationBoundaryPoints(line).map(boundary=>({
+        type:'Feature' as const,id:`${line.id}:${boundary.vertex}`,geometry:{type:'Point' as const,coordinates:boundary.position},
+        properties:{connection_id:line.id,version:line.version,geometry_token:line.geometry_token,vertex:boundary.vertex,before:boundary.before,after:boundary.after},
+      })))};
+    (this.map.getSource(INSTALLATION_BOUNDARY_SOURCE) as GeoJSONSource)?.setData(data);
+  }
+  private render() {
+    this.refreshFootprints();
+    const index = this.footprintIndex!;
     const features: GeoJSON.Feature<LineString>[] = [];
     this.featureIds = [];
     for (const line of this.connections) {
@@ -388,8 +432,8 @@ export class MapConnectionLayer {
     });
     this.applyStates();
   }
-  isOccluded(point: ScreenPoint): boolean {
-    const index = this.footprintIndex;
+  isOccluded(point: ScreenPoint, insertion = false): boolean {
+    const index = insertion ? this.insertionIndex : this.footprintIndex;
     return !!index
       ?.candidates(point, point)
       .some((id) => occludedInterval(point, point, index.polygons[id]) !== null);
@@ -456,6 +500,7 @@ export class MapConnectionLayer {
           : [],
     };
     (this.map.getSource(ROUTE_VERTICES_SOURCE) as GeoJSONSource)?.setData(vertices);
+    this.renderBoundaryPoints();
     this.refreshClipping();
   }
   destroy() {
@@ -465,6 +510,9 @@ export class MapConnectionLayer {
     this.map.off('click', CONNECTION_HIT_LAYER, this.click);
     this.map.off('mousemove', CONNECTION_HIT_LAYER, this.hover);
     this.map.off('mouseleave', CONNECTION_HIT_LAYER, this.leave);
+    this.map.off('click', INSTALLATION_BOUNDARY_LAYER, this.boundaryClick);
+    this.map.off('mousemove', INSTALLATION_BOUNDARY_LAYER, this.boundaryHover);
+    this.map.off('mouseleave', INSTALLATION_BOUNDARY_LAYER, this.boundaryLeave);
     this.map.off('mousedown', 'route-edit-vertices', this.down);
     this.map.off('mousemove', this.move);
     this.map.off('mouseup', this.up);

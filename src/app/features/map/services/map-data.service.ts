@@ -6,6 +6,7 @@ import { API_BASE_URL } from '../../../core/api/api.config';
 import type { DependencyReport, LayerDraft, MapLayer, MapPassport, MapPreference, MapQuery, MapSettings, MapTarget, PassportWrite } from '../models/map-workspace.models';
 import type { MapConnection, MapConnectionPayload, MapConnectionSplitPayload, MapConnectionSplitResponse, MapEndpointDetail, MapMarkerAppearance, MapStylePreset, MapRouteObjectPayload, MapRouteObjectResponse, MapInstallationBoundaryPayload } from '../models/map.models';
 import type {
+    MapBoundaryEdit,
     MapAddressObjectBounds,
     MapBounds,
     MapBuildingFeatureCollection,
@@ -121,6 +122,12 @@ export class MapDataService {
 
     setInstallationBoundary(id: number, data: MapInstallationBoundaryPayload): Observable<MapConnection> {
         return this.http.post<MapConnection>(`${API_BASE_URL}/map/connections/${id}/installation-boundaries`, data);
+    }
+
+    editInstallationBoundary(line: MapConnection, vertex: number, data: MapBoundaryEdit): Observable<MapConnection> {
+        return this.http.patch<MapConnection>(`${API_BASE_URL}/map/connections/${line.id}/installation-boundaries/${vertex}`, {
+            ...data, expected_version: line.version, expected_geometry_token: line.geometry_token,
+        });
     }
 
     detachRouteObject(line: MapConnection, markerId: number): Observable<MapRouteObjectResponse> {

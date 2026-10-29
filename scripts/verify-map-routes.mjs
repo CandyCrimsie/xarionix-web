@@ -90,6 +90,16 @@ export async function verifyMapRoutes(page, screenshot, fixture) {
     const boxRequest = fixture.requests.at(-1);
     assert(boxRequest.path.endsWith('/split')); assert.equal(boxRequest.payload.marker.point_type, 'fiber_box');
     assert.deepEqual([boxRequest.payload.position.longitude, boxRequest.payload.position.latitude], frozen);
+    const insertedBox=await component(()=>{
+        const c=window.ng.getComponent(document.querySelector('app-address-map'));
+        const box=c.markers().find(marker=>marker.point_type==='fiber_box'),p=c.map.project([box.longitude,box.latitude]),r=c.map.getContainer().getBoundingClientRect();
+        return {x:r.x+p.x,y:r.y+p.y};
+    });
+    await page.mouse.move(insertedBox.x,insertedBox.y);await page.waitForTimeout(170);
+    assert.equal(await plus.count(),0,'Fresh optical box must take precedence over insertion hover');
+    await page.waitForFunction(()=>{const c=window.ng.getComponent(document.querySelector('app-address-map'));return c.map.queryRenderedFeatures({layers:['custom-marker-points']}).some(f=>c.markers().some(m=>m.id===Number(f.properties.id)&&m.point_type==='fiber_box'));});
+    await page.mouse.click(insertedBox.x,insertedBox.y);await page.getByTestId('map-marker-popup').waitFor();
+    await component(()=>window.ng.getComponent(document.querySelector('app-address-map')).closePopup());
     // Pass-through chamber: same line ID/endpoints/geometry; one saved anchor.
     await hover(9000, 1, .45); await plus.click();
     await page.getByTestId('route-place-chamber').click();

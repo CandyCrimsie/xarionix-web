@@ -7,7 +7,7 @@
     <hlm-alert-dialog-content *hlmAlertDialogPortal><hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Удалить дом из адресного каталога?</h3><p hlmAlertDialogDescription>{{ houseToDelete()?.full_address }}. Это удаление дома, а не только его метки. При наличии зависимостей операция будет заблокирована.</p></hlm-alert-dialog-header>@if (houseDeleteError()) { <p class="text-sm text-destructive" role="alert">{{ houseDeleteError() }}</p> }<hlm-alert-dialog-footer><button hlmAlertDialogCancel [disabled]="houseDeleting()">Отмена</button><button hlmAlertDialogAction variant="destructive" [disabled]="houseDeleting()" (click)="deleteHouse()">Удалить дом</button></hlm-alert-dialog-footer></hlm-alert-dialog-content>
   </hlm-alert-dialog>
   @if (!expanded()) {
-    <button #expandButton hlmBtn variant="outline" size="icon-sm" type="button" class="absolute bottom-3 right-3 z-10 bg-background/90 shadow-sm backdrop-blur-md" aria-label="Развернуть карту" hlmTooltip="Развернуть карту" data-testid="expand-address-map" (click)="expandMap()"><ng-icon name="lucideMaximize" /></button>
+    <button #expandButton hlmBtn variant="outline" size="icon-sm" type="button" class="absolute bottom-3 right-3 z-10 size-9 bg-background/90 shadow-sm backdrop-blur-md" aria-label="Развернуть карту" data-testid="expand-address-map" (click)="expandMap()"><ng-icon name="lucideMaximize" /></button>
   }
 
   @if (state() === 'loading') {
@@ -47,7 +47,7 @@
 
     <hlm-dialog-content
       *hlmDialogPortal="let ctx"
-      class="w-[calc(100vw-2rem)] min-w-0 max-w-none overflow-hidden sm:max-w-6xl"
+      class="w-[calc(100vw-2rem)] min-w-0 max-w-none overflow-hidden sm:max-w-4xl"
       data-testid="map-marker-dialog"
     >
       <app-map-marker-editor
@@ -275,11 +275,11 @@
       <div
         hlmPopoverContent
         *hlmPopoverPortal
-        class="w-72 gap-1 rounded-xl border border-white/10 bg-slate-950/95 p-2 text-slate-100 shadow-lg backdrop-blur-md"
+        class="w-72 gap-1 rounded-xl border bg-popover/95 p-2 text-popover-foreground shadow-lg backdrop-blur-md"
         data-testid="route-object-menu"
       >
         <h3 class="px-2 py-1.5 text-xs font-medium">Добавить на трассу</h3>
-        <p class="px-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400">
+        <p class="px-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
           Сетевой узел · разделить кабель
         </p>
         @for (item of routeNodeOptions; track item.type) {
@@ -287,7 +287,7 @@
             hlmBtn
             variant="ghost"
             type="button"
-            class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10"
+            class="h-9 justify-start gap-2 rounded-lg px-2 text-xs"
             [hlmTooltip]="item.description"
             [attr.data-testid]="'route-node-' + item.type"
             (click)="selectRouteObject(item.type, 'split')"
@@ -296,7 +296,7 @@
           </button>
         }
         <p
-          class="mt-1 border-t border-white/10 px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400"
+          class="mt-1 border-t px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground"
         >
           Вдоль трассы · без разрыва
         </p>
@@ -305,7 +305,7 @@
             hlmBtn
             variant="ghost"
             type="button"
-            class="h-8 justify-start gap-2 rounded-lg px-2 text-xs text-slate-100 hover:bg-white/10 hover:text-white dark:hover:bg-white/10"
+            class="h-9 justify-start gap-2 rounded-lg px-2 text-xs"
             [hlmTooltip]="item.description"
             [attr.data-testid]="'route-place-' + item.type"
             (click)="selectRouteObject(item.type, 'place')"
@@ -317,7 +317,7 @@
           hlmBtn
           variant="ghost"
           type="button"
-          class="mt-1 h-8 justify-start gap-2 rounded-lg border-t border-white/10 px-2 text-xs text-slate-300 hover:bg-white/10 hover:text-white dark:hover:bg-white/10"
+          class="mt-1 h-9 justify-start gap-2 rounded-lg border-t px-2 text-xs"
           data-testid="route-installation-boundary"
           (click)="startInstallationBoundary()"
         >
@@ -325,6 +325,45 @@
         </button>
       </div>
     </hlm-popover>
+  }
+  @for (handle of installationHandles(); track handle.vertex) {
+    <button hlmBtn variant="ghost" size="icon" type="button" class="absolute z-20 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-200 bg-slate-900 p-0 shadow-sm transition-transform hover:scale-125 hover:bg-slate-800 dark:hover:bg-slate-800 focus-visible:scale-125 data-disabled:opacity-100" [style.left.px]="handle.x" [style.top.px]="handle.y" [hlmTooltip]="installationLabel(handle.before) + ' → ' + installationLabel(handle.after)" [attr.aria-label]="'Граница прокладки: ' + installationLabel(handle.before) + ' → ' + installationLabel(handle.after)" [disabled]="boundarySaving() || movingBoundary()" (pointerdown)="$event.stopPropagation()" (mouseenter)="holdSpliceHover(true)" (mouseleave)="holdSpliceHover(false)" (click)="$event.stopPropagation(); openBoundary(handle)" data-testid="installation-boundary-handle"><span class="size-1 rounded-full bg-slate-100"></span></button>
+  }
+  @if (activeBoundary(); as target) {
+    @if (!movingBoundary() && !boundaryPreview()) {
+    <hlm-popover state="open" [attachTo]="boundaryAnchor" [sideOffset]="12" (closed)="cancelBoundaryEdit()">
+      <span #boundaryAnchor class="pointer-events-none absolute" [style.left.px]="target.boundary.x" [style.top.px]="target.boundary.y"></span>
+      <section hlmPopoverContent *hlmPopoverPortal class="w-72 gap-3" data-testid="installation-boundary-menu">
+        <h3 class="text-sm font-medium">Граница прокладки</h3>
+        <p class="text-xs text-muted-foreground">{{ installationLabel(target.boundary.before) }} → {{ installationLabel(target.boundary.after) }}</p>
+        <p class="text-xs text-muted-foreground">{{ target.boundary.position[1].toFixed(6) }}, {{ target.boundary.position[0].toFixed(6) }}</p>
+        @if (boundaryAction() === 'menu') {
+          <button hlmBtn variant="ghost" size="sm" class="justify-start" (click)="boundaryAction.set('set')">Изменить способ после точки</button>
+          <button hlmBtn variant="ghost" size="sm" class="justify-start" (click)="moveBoundary()">Переместить границу</button>
+          <button hlmBtn variant="ghost" size="sm" class="justify-start" (click)="boundaryAction.set('remove')">Удалить границу</button>
+        } @else if (boundaryAction() === 'set') {
+          <hlm-select [value]="boundaryMethod()" [disabled]="boundarySaving()" [itemToString]="installationLabel" (valueChange)="$event && boundaryMethod.set($event)">
+            <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal>@for (style of installationStyles; track style.value) { <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item> }</hlm-select-content>
+          </hlm-select>
+          <p class="text-xs text-muted-foreground">До следующей границы.</p>
+          <button hlmBtn size="sm" [disabled]="boundarySaving()" (click)="saveBoundaryEdit({operation:'set',installation_after:boundaryMethod()})">{{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}</button>
+        } @else {
+          <p class="text-xs text-muted-foreground">Какой способ сохранить на объединённом участке?</p>
+          <button hlmBtn variant="outline" size="sm" [disabled]="boundarySaving()" (click)="saveBoundaryEdit({operation:'remove',keep:'previous'})">Предыдущий · {{ installationLabel(target.boundary.before) }}</button>
+          <button hlmBtn variant="outline" size="sm" [disabled]="boundarySaving()" (click)="saveBoundaryEdit({operation:'remove',keep:'next'})">Следующий · {{ installationLabel(target.boundary.after) }}</button>
+        }
+        @if (boundaryError()) { <p class="text-xs text-destructive" role="alert">{{ boundaryError() }}</p> }
+      </section>
+    </hlm-popover>
+    }
+  }
+  @if (installationEditId() || movingBoundary() || boundaryPreview()) {
+    <section class="absolute bottom-4 left-1/2 z-20 flex w-[min(34rem,calc(100%-6rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-md backdrop-blur-md" data-testid="installation-edit-toolbar">
+      <p class="min-w-0 flex-1 text-xs">{{ movingBoundary() ? 'Выберите новую точку на трассе' : boundaryPreview() ? 'Предпросмотр границы' : 'Прокладка · выберите границу или добавьте новую плюсом' }}</p>
+      @if (boundaryPreview()) { <button hlmBtn size="sm" [disabled]="boundarySaving() || movingBoundary()" (click)="saveBoundaryEdit()">{{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}</button> }
+      <button hlmBtn variant="outline" size="sm" [disabled]="boundarySaving()" (click)="activeBoundary() ? cancelBoundaryEdit() : finishInstallationEdit()">{{ activeBoundary() ? 'Отмена' : 'Готово' }}</button>
+      @if (boundaryError()) { <p class="w-full text-xs text-destructive" role="alert">{{ boundaryError() }}</p> }
+    </section>
   }
 </div>
 
@@ -631,6 +670,7 @@ aria-label="Удалить метку с карты"
         </div>
       }
       @if (canManage() && line.can_manage && line.geometry && line.geometry_token) {
+        <button hlmBtn variant="outline" size="sm" (click)="startInstallationEdit(line)" data-testid="edit-installation-card">Редактировать прокладку</button>
         <button
           hlmBtn
           variant="outline"

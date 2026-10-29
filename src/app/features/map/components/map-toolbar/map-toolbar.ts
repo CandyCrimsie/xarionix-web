@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, model, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, model, output, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCable, lucideFolder, lucideLayers, lucideListFilter, lucideMap, lucideMapPinPlus, lucidePencil, lucidePlus, lucideTrash2, lucideX, lucideArrowUp, lucideArrowDown } from '@ng-icons/lucide';
+import { lucideCable, lucideFolder, lucideLayers, lucideListFilter, lucideMap, lucideMapPinPlus, lucidePencil, lucidePlus, lucideTrash2, lucideX, lucideArrowUp, lucideArrowDown, lucideInfo, lucideChevronDown, lucideChevronRight } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -20,10 +20,11 @@ export type MapPanel = 'filters' | 'layers' | 'legend';
 @Component({
     selector: 'app-map-toolbar',
     imports: [NgIcon, HlmButtonImports, HlmButtonGroupImports, HlmCheckboxImports, HlmPopoverImports, HlmSelectImports, HlmTooltipImports, HlmCollapsibleImports, MapLegend, MapIcon],
-    providers: [provideIcons({ lucideCable, lucideFolder, lucideLayers, lucideListFilter, lucideMap, lucideMapPinPlus, lucidePencil, lucidePlus, lucideTrash2, lucideX, lucideArrowUp, lucideArrowDown })],
+    providers: [provideIcons({ lucideCable, lucideFolder, lucideLayers, lucideListFilter, lucideMap, lucideMapPinPlus, lucidePencil, lucidePlus, lucideTrash2, lucideX, lucideArrowUp, lucideArrowDown, lucideInfo, lucideChevronDown, lucideChevronRight })],
     templateUrl: './map-toolbar.html', changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MapToolbar {
+    readonly typesExpanded = signal(false);
     readonly workspace = inject(MapWorkspaceState);
     readonly canManage = input(false);
     readonly expanded = input(false);

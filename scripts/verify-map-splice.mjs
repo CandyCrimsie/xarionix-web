@@ -32,6 +32,11 @@ export async function verifyMapSplice(page, screenshot) {
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(250);
     assert(await plus.isVisible(), 'Plus must survive transferring the cursor onto it');
+    const hoverColor=await plus.evaluate(button=>{
+        const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');
+        ctx.fillStyle=getComputedStyle(button).backgroundColor;ctx.fillRect(0,0,1,1);return Array.from(ctx.getImageData(0,0,1,1).data);
+    });
+    assert(hoverColor[0]<65&&hoverColor[1]<80&&hoverColor[2]<100&&hoverColor[3]>210,`Plus hover must retain its dark surface: ${hoverColor}`);
     await screenshot('hover-plus');
     const resting = await plus.boundingBox();
     await page.mouse.down();
@@ -99,6 +104,19 @@ export async function verifyMapSplice(page, screenshot) {
     assert.deepEqual(after.center, before.center); assert.equal(after.zoom, before.zoom);
     assert.equal(after.marker.point_type, 'splice');
     assert.equal(after.first.target.id, after.marker.id); assert.equal(after.second.source.id, after.marker.id);
+    // P0: do not reload the page or wait for worker/source completion here.
+    const inserted=await component(()=>{
+        const c=window.ng.getComponent(document.querySelector('app-address-map'));
+        const marker=c.markers().find(marker=>marker.id===9000),p=c.map.project([marker.longitude,marker.latitude]),r=c.map.getContainer().getBoundingClientRect();
+        return {x:r.x+p.x,y:r.y+p.y};
+    });
+    await page.mouse.move(inserted.x,inserted.y);
+    await page.waitForTimeout(170);
+    assert.equal(await plus.count(),0,'Insertion plus must not cover a freshly inserted node without reload');
+    await page.waitForFunction(()=>window.ng.getComponent(document.querySelector('app-address-map')).map.queryRenderedFeatures({layers:['custom-marker-points']}).some(f=>Number(f.properties.id)===9000));
+    await page.mouse.click(inserted.x,inserted.y);
+    await page.getByTestId('map-marker-popup').waitFor();
+    await component(()=>window.ng.getComponent(document.querySelector('app-address-map')).closePopup());
     await screenshot('splice-created');
     // Overlapping cables require an explicit choice, then confirmation of the
     // plus on the selected line (not automatic splitting of both).

@@ -21,6 +21,9 @@ describe('MapLegend', () => {
         expect(fixture.nativeElement.textContent).not.toContain('Витая пара');
         expect(fixture.nativeElement.querySelector('path[stroke-dasharray="8.1 4.86"]')).not.toBeNull();
         expect(fixture.componentInstance.methods().map(method=>method.value)).toEqual(['duct']);
+        const methodButton=Array.from(fixture.nativeElement.querySelectorAll('button')).find(button=>(button as HTMLButtonElement).textContent?.includes('Способ прокладки')) as HTMLButtonElement;
+        expect(methodButton.getAttribute('aria-expanded')).toBe('true');methodButton.click();fixture.detectChanges();
+        expect(fixture.componentInstance.methodsExpanded()).toBe(false);expect(methodButton.getAttribute('aria-expanded')).toBe('false');
         button.click(); fixture.detectChanges();
         expect(button.getAttribute('aria-expanded')).toBe('false');
     });

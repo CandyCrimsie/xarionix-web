@@ -270,7 +270,7 @@ describe('AddressMap', () => {
         getConnections: vi.fn(), getStyles: vi.fn(), getBuildingMarker: vi.fn(),
         createConnection: vi.fn(), updateConnection: vi.fn(), deleteConnection: vi.fn(),
         splitConnection: vi.fn(),
-        placeRouteObject: vi.fn(), setInstallationBoundary: vi.fn(), detachRouteObject: vi.fn(),
+        placeRouteObject: vi.fn(), setInstallationBoundary: vi.fn(), editInstallationBoundary: vi.fn(), detachRouteObject: vi.fn(),
         createStyle: vi.fn(), updateStyle: vi.fn(), deleteStyle: vi.fn(),
     };
     const loader = { load: vi.fn() };
@@ -1250,6 +1250,61 @@ describe('AddressMap', () => {
     }
 
     const snap = { segmentIndex: 0, fraction: .23, position: [38.115, 55.069119] as [number, number], screen: { x: 23, y: 0 }, distancePx: 0 };
+
+    it.each([['splice',10],['splice',17],['fiber_box',10],['fiber_box',17]] as const)('immediately protects a new %s at zoom %i before the GeoJSON worker renders it', async(point_type,zoom)=>{
+        await initialize();fixture.componentRef.setInput('canManage',true);
+        const c=fixture.componentInstance,line=splitLine();c.connections.set([line]);
+        vi.spyOn(fakeMap,'getZoom').mockReturnValue(zoom);
+        Object.assign(fakeMap,{project:([x,y]:number[])=>({x:x*10,y:y*10}),unproject:([x,y]:number[])=>({lng:x/10,lat:y/10}),queryRenderedFeatures:()=>[]});
+        const saved={...marker,id:80,point_type,latitude:55.2,longitude:38.2,marker_size:'large',background_enabled:false,border_enabled:false} as MapMarker;
+        mapData.splitConnection.mockReturnValue(of({marker:saved,connections:[{...line,version:4},{...line,id:72}]}));
+        c.openSpliceEditor({connection:line,point:snap},point_type);c.saveMarker();
+        const layer=(c as any).connectionLayer;
+        expect(layer.isOccluded({x:382,y:552},true)).toBe(true);
+        expect(c.spliceHover()).toBeNull();expect(c.routeMenuTarget()).toBeNull();
+        expect(c.markers().find(m=>m.id===80)).toEqual(saved);
+    });
+
+    it('edits a selected boundary once and clears preview, with stale company responses ignored',async()=>{
+        await initialize();fixture.componentRef.setInput('canManage',true);
+        Object.assign(fakeMap,{project:([x,y]:number[])=>({x,y})});
+        const c=fixture.componentInstance,line:MapConnection={...splitLine(),vertices:[[38.5,55.3]],installation_methods:['aerial','duct']};
+        c.connections.set([line as MapConnection]);c.startInstallationEdit(line as MapConnection);
+        expect(c.installationHandles()).toHaveLength(1);
+        c.connections.set([]);fixture.detectChanges();expect(c.installationEditId()).toBeNull();
+        c.connections.set([line]);c.startInstallationEdit(line);
+        c.openBoundary(c.installationHandles()[0]);
+        const pending=new Subject<MapConnection>();mapData.editInstallationBoundary.mockReturnValue(pending);
+        c.saveBoundaryEdit({operation:'remove',keep:'next'});c.saveBoundaryEdit({operation:'remove',keep:'previous'});
+        expect(mapData.editInstallationBoundary).toHaveBeenCalledOnce();
+        pending.next({...line,version:4,installation_methods:['duct','duct']} as MapConnection);
+        expect(c.activeBoundary()).toBeNull();expect(c.installationHandles()).toHaveLength(0);
+        c.connections.set([line as MapConnection]);c.startInstallationEdit(line as MapConnection);c.openBoundary(c.installationHandles()[0]);
+        c.saveBoundaryEdit({operation:'set',installation_after:'facade'});companyChanged.next(2);
+        pending.next({...line,version:5} as MapConnection);
+        expect(c.activeBoundary()).toBeNull();expect(c.installationHandles()).toEqual([]);expect(c.connections()).toEqual([]);
+    });
+
+    it('renders saved boundaries before cable selection and opens the existing point without creating one',async()=>{
+        await initialize();fixture.componentRef.setInput('canManage',true);
+        Object.assign(fakeMap,{project:([x,y]:number[])=>({x,y})});
+        const c=fixture.componentInstance,line:MapConnection={...splitLine(),vertices:[[38.5,55.3]],installation_methods:['aerial','duct']};
+        c.connections.set([line]);fixture.detectChanges();
+        const source=fakeMap.sources.get('xarionix-installation-boundaries')!;
+        expect(c.selectedConnectionId()).toBeNull();
+        expect(source.setData?.mock.calls.at(-1)?.[0].features).toMatchObject([{id:'71:1',properties:{connection_id:71,vertex:1,before:'aerial',after:'duct'},geometry:{coordinates:[38.5,55.3]}}]);
+        expect(fakeMap.layerDefinitions.get('installation-boundary-points')?.['paint']).toMatchObject({'circle-opacity':1,'circle-radius':5,'circle-stroke-width':1});
+        const click={point:{x:38.5,y:55.3},features:[{properties:{connection_id:71,vertex:1,version:line.version,geometry_token:line.geometry_token}}],preventDefault:vi.fn()};
+        fakeMap.emitLayer('click','installation-boundary-points',{...click,features:[{properties:{...click.features[0].properties,version:line.version-1}}]});
+        expect(c.activeBoundary()).toBeNull();
+        fakeMap.emitLayer('click','installation-boundary-points',click);
+        fixture.detectChanges();
+        expect(c.selectedConnectionId()).toBe(71);expect(c.activeBoundary()?.boundary.vertex).toBe(1);
+        expect(source.setData?.mock.calls.at(-1)?.[0].features).toEqual([]);
+        expect(mapData.setInstallationBoundary).not.toHaveBeenCalled();expect(mapData.createMarker).not.toHaveBeenCalled();
+        c.cancelBoundaryEdit();c.connections.set([]);fixture.detectChanges();
+        expect(source.setData?.mock.calls.at(-1)?.[0].features).toEqual([]);
+    });
 
     it('opens a splice at the frozen snapped point, reuses the marker editor and cancels without requests', async () => {
         await initialize();

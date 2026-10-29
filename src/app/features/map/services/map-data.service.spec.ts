@@ -9,6 +9,7 @@ import { MapDataService } from './map-data.service';
 import { createDefaultMapMarker } from '../map-marker.config';
 import { pickMarkerAppearance } from '../map-marker.config';
 import { defaultMapSettings, type MapLayer } from '../models/map-workspace.models';
+import type {MapConnection} from '../models/map.models';
 
 
 describe('MapDataService', () => {
@@ -35,6 +36,13 @@ describe('MapDataService', () => {
         expect(request.request.params.get('include_unassigned')).toBe('false');
         expect(request.request.params.get('point_types_enabled')).toBe('true');
         expect(request.request.params.get('endpoint_id')).toBe('42'); request.flush([]);
+    });
+    it('edits a boundary through PATCH with the frozen revision and geometry snapshot',()=>{
+        const line={id:17,version:4,geometry_token:'a'.repeat(64)} as MapConnection;
+        service.editInstallationBoundary(line,2,{operation:'remove',keep:'next'}).subscribe();
+        const request=http.expectOne('/api/v1/map/connections/17/installation-boundaries/2');
+        expect(request.request.method).toBe('PATCH');
+        expect(request.request.body).toEqual({operation:'remove',keep:'next',expected_version:4,expected_geometry_token:line.geometry_token});request.flush({});
     });
 
     it('sends revisions for metadata and deletion, without client company or unknown layer fields', () => {

@@ -11,7 +11,8 @@ import {
 import { FormsModule } from '@angular/forms';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideMapPin, lucideRotateCcw, lucideSearch } from '@ng-icons/lucide';
+import { lucideMapPin, lucideRotateCcw, lucideSearch, lucideChevronDown, lucideChevronRight } from '@ng-icons/lucide';
+import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -84,20 +85,27 @@ type OpacityField =
         BuildingAddressPicker,
         MapMarkerPreview,
         MapIcon,
+        HlmCollapsibleImports,
     ],
     providers: [provideIcons({
         ...MAP_MARKER_ICON_PROVIDERS,
         lucideMapPin,
         lucideRotateCcw,
         lucideSearch,
+        lucideChevronDown, lucideChevronRight,
     })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
-        class: 'flex h-[min(48rem,calc(100dvh-4rem))] min-h-0 min-w-0 w-full flex-col gap-5',
+        class: 'flex h-[min(42rem,calc(100dvh-4rem))] min-h-0 min-w-0 w-full flex-col gap-3',
     },
     templateUrl: './map-marker-editor.html',
 })
 export class MapMarkerEditor {
+    readonly nameTouched = signal(false);
+    readonly invalidNumbers = signal<Partial<Record<'latitude'|'longitude'|'border_width',boolean>>>({});
+    readonly validColor = (value:string) => /^#[0-9a-f]{6}$/i.test(value);
+    readonly stylesExpanded = signal(false);
+    readonly opacityExpanded = signal(false);
     readonly positionChosen = model(false);
     readonly draft = model.required<MapMarkerPayload>();
     readonly editing = input(false);
@@ -178,7 +186,7 @@ export class MapMarkerEditor {
             marker.background_color,
             marker.border_color,
         ].every(color => /^#[0-9a-f]{6}$/i.test(color));
-        return Boolean(marker.name.trim())
+        return Boolean(marker.name.trim()) && !Object.values(this.invalidNumbers()).some(Boolean)
             && (this.buildingPicker()?.selectionValid() ?? true)
             && marker.name.trim().length <= 120
             && colorsValid
@@ -294,6 +302,7 @@ export class MapMarkerEditor {
             && Number.isFinite(Number(building.latitude))
             && Number.isFinite(Number(building.longitude))
         ) {
+            this.invalidNumbers.set({});
             // Selecting an already positioned house must not move it to the
             // map centre. The user can choose a different point afterwards.
             this.draft.update(current => ({
@@ -317,6 +326,8 @@ export class MapMarkerEditor {
         value: string,
     ): void {
         if (field !== 'border_width' && !this.canEditCoordinates()) return;
+        this.invalidNumbers.update(fields=>({...fields,[field]:!Number.isFinite(Number(String(value).replace(',','.')))}));
+        if(field !== 'border_width' && String(value).trim()==='') { this.update(field,null);this.update('building_position',null);return; }
         const parsed = Number(String(value).replace(',', '.'));
         if (Number.isFinite(parsed)) {
             this.update(field, parsed as never);
@@ -342,6 +353,7 @@ export class MapMarkerEditor {
             && longitude >= -180 && longitude <= 180
         ) {
             event.preventDefault();
+            this.invalidNumbers.set({});
             this.draft.update(current => ({ ...current, latitude, longitude }));
             this.positionChosen.set(true);
             this.recordBuildingPosition();

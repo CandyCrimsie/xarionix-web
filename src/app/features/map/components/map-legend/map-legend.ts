@@ -4,7 +4,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { HlmSeparatorImports } from '@spartan-ng/helm/separator';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideChevronDown, lucideMap } from '@ng-icons/lucide';
+import { lucideChevronDown, lucideChevronRight, lucideMap } from '@ng-icons/lucide';
 import { MapIcon } from '../map-icon/map-icon';
 import { MAP_MARKER_ICONS, LEGACY_MAP_MARKER_ICONS } from '../../map-marker.config';
 import type { MapConnection, MapMarker } from '../../models/map.models';
@@ -15,7 +15,7 @@ import { MapLineSample } from '../map-line-sample/map-line-sample';
 @Component({
     selector: 'app-map-legend',
     imports: [HlmCollapsibleImports, HlmButtonImports, HlmTooltipImports, HlmSeparatorImports, NgIcon, MapIcon, MapLineSample],
-    providers: [provideIcons({ lucideChevronDown, lucideMap })],
+    providers: [provideIcons({ lucideChevronDown, lucideChevronRight, lucideMap })],
     templateUrl: './map-legend.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -25,6 +25,7 @@ export class MapLegend {
     readonly connections = input<MapConnection[]>([]);
     readonly hasBuildings = input(false);
     readonly expanded = signal(false);
+    readonly methodsExpanded = signal(true);
     readonly objects = computed(() => {
         const ids = new Set(this.markers().map(marker => marker.icon_name).filter(Boolean));
         if (this.hasBuildings()) ids.add('map-house');

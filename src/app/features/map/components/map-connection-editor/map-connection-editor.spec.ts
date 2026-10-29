@@ -42,6 +42,7 @@ describe('MapConnectionEditor', () => {
         expect(c.draft().vertices).toEqual([[38.245099, 55.577276]]);
         c.changeVertex(0, '91, 180');
         expect(c.coordinateError()).toBeTruthy();
+        expect(c.canSave()).toBeFalsy();
         c.removeVertex(0); expect(c.draft().vertices).toEqual([]);
         c.undoVertex(); expect(c.draft().vertices).toEqual([[38.245099, 55.577276]]);
         c.swap(); expect(c.draft().source?.kind).toBe('marker'); expect(c.draft().target?.kind).toBe('building');
@@ -74,5 +75,13 @@ describe('MapConnectionEditor', () => {
         expect(c.methods()).toEqual(['duct', 'duct']);
         c.setMethod(1, 'direct_buried'); expect(c.uniformMethod()).toBeNull();
         c.setAllMethods('aerial'); expect(c.methods()).toEqual(['aerial', 'aerial']);
+    });
+    it('uses keyboard-accessible Spartan collapsibles and a labelled icon-only direction control',()=>{
+        const section=fixture.nativeElement.querySelector('[data-testid="connection-installation-sections"] button') as HTMLButtonElement;
+        expect(fixture.nativeElement.querySelector('details, summary')).toBeNull();
+        expect(section.getAttribute('aria-expanded')).toBe('false');section.click();fixture.detectChanges();
+        expect(section.getAttribute('aria-expanded')).toBe('true');expect(fixture.componentInstance.sectionsExpanded()).toBe(true);
+        const swap=fixture.nativeElement.querySelector('[aria-label="Поменять местами"]') as HTMLButtonElement;
+        expect(swap.textContent?.trim()).toBe('');swap.click();fixture.detectChanges();expect(fixture.componentInstance.draft().source?.kind).toBe('marker');
     });
 });

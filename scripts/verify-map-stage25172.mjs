@@ -11,7 +11,8 @@ const verifySplice = process.env.MAP_VERIFY_SPLICE === '1';
 const verifyRoutes = process.env.MAP_VERIFY_ROUTES === '1';
 const verifyAddressFix = process.env.MAP_VERIFY_ADDRESS_FIX === '1';
 const verifyWorkspace = process.env.MAP_VERIFY_WORKSPACE === '1';
-const out = new URL(verifyWorkspace ? '../docs/verification/map-workspace/' : verifyAddressFix ? '../docs/verification/address-map-bugfix/' : verifyRoutes ? '../docs/verification/map-routes/' : verifySplice ? '../docs/verification/map-splice/' : '../docs/verification/stage25.17.2/', import.meta.url);
+const verifyUx = process.env.MAP_VERIFY_UX === '1';
+const out = new URL(process.env.MAP_VISUAL_OUT || (verifyUx ? '../docs/verification/map-ux/' : verifyWorkspace ? '../docs/verification/map-workspace/' : verifyAddressFix ? '../docs/verification/address-map-bugfix/' : verifyRoutes ? '../docs/verification/map-routes/' : verifySplice ? '../docs/verification/map-splice/' : '../docs/verification/stage25.17.2/'), import.meta.url);
 await mkdir(out, { recursive: true });
 const date = '2026-10-28T00:00:00Z';
 const appearance = { icon_name: 'map-house', label_text: 'Дом 53', icon_color: '#E3EAF3', icon_opacity: 1, text_color: '#E3EAF3', text_opacity: 1, background_enabled: true, background_color: '#222E3E', background_opacity: 1, border_enabled: true, border_color: '#3B485A', border_width: 1, border_opacity: 1, marker_opacity: 1, marker_size: 'normal', marker_shape: 'circle' };
@@ -133,6 +134,7 @@ try {
             workspaceFixture = await installWorkspaceFixtures(page, { markers, house, line, getLines: () => lines, setLines: value => { lines = value; } });
         }
         await page.goto(base + '/addresses');
+        await page.waitForFunction(()=>{const e=document.querySelector('app-addresses');const c=e&&window.ng?.getComponent(e);return c?.state()==='ready';});
         await page.evaluate(theme => document.documentElement.classList.toggle('dark', theme === 'dark'), theme);
         await page.getByTestId('open-address-map').click();
         await page.waitForFunction(() => {
@@ -174,6 +176,7 @@ try {
         await screenshot('connection');
         await component(() => { const c = window.ng.getComponent(document.querySelector('app-address-map')); c.closePopup(); c.startEditMarker(c.markers().find(m => m.id === 8)); });
         await page.getByRole('tab', { name: 'Оформление', exact: true }).click();
+        await page.getByRole('button', { name: 'Мои стили', exact: true }).click();
         await page.getByRole('textbox', { name: 'Название личного стиля' }).fill('Стиль после перезагрузки');
         await page.getByRole('button', { name: 'Сохранить как мой стиль', exact: true }).click();
         await page.waitForFunction(() => window.ng.getComponent(document.querySelector('app-address-map')).personalStyles().length === 2);
@@ -239,9 +242,13 @@ try {
             assert(resources.images <= 20 && resources.domMarkers === 0);
             rendered.thousandPointResources = resources;
         }
-        if (verifySplice || verifyRoutes) {
+        if (verifySplice || verifyRoutes || verifyUx) {
             const { verifyMapSplice } = await import('./verify-map-splice.mjs');
             rendered.spliceChecks = await verifyMapSplice(page, screenshot);
+        }
+        if(verifyUx){
+            const {verifyMapUx}=await import('./verify-map-ux.mjs');
+            rendered.uxChecks=await verifyMapUx(page,screenshot,{markers,getLines:()=>lines,setLines:value=>{lines=value;}});
         }
         if (verifyRoutes) {
             const { verifyMapRoutes } = await import('./verify-map-routes.mjs');

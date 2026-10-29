@@ -162,6 +162,11 @@ export interface MapRouteObjectResponse { marker: MapMarker; connection: MapConn
 export interface MapInstallationBoundaryPayload extends RoutePointPayload {
     installation_after: InstallationMethod; until: 'end' | 'next_vertex';
 }
+
+export type MapBoundaryEdit =
+    | { operation: 'set'; installation_after: InstallationMethod }
+    | { operation: 'remove'; keep: 'previous' | 'next' }
+    | ({ operation: 'move' } & Pick<RoutePointPayload, 'segment_index' | 'fraction' | 'position'>);
 export interface MapConnectionSplitResponse {
     marker: MapMarker;
     connections: [MapConnection, MapConnection];

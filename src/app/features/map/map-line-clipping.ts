@@ -9,6 +9,8 @@ export interface MarkerFootprint {
   width: number;
   height: number;
   radius: number;
+  /** Interaction may include transparent padding; cable clipping must not. */
+  hitBox?: { center: ScreenPoint; width: number; height: number };
 }
 const CELL = 64;
 const cross = (a: ScreenPoint, b: ScreenPoint) => a.x * b.y - a.y * b.x;

@@ -1,19 +1,25 @@
 <hlm-dialog-header>
     <h3 hlmDialogTitle>{{ editing() ? 'Изменить соединение' : 'Добавить соединение' }}</h3>
-    <p hlmDialogDescription>Выберите два существующих объекта, среду и трассу между ними.</p>
+    <p hlmDialogDescription>Концы, параметры кабеля и прокладка.</p>
 </hlm-dialog-header>
-<hlm-field-group class="my-5 max-h-[65dvh] overflow-y-auto pr-1">
+<hlm-field-group class="my-4 min-h-0 gap-4 overflow-y-auto pr-2">
+    <hlm-field>
+        <label hlmFieldLabel for="connection-name">Название</label>
+        <input hlmInput id="connection-name" maxlength="120" [disabled]="saving()" [ngModel]="draft().name" (ngModelChange)="update('name', $event)" />
+    </hlm-field>
     @for (side of ['source', 'target']; track side) {
     <hlm-field>
         <div class="flex items-center justify-between gap-2">
-            <label hlmFieldLabel>{{ side === 'source' ? 'Начало' : 'Конец' }}</label>
-            <button hlmBtn variant="ghost" size="sm" type="button" (click)="mapRequested.emit($any(side))">Выбрать на карте</button>
+            <label hlmFieldLabel>{{ side === 'source' ? 'Откуда' : 'Куда' }}</label>
+            <button hlmBtn variant="ghost" size="icon-sm" type="button" [disabled]="saving()" aria-label="Выбрать на карте" hlmTooltip="Выбрать на карте" (click)="mapRequested.emit($any(side))"><ng-icon name="lucideMapPin" /></button>
         </div>
         <app-map-endpoint-picker [value]="$any(draft())[side]" [disabled]="saving()" (valueChange)="setEndpoint($any(side), $event)" />
     </hlm-field>
+    @if (side === 'source') {
+      <div class="-my-3 flex justify-center"><button hlmBtn variant="ghost" size="icon-sm" type="button" [disabled]="saving()" aria-label="Поменять местами" hlmTooltip="Поменять местами" (click)="swap()"><ng-icon name="lucideArrowUpDown" /></button></div>
+    }
     }
     <div class="flex flex-wrap gap-2">
-        <button hlmBtn variant="outline" size="sm" type="button" (click)="swap()">Поменять местами</button>
         <button hlmBtn variant="outline" size="sm" type="button" [disabled]="!draft().source || !draft().target" (click)="mapRequested.emit('vertices')">Редактировать трассу · {{ draft().vertices.length }} вершин</button>
     </div>
     <hlm-field>
@@ -22,11 +28,10 @@
             <hlm-select-trigger class="w-full" data-testid="connection-installation"><hlm-select-value placeholder="Смешанная прокладка" /></hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal>@for (style of installationStyles; track style.value) { <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item> }</hlm-select-content>
         </hlm-select>
-        <p class="text-xs text-muted-foreground">Отдельные участки настраиваются ниже. Границу между способами можно поставить плюсом на карте — без создания узла.</p>
     </hlm-field>
-    <details class="rounded-lg border p-3" data-testid="connection-installation-sections">
-        <summary class="cursor-pointer text-sm font-medium">Участки прокладки · {{ methods().length }}</summary>
-        <div class="mt-3 grid gap-3">@for (method of methods(); track $index) {
+    <hlm-collapsible [expanded]="sectionsExpanded()" (expandedChange)="sectionsExpanded.set($event)" class="rounded-lg border" data-testid="connection-installation-sections">
+        <button hlmBtn hlmCollapsibleTrigger variant="ghost" type="button" class="h-10 w-full justify-between px-3 text-sm"><span>Участки прокладки · {{ methods().length }}</span><ng-icon [name]="sectionsExpanded() ? 'lucideChevronDown' : 'lucideChevronRight'" /></button>
+        <div hlmCollapsibleContent class="grid gap-2 p-3 pt-1">@for (method of methods(); track $index) {
             <div class="grid grid-cols-[auto_1fr] items-center gap-3"><span class="text-xs text-muted-foreground">{{ $index + 1 }}</span>
                 <hlm-select [value]="method" [itemToString]="installationLabel" (valueChange)="setMethod($index,$event)">
                     <hlm-select-trigger class="w-full"><app-map-line-sample [medium]="draft().medium" [method]="method" /><hlm-select-value /></hlm-select-trigger>
@@ -34,16 +39,17 @@
                 </hlm-select>
             </div>
         }</div>
-    </details>
-    <details class="rounded-lg border p-3">
-        <summary class="cursor-pointer text-sm font-medium">Вершины трассы · ручной ввод</summary>
-        <p class="my-3 text-xs text-muted-foreground">Широта, долгота. Концы привязаны к объектам и не удаляются как вершины.</p>
-        <div class="grid gap-2">
+    </hlm-collapsible>
+    <hlm-collapsible [expanded]="verticesExpanded()" (expandedChange)="verticesExpanded.set($event)" class="rounded-lg border">
+        <button hlmBtn hlmCollapsibleTrigger variant="ghost" type="button" class="h-10 w-full justify-between px-3 text-sm"><span>Вершины трассы · {{ draft().vertices.length }}</span><ng-icon [name]="verticesExpanded() ? 'lucideChevronDown' : 'lucideChevronRight'" /></button>
+        <div hlmCollapsibleContent class="grid gap-2 p-3 pt-1">
+            <p class="text-xs text-muted-foreground">Широта, долгота. Концы закреплены за объектами.</p>
             @for (point of draft().vertices; track $index) {
             <div class="grid gap-2">
               <div class="flex items-center gap-2">
+                <span class="w-4 shrink-0 text-xs text-muted-foreground">{{ $index + 1 }}</span>
                 <input hlmInput [attr.aria-label]="'Вершина ' + ($index + 1)" [value]="point[1] + ', ' + point[0]" (change)="changeVertex($index, $any($event.target).value)" />
-                <button hlmBtn variant="outline" size="sm" type="button" (click)="removeVertex($index)">Удалить</button>
+                <button hlmBtn variant="ghost" size="icon-sm" type="button" aria-label="Удалить вершину" hlmTooltip="Удалить вершину" (click)="removeVertex($index)"><ng-icon name="lucideTrash2" /></button>
               </div>
               @if (methods()[$index] !== methods()[$index+1]) {
                 <hlm-select [value]="mergeMethods()[$index]" [itemToString]="installationLabel" (valueChange)="setMergeMethod($index,$event)">
@@ -56,11 +62,7 @@
             <div class="flex gap-2"><button hlmBtn variant="outline" size="sm" type="button" [disabled]="!draft().source || draft().vertices.length >= 498" (click)="addVertex()">Добавить вершину</button><button hlmBtn variant="ghost" size="sm" type="button" [disabled]="!vertexHistory().length" (click)="undoVertex()">Отменить правку</button></div>
             @if (coordinateError()) { <p class="text-sm text-destructive" role="alert">{{ coordinateError() }}</p> }
         </div>
-    </details>
-    <hlm-field>
-        <label hlmFieldLabel for="connection-name">Название</label>
-        <input hlmInput id="connection-name" maxlength="120" [ngModel]="draft().name" (ngModelChange)="update('name', $event)" />
-    </hlm-field>
+    </hlm-collapsible>
     <div class="grid gap-4 sm:grid-cols-2">
         <hlm-field>
             <label hlmFieldLabel>Среда</label>
@@ -106,7 +108,7 @@
     </hlm-field>
 </hlm-field-group>
 @if (error()) { <p class="mb-3 text-sm text-destructive" role="alert">{{ error() }}</p> }
-<hlm-dialog-footer>
+<hlm-dialog-footer class="shrink-0 border-t pt-3">
     <button hlmBtn variant="outline" type="button" hlmDialogClose [disabled]="saving()">Отмена</button>
     <button hlmBtn type="button" [disabled]="!canSave() || saving()" (click)="saveRequested.emit()">{{ saving() ? 'Сохраняем...' : 'Сохранить соединение' }}</button>
 </hlm-dialog-footer>

@@ -13,6 +13,7 @@ describe('MapSpliceHover', () => {
     let current: SpliceHover | null;
     let hover: MapSpliceHover;
     let moving: boolean;
+    let blocked: (point: {x:number;y:number}) => boolean;
     const move = (x: number, y: number, buttons = 0) => listeners.get('mousemove')?.({ point: { x, y }, originalEvent: { buttons } });
 
     beforeEach(() => {
@@ -28,7 +29,8 @@ describe('MapSpliceHover', () => {
             project: ([lng, lat]: number[]) => ({ x: lng, y: lat }),
             unproject: ([x, y]: number[]) => ({ lng: x, lat: y }),
         } as unknown as LibreMap;
-        hover = new MapSpliceHover(map, () => lines, () => busy, value => { current = value; });
+        blocked = () => false;
+        hover = new MapSpliceHover(map, () => lines, () => busy, value => { current = value; }, point => blocked(point));
     });
     afterEach(() => { hover.destroy(); vi.useRealTimers(); });
 
@@ -82,5 +84,22 @@ describe('MapSpliceHover', () => {
         move(20, 0); canvas.dispatchEvent(new Event('mouseleave')); hover.destroy();
         expect(listeners.size).toBe(0); vi.advanceTimersByTime(500);
         expect(current).toBeNull();
+    });
+    it('gives a newly inserted point priority immediately, even while the overlay is held', () => {
+        move(23, 0); hover.hold(true);
+        blocked = point => Math.abs(point.x - 23) < 17;
+        move(23, 0);
+        expect(current).toBeNull();
+        vi.advanceTimersByTime(500);expect(current).toBeNull();
+        move(70, 0);expect(current?.x).toBe(70);
+    });
+    it('does not anchor a plus overlapping a marker even if the cursor is outside it', () => {
+        blocked = point => point.y === 0;
+        move(30, 5);expect(current).toBeNull();
+    });
+    it('never restores a stale held state when an overlay move is blocked by a new marker',()=>{
+        move(23,0);hover.hold(true);blocked=()=>true;
+        hover.moveOverButton({x:23,y:0});expect(current).toBeNull();
+        blocked=()=>false;move(70,0);expect(current?.x).toBe(70);
     });
 });

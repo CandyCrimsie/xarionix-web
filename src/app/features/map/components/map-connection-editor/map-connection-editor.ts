@@ -14,6 +14,10 @@ import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
+import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideArrowUpDown, lucideChevronDown, lucideChevronRight, lucideTrash2, lucideMapPin, lucideUndo2 } from '@ng-icons/lucide';
 import { MapEndpointPicker } from '../map-endpoint-picker/map-endpoint-picker';
 import type {
   MapConnectionDraft,
@@ -46,11 +50,16 @@ export const CONNECTION_STATUS_LABELS = {
     HlmTextareaImports,
     MapEndpointPicker,
     MapLineSample,
+    HlmCollapsibleImports, HlmTooltipImports, NgIcon,
   ],
+  providers: [provideIcons({ lucideArrowUpDown, lucideChevronDown, lucideChevronRight, lucideTrash2, lucideMapPin, lucideUndo2 })],
+  host: { class: 'flex min-h-0 max-h-[calc(100dvh-5rem)] flex-col' },
   templateUrl: './map-connection-editor.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MapConnectionEditor {
+  readonly sectionsExpanded = signal(false);
+  readonly verticesExpanded = signal(false);
   readonly draft = model.required<MapConnectionDraft>();
   readonly canManage = input(false);
   readonly saving = input(false);
@@ -81,6 +90,7 @@ export class MapConnectionEditor {
     const d = this.draft();
     return (
       d.name.trim().length > 0 &&
+      !this.coordinateError() &&
       d.name.length <= 120 &&
       d.source &&
       d.target &&

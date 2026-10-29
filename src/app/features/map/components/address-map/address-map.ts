@@ -90,8 +90,11 @@ import type {
     InstallationMethod, MapPointType, RouteNodeType, RoutePassThroughType,
 } from '../../models/map.models';
 import { createConnectionDraft } from '../../models/map.models';
-import { createMarkerElement, markerImageKey, rasterizeMarker, labelHaloColor, MAP_FONT_FACES, MAP_LABEL_LAYOUT, MAP_TEXT_FONT } from '../../map-marker-renderer';
+import { createMarkerElement, markerImageKey, markerMetrics, rasterizeMarker, labelHaloColor, MAP_FONT_FACES, MAP_LABEL_LAYOUT, MAP_TEXT_FONT } from '../../map-marker-renderer';
 import { MapConnectionLayer, connectionLabel, routeCoordinates } from '../../map-connection-layer';
+import { installationBoundaries, previewBoundaryMove, type InstallationBoundary } from '../../map-installation-boundaries';
+import { nearestRoutePoint, type RouteSnap } from '../../map-connection-geometry';
+import type { MapBoundaryEdit } from '../../models/map.models';
 import { MapConnectionEditor, CONNECTION_STATUS_LABELS } from '../map-connection-editor/map-connection-editor';
 import { MapDataService } from '../../services/map-data.service';
 import {
@@ -299,6 +302,12 @@ export class AddressMap implements AfterViewInit {
     readonly boundaryUntilLabel = (value: string) => value === 'next_vertex' ? 'До следующей вершины' : 'До конца трассы';
     readonly boundarySaving=signal(false);
     readonly boundaryError=signal<string|null>(null);
+    readonly installationEditId = signal<number | null>(null);
+    readonly installationHandles = signal<InstallationBoundary[]>([]);
+    readonly activeBoundary = signal<{ line: MapConnection; boundary: InstallationBoundary } | null>(null);
+    readonly movingBoundary = signal(false);
+    readonly boundaryPreview = signal<{ line: MapConnection; snap: RouteSnap } | null>(null);
+    readonly boundaryAction = signal<'menu' | 'set' | 'remove'>('menu');
     readonly detachDialog=viewChild<HlmAlertDialog>('detachDialog');
     readonly objectToDetach=signal<{line:MapConnection;markerId:number;name:string}|null>(null);
     readonly objectDetaching=signal(false);
@@ -324,7 +333,7 @@ export class AddressMap implements AfterViewInit {
     readonly visibleConnections = computed(() => this.showConnections() ? this.connections().filter(line =>
         (this.mediumFilter() === 'all' || line.medium === this.mediumFilter())
         && (this.statusFilter() === 'all' || line.status === this.statusFilter())) : []);
-    readonly spliceBusy = computed(() => !this.canManage() || this.placingMarker() || this.connectionDraftActive() || this.routeMenuTarget()!==null
+    readonly spliceBusy = computed(() => !this.canManage() || this.movingBoundary() || this.activeBoundary()!==null || this.placingMarker() || this.connectionDraftActive() || this.routeMenuTarget()!==null
         || this.markerSaving() || this.connectionSaving() || this.state() !== 'ready'
         || [this.markerDialog(), this.connectionDialog(), this.spliceChoiceDialog(), this.splicePlacementDialog(),
             this.deleteMarkerDialog(), this.connectionDeleteDialog(), this.bindingDialog(),this.boundaryDialog(),this.detachDialog()].some(dialog => dialog?.stateComputed() === 'open'));
@@ -341,6 +350,7 @@ export class AddressMap implements AfterViewInit {
     private popup: MapPopup | null = null;
     private popupKind: 'building' | 'marker' | 'connection' | null = null;
     private destroyed = false;
+    private readonly pendingInteractiveMarkers = new Set<number>();
     private initializationGeneration = 0;
     private viewportGeneration = 0;
     private focusGeneration = 0;
@@ -445,10 +455,12 @@ export class AddressMap implements AfterViewInit {
             this.connectionMapMode.set(null);
             this.connectionDraftActive.set(false);
             this.selectedConnectionId.set(null);
+            this.activeBoundary.set(null);this.boundaryPreview.set(null);this.movingBoundary.set(false);this.installationEditId.set(null);this.installationHandles.set([]);
             this.routeHistory.set([]);
             this.activeVertex.set(null);
             this.setBuildingData(EMPTY_FEATURES);
             this.markers.set([]);
+            this.pendingInteractiveMarkers.clear();
             this.setMarkerData([]);
             this.placingMarker.set(false);
             this.cleanupPointSelection();
@@ -466,6 +478,10 @@ export class AddressMap implements AfterViewInit {
 
         effect(() => {
             if (this.spliceBusy()) this.spliceController?.clear();
+        });
+        effect(() => {
+            this.selectedConnectionId(); this.visibleConnections(); this.connectionDraftActive(); this.boundaryPreview();
+            untracked(() => this.refreshInstallationHandles());
         });
         effect(() => {
             this.visibleConnections();
@@ -539,7 +555,12 @@ export class AddressMap implements AfterViewInit {
         void this.initializeMap();
     }
 
-    openCreateMarker(): void { this.startCreateMarker(); this.markerDialog()?.open(); }
+    openCreateMarker(): void { if(this.boundaryDraftBlocksAction())return;this.startCreateMarker(); this.markerDialog()?.open(); }
+
+    private boundaryDraftBlocksAction():boolean {
+        if(!this.activeBoundary()&&!this.boundarySaving())return false;
+        toast.error('Сначала сохраните или отмените изменение границы прокладки.');return true;
+    }
 
     resetFilters(): void {
         if (this.connectionDraftActive() || this.connectionSaving()) { toast.error('Сначала завершите редактирование соединения.'); return; }
@@ -628,7 +649,7 @@ export class AddressMap implements AfterViewInit {
         this.expandedFocusTrap = this.focusTraps.create(this.hostElement.nativeElement);
         void this.expandedFocusTrap.focusFirstTabbableElementWhenReady();
         overlay.keydownEvents().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
-            if (event.key !== 'Escape' || this.activePanel() || this.placingMarker() || this.connectionMapMode()
+            if (event.key !== 'Escape' || this.activePanel() || this.activeBoundary() || this.installationEditId() || this.placingMarker() || this.connectionMapMode()
                 || Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="popover-content"]'))
                     .some(element => element !== overlay.overlayElement)) return;
             event.preventDefault(); event.stopPropagation(); this.collapseMap();
@@ -724,8 +745,10 @@ export class AddressMap implements AfterViewInit {
                     index => { this.rememberRoute(); this.activeVertex.set(index); },
                     (index, coordinate) => this.moveRouteVertex(index, coordinate),
                     ()=>this.connectionFootprints(),
+                    (id,vertex)=>this.selectExistingBoundary(id,vertex),
                 );
-                this.spliceController = new MapSpliceHover(map, () => this.visibleConnections(), () => this.spliceBusy(), hover => this.spliceHover.set(hover),point=>this.connectionLayer?.isOccluded(point)??false);
+                this.spliceController = new MapSpliceHover(map, () => this.visibleConnections(), () => this.spliceBusy(), hover => this.spliceHover.set(hover),point=>
+                    (this.connectionLayer?.isOccluded(point,true)??false)||this.installationHandles().some(handle=>Math.hypot(handle.x-point.x,handle.y-point.y)<22));
                 this.state.set('ready');
                 this.scheduleSessionRefresh(session);
                 this.updateExternalMapLink();
@@ -735,6 +758,7 @@ export class AddressMap implements AfterViewInit {
                 this.loadPersonalStyles();
             });
             map.on('click', event => {
+                if(this.movingBoundary()) { if(this.updateBoundaryPreview(event.point))this.movingBoundary.set(false); return; }
                 if (this.connectionMapMode() !== 'vertices') return;
                 const vertex = map.queryRenderedFeatures(event.point, { layers: ['route-edit-vertices'] })[0];
                 if (vertex) { this.activeVertex.set(Number(vertex.properties['index'])); return; }
@@ -742,6 +766,9 @@ export class AddressMap implements AfterViewInit {
                 this.rememberRoute();
                 this.connectionDraft.update(draft => ({ ...draft, vertices: [...draft.vertices, [event.lngLat.lng, event.lngLat.lat]],installation_methods:[...installationMethods(draft.vertices,draft.installation_methods),installationMethods(draft.vertices,draft.installation_methods).at(-1)!] }));
             });
+            map.on('mousemove', event => { if(this.movingBoundary()) this.updateBoundaryPreview(event.point); });
+            map.on('move', () => { this.refreshInstallationHandles(); });
+            map.on('resize', () => { this.refreshInstallationHandles(); });
             map.on('moveend', () => {
                 this.updateExternalMapLink();
                 this.scheduleViewportLoad();
@@ -1131,6 +1158,7 @@ export class AddressMap implements AfterViewInit {
 
 
     private showBuildingPopup(coordinates: [number, number], buildingId: number, fullAddress: string): void {
+        if(this.activeBoundary())return;
         this.renderPopup(this.buildingPopup(), { id: buildingId, full_address: fullAddress }, coordinates);
         this.popupKind = 'building';
         this.popupBuildingId.set(buildingId);
@@ -1161,6 +1189,7 @@ export class AddressMap implements AfterViewInit {
 
 
     private showCustomMarkerPopup(coordinates: [number, number], marker: MapMarker): void {
+        if(this.activeBoundary())return;
         if (marker.building_link_role === 'represents' && marker.building_id !== null) {
             this.showBuildingPopup(coordinates, marker.building_id, marker.building_full_address ?? marker.name);
             return;
@@ -1197,6 +1226,7 @@ export class AddressMap implements AfterViewInit {
 
 
     startEditMarker(marker: MapMarker): void {
+        if(this.boundaryDraftBlocksAction())return;
         this.markerMutationGeneration++;
         this.markerSaving.set(false);
         this.markerPositionChosen.set(false);
@@ -1410,6 +1440,7 @@ export class AddressMap implements AfterViewInit {
     }
 
     requestConnectionMode(mode: ConnectionMode): void {
+        if(this.boundaryDraftBlocksAction())return;
         if (this.connectionDraftActive() || this.connectionDialog()?.stateComputed() === 'open' || this.connectionSaving()
             || this.connectionDeleteDialog()?.stateComputed() === 'open' || this.boundaryDialog()?.stateComputed() === 'open' || this.spliceTarget()) {
             toast.error('Сначала сохраните или отмените редактирование соединения.'); return;
@@ -1425,6 +1456,7 @@ export class AddressMap implements AfterViewInit {
     }
 
     private clearConnectionDisplay(): void {
+        this.activeBoundary.set(null);this.boundaryPreview.set(null);this.movingBoundary.set(false);this.installationEditId.set(null);this.installationHandles.set([]);
         this.connectionLoadGeneration++;
         this.connectionViewportSubscription?.unsubscribe(); this.connectionViewportSubscription = null;
         if (this.popupKind === 'connection') this.closePopup(false);
@@ -1474,7 +1506,68 @@ export class AddressMap implements AfterViewInit {
 
 
     private renderConnections(): void {
-        this.connectionLayer?.setConnections(this.visibleConnections(), this.selectedConnectionId());
+        const preview=this.boundaryPreview()?.line;
+        this.connectionLayer?.setConnections(this.visibleConnections().map(line=>preview?.id===line.id?preview:line), this.selectedConnectionId());
+        this.refreshInstallationHandles();
+    }
+
+    private refreshInstallationHandles(): void {
+        const map=this.map, preview=this.boundaryPreview()?.line;
+        const line=this.visibleConnections().find(line=>line.id===this.selectedConnectionId());
+        if(this.installationEditId()!==null&&this.installationEditId()!==line?.id&&!this.activeBoundary())this.installationEditId.set(null);
+        this.installationHandles.set(map&&line&&!this.connectionDraftActive()&&!this.placingMarker()
+            ?installationBoundaries(preview?.id===line.id?preview:line,map):[]);
+    }
+
+    startInstallationEdit(line:MapConnection):void {
+        this.closePopup(false);this.cancelBoundaryEdit();this.selectedConnectionId.set(line.id);this.installationEditId.set(line.id);
+        this.spliceController?.clear();this.refreshInstallationHandles();
+    }
+
+    selectExistingBoundary(id:number,vertex:number):void {
+        if(this.activeBoundary()||this.connectionDraftActive()||this.placingMarker())return;
+        const line=this.visibleConnections().find(line=>line.id===id);if(!line)return;
+        if(!this.canManage()||!line.can_manage){this.openConnectionPopup(id,line.geometry?.coordinates[vertex] as [number,number]);return;}
+        this.startInstallationEdit(line);
+        const boundary=this.installationHandles().find(handle=>handle.vertex===vertex);
+        if(boundary)this.openBoundary(boundary);
+    }
+
+    openBoundary(boundary:InstallationBoundary):void {
+        if(this.boundarySaving()||this.boundaryPreview())return;
+        const line=this.visibleConnections().find(line=>line.id===this.selectedConnectionId());
+        if(!line||!line.can_manage||!this.canManage())return;
+        this.spliceController?.clear();this.activeBoundary.set({line:structuredClone(line),boundary});
+        this.boundaryAction.set('menu');this.boundaryMethod.set(boundary.after);this.boundaryError.set(null);
+    }
+
+    moveBoundary():void { this.boundaryError.set(null);this.movingBoundary.set(true); }
+
+    private updateBoundaryPreview(cursor:{x:number;y:number}):boolean {
+        const target=this.activeBoundary(),map=this.map;if(!target||!map)return false;
+        const snap=nearestRoutePoint(target.line.geometry!.coordinates,cursor,map);
+        const preview=snap&&previewBoundaryMove(target.line,target.boundary.vertex,snap);
+        if(!preview||!snap)return false;
+        this.boundaryPreview.set({line:preview,snap});this.renderConnections();
+        return true;
+    }
+
+    cancelBoundaryEdit():void {
+        if(this.boundarySaving())return;
+        this.movingBoundary.set(false);this.activeBoundary.set(null);this.boundaryPreview.set(null);this.boundaryError.set(null);
+        this.spliceController?.clear();this.renderConnections();
+    }
+
+    finishInstallationEdit():void { if(this.boundarySaving())return;this.cancelBoundaryEdit();this.installationEditId.set(null); }
+
+    saveBoundaryEdit(data?:MapBoundaryEdit):void {
+        const target=this.activeBoundary();if(!target||this.boundarySaving())return;
+        if(!data){const snap=this.boundaryPreview()?.snap;if(!snap)return;data={operation:'move',segment_index:snap.segmentIndex,fraction:snap.fraction,position:{latitude:snap.position[1],longitude:snap.position[0]}};}
+        const generation=++this.markerMutationGeneration;this.boundarySaving.set(true);this.boundaryError.set(null);
+        this.mapData.editInstallationBoundary(target.line,target.boundary.vertex,data).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next:line=>{if(this.destroyed||generation!==this.markerMutationGeneration)return;this.boundarySaving.set(false);this.cancelBoundaryEdit();this.applyRouteMutation([line]);toast.success('Граница прокладки сохранена');},
+            error:(error:HttpErrorResponse)=>{if(this.destroyed||generation!==this.markerMutationGeneration)return;this.boundarySaving.set(false);this.boundaryError.set(error.error?.detail?.message??'Не удалось сохранить границу. Предварительные изменения не потеряны.');},
+        });
     }
 
     private connectionFootprints():MarkerFootprint[]{
@@ -1482,7 +1575,7 @@ export class AddressMap implements AfterViewInit {
         if(!map||typeof map.queryRenderedFeatures!=='function'||typeof map.project!=='function')return [];
         const layers=['building-points','selected-building-marker','custom-marker-points','building-clusters','custom-marker-clusters'].filter(id=>map.getLayer(id));
         const markers=new Map(this.markers().map(marker=>[marker.id,marker]));
-        const result:MarkerFootprint[]=[],seen=new Set<string>();
+        const result:MarkerFootprint[]=[],seen=new Set<string>(), renderedMarkers=new Set<number>();
         for(const feature of map.queryRenderedFeatures({layers})){
             if(feature.geometry.type!=='Point')continue;
             const center=map.project(feature.geometry.coordinates as [number,number]);
@@ -1495,11 +1588,23 @@ export class AddressMap implements AfterViewInit {
             }
             const markerId=feature.layer.id==='custom-marker-points'?Number(feature.properties['id']):Number(feature.properties['marker_id']);
             const marker=markers.get(markerId);
+            if(marker&&Math.abs(feature.geometry.coordinates[0]-marker.longitude!)<1e-7&&Math.abs(feature.geometry.coordinates[1]-marker.latitude!)<1e-7){renderedMarkers.add(marker.id);this.pendingInteractiveMarkers.delete(marker.id);}
             const appearance=marker?pickMarkerAppearance(marker):{...mapAppearanceForTheme(this.dark()),icon_name:'map-house',label_text:null};
             const selected=marker?marker.id===this.selectedMarkerId()||marker.id===this.selectedBuildingMarker()?.id:feature.layer.id==='selected-building-marker'||Number(feature.properties['id'])===this.popupBuildingId();
             const imageKey=String(feature.properties['image_key']??(selected?SELECTED_BUILDING_IMAGE:BUILDING_MARKER_IMAGE));
             const footprint=this.footprintCache.footprint(map,center,appearance,imageKey,selected);
-            if(footprint)result.push(footprint);
+            if(footprint){const metrics=markerMetrics(appearance);result.push({...footprint,hitBox:{center,width:metrics.width+8,height:metrics.size+8}});}
+        }
+        // GeoJSON worker updates lag behind a successful mutation. Protect the
+        // canonical points immediately, before their sprites are queryable.
+        // At clustered zooms the rendered cluster footprints remain authoritative.
+        if(map.getZoom()>14||this.pendingInteractiveMarkers.size){
+            for(const marker of markers.values()){
+                if((map.getZoom()<=14&&!this.pendingInteractiveMarkers.has(marker.id))||renderedMarkers.has(marker.id)||marker.longitude===null||marker.latitude===null||!this.visibleMarker(marker))continue;
+                const center=map.project([marker.longitude,marker.latitude]);
+                const footprint=this.footprintCache.footprint(map,center,pickMarkerAppearance(marker),this.markerImageKey(marker),marker.id===this.selectedMarkerId());
+                if(footprint){const metrics=markerMetrics(marker);result.push({...footprint,hitBox:{center,width:metrics.width+8,height:metrics.size+8}});}
+            }
         }
         return result;
     }
@@ -1630,6 +1735,8 @@ export class AddressMap implements AfterViewInit {
     }
 
     private applyRouteMutation(connections:MapConnection[],marker?:MapMarker):void {
+        if(marker)this.pendingInteractiveMarkers.add(marker.id);
+        this.spliceController?.clear();this.spliceHover.set(null);this.routeMenuTarget.set(null);
         this.viewportGeneration++;this.viewportSubscription?.unsubscribe();this.markerViewportSubscription?.unsubscribe();this.connectionViewportSubscription?.unsubscribe();
         this.connectionLoadGeneration++;
         const ids=new Set(connections.map(line=>line.id));
@@ -1638,7 +1745,7 @@ export class AddressMap implements AfterViewInit {
             this.connectionMode() === 'viewport' || (this.connectionMode() === 'object' && endpoint && [line.source, line.target].some(end => end.kind === endpoint.kind && end.id === endpoint.id)));
         this.connections.update(lines=>this.connectionMode() === 'hidden' ? [] : [...lines.filter(line=>!ids.has(line.id)),...candidates]);
         this.markers.update(current=>{
-            const points=marker?[...current.filter(point=>point.id!==marker.id),...(this.workspace.layers().length ? [] : [marker])]:current;
+            const points=marker?[...current.filter(point=>point.id!==marker.id),marker]:current;
             return points.map(point=>{
                 for(const line of connections){
                     const attachment=line.route_objects?.find(item=>item.marker_id===point.id);
@@ -1647,7 +1754,7 @@ export class AddressMap implements AfterViewInit {
                 return point.route_attachment&&ids.has(point.route_attachment.connection_id)&&connections.some(line=>line.id===point.route_attachment!.connection_id&&line.route_objects!==undefined)?{...point,route_attachment:null}:point;
             });
         });
-        this.setMarkerData(this.markers());this.renderConnections();
+        this.setMarkerData(this.markers());this.connectionLayer?.refreshFootprints(true);this.renderConnections();
         if (this.workspace.layers().length) this.workspace.reloadLayers();
         if (this.workspace.layers().length || this.installationFilter() !== 'all' || this.connectionMode() !== 'viewport') this.loadConnections();
     }
@@ -1662,7 +1769,7 @@ export class AddressMap implements AfterViewInit {
         const generation=++this.markerMutationGeneration;this.boundarySaving.set(true);this.boundaryError.set(null);
         this.mapData.setInstallationBoundary(target.connection.id,{expected_version:target.connection.version,expected_geometry_token:target.connection.geometry_token,
             segment_index:target.point.segmentIndex,fraction:target.point.fraction,position:{latitude:target.point.position[1],longitude:target.point.position[0]},installation_after:this.boundaryMethod(),until:this.boundaryUntil()})
-            .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next:line=>{if(this.destroyed||generation!==this.markerMutationGeneration)return;this.boundarySaving.set(false);this.applyRouteMutation([line]);this.boundaryDialog()?.close({});this.boundaryTarget.set(null);toast.success('Способ прокладки изменён');},
+            .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next:line=>{if(this.destroyed||generation!==this.markerMutationGeneration)return;this.boundarySaving.set(false);this.applyRouteMutation([line]);this.selectedConnectionId.set(line.id);this.installationEditId.set(line.id);this.refreshInstallationHandles();this.boundaryDialog()?.close({});this.boundaryTarget.set(null);toast.success('Способ прокладки изменён');},
                 error:(error:HttpErrorResponse)=>{if(this.destroyed||generation!==this.markerMutationGeneration)return;this.boundarySaving.set(false);this.boundaryError.set(error.error?.detail?.message??'Не удалось сохранить способ прокладки');}});
     }
 
@@ -1677,6 +1784,7 @@ export class AddressMap implements AfterViewInit {
 
 
     startCreateConnection(): void {
+        if(this.boundaryDraftBlocksAction())return;
         this.closePopup();
         this.editingConnection.set(null);
         this.connectionError.set(null);
@@ -1688,6 +1796,7 @@ export class AddressMap implements AfterViewInit {
 
 
     startEditConnection(connection: MapConnection): void {
+        if(this.boundaryDraftBlocksAction())return;
         this.closePopup();
         this.editingConnection.set(connection);
         this.connectionError.set(null);
@@ -1780,8 +1889,16 @@ export class AddressMap implements AfterViewInit {
 
     @HostListener('window:keydown', ['$event'])
     handleMapKey(event: KeyboardEvent): void {
-        if (event.defaultPrevented || document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [data-slot="popover-content"], [role="listbox"]')) return;
-        if (this.connectionMapMode()) {
+        // Closing overlays may still consume Escape during their exit animation.
+        if((this.movingBoundary()||this.boundaryPreview())&&event.key==='Escape'){
+            event.preventDefault();this.cancelBoundaryEdit();return;
+        }
+        if (event.defaultPrevented || Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [data-slot="popover-content"], [role="listbox"]')).some(element=>element!==this.expandedOverlay?.overlayElement)) return;
+        if(this.activeBoundary()){
+            if(event.key==='Escape'){event.preventDefault();this.cancelBoundaryEdit();}
+            else if(event.key==='Enter'&&this.boundaryPreview()){event.preventDefault();this.movingBoundary.set(false);this.saveBoundaryEdit();}
+        } else if (this.installationEditId()&&event.key==='Escape'){event.preventDefault();this.finishInstallationEdit();}
+        else if (this.connectionMapMode()) {
             if (event.key === 'Escape') { event.preventDefault(); this.cancelConnectionMap(); }
             else if (event.key === 'Enter') { event.preventDefault(); this.finishConnectionMap(); }
             else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); this.removeRouteVertex(); }
@@ -1826,6 +1943,7 @@ export class AddressMap implements AfterViewInit {
 
 
     openConnectionPopup(id: number, coordinate?: [number, number]): void {
+        if(this.activeBoundary())return;
         const connection = this.connections().find(line => line.id === id) ?? this.popupConnections().find(line => line.id === id);
         if (!connection) return;
         const point = coordinate ?? connection.geometry?.coordinates[0] as [number, number] | undefined;

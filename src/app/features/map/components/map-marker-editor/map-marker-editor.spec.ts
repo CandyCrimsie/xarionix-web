@@ -56,6 +56,17 @@ describe('MapMarkerEditor', () => {
         component.selectIcon('router');
         expect(component.draft().icon_name).toBe('router');
     });
+    it('never silently saves the previous coordinate after invalid or empty numeric input',()=>{
+        expect(component.canSave()).toBeTruthy();component.updateNumber('latitude','не число');expect(component.canSave()).toBe(false);
+        component.updateNumber('latitude','55.5');expect(component.canSave()).toBeTruthy();
+        component.updateNumber('longitude','');expect(component.draft().longitude).toBeNull();expect(component.canSave()).toBe(false);
+    });
+    it('keeps the point picker compact, labelled, and does not discard entered fields',()=>{
+        const button=fixture.nativeElement.querySelector('[data-testid="choose-marker-point"]') as HTMLButtonElement;
+        expect(button.getAttribute('aria-label')).toBe('Выбрать на карте');expect(button.textContent?.trim()).toBe('');
+        const snapshot=structuredClone(component.draft()),requested=vi.fn();component.pointRequested.subscribe(requested);
+        button.click();expect(requested).toHaveBeenCalledOnce();expect(component.draft()).toMatchObject({name:snapshot.name,label_text:snapshot.label_text});
+    });
 
     it('groups settings into clear tabs and keeps icon names in accessible tooltips', () => {
         const tabs = Array.from(
