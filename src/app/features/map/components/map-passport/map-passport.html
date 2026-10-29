@@ -1,7 +1,7 @@
 <hlm-dialog #dialog="hlmDialog" [disableClose]="saving() || membershipSaving()" (closed)="onClosed()">
-    <hlm-dialog-content *hlmDialogPortal="let ctx" class="w-[calc(100vw-2rem)] max-w-none sm:max-w-2xl" [showCloseButton]="!saving() && !membershipSaving()" data-testid="map-passport">
+    <hlm-dialog-content *hlmDialogPortal="let ctx" class="flex max-h-[90dvh] w-[calc(100vw-2rem)] max-w-none flex-col sm:max-w-2xl" [showCloseButton]="!saving() && !membershipSaving()" data-testid="map-passport">
         <hlm-dialog-header><h3 hlmDialogTitle>{{ editing() ? 'Редактирование паспорта' : 'Паспорт объекта' }}</h3><p hlmDialogDescription>{{ record()?.entity?.name ?? 'Загружаем сведения…' }}</p></hlm-dialog-header>
-        <div class="max-h-[min(38rem,70dvh)] overflow-y-auto pr-1">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
             @if (loading()) { <p class="text-sm text-muted-foreground" role="status">Загружаем паспорт…</p> }
             @if (record(); as record) {
                 @if (editing()) {
@@ -61,7 +61,7 @@
             }
         </div>
         @if (error()) { <div class="grid gap-1 text-sm text-destructive" role="alert">{{ error() }}@if (!saving()) { <button hlmBtn variant="link" size="sm" class="justify-start px-0" (click)="editing.set(false); reload()">Перечитать паспорт</button> }</div> }
-        <hlm-dialog-footer>
+        <hlm-dialog-footer class="shrink-0 border-t pt-3">
             @if (editing()) { <button hlmBtn variant="outline" [disabled]="saving()" (click)="cancelEdit()">Отмена</button><button hlmBtn [disabled]="saving()" (click)="save()" data-testid="save-map-passport">{{ saving() ? 'Сохраняем…' : 'Сохранить' }}</button> }
             @else { <button hlmBtn variant="outline" [disabled]="membershipSaving()" (click)="ctx.close()">Закрыть</button>@if (record()?.can_manage) { <button hlmBtn (click)="beginEdit()" data-testid="edit-map-passport">Изменить паспорт</button> } }
         </hlm-dialog-footer>

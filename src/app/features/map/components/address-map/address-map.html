@@ -1,13 +1,55 @@
-<div class="relative h-full overflow-hidden rounded-lg border bg-background" [style.min-height]="expanded() ? '0' : '32rem'" data-testid="address-map">
+<div
+  class="relative h-full overflow-hidden rounded-lg border bg-background"
+  [style.min-height]="expanded() ? '0' : '32rem'"
+  data-testid="address-map"
+>
   <div #mapContainer class="h-full w-full" aria-label="Карта адресов"></div>
   <app-map-layer-editor #layerEditor />
   <app-address-dependencies-dialog />
-  <app-map-passport [canManageLayers]="canManage()" (saved)="onPassportSaved($event)" (membershipChanged)="workspace.reloadLayers()" />
+  <app-map-passport
+    [canManageLayers]="canManage()"
+    (saved)="onPassportSaved($event)"
+    (membershipChanged)="workspace.reloadLayers()"
+  />
   <hlm-alert-dialog #deleteHouseDialog="hlmAlertDialog" [disableClose]="houseDeleting()">
-    <hlm-alert-dialog-content *hlmAlertDialogPortal><hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Удалить дом из адресного каталога?</h3><p hlmAlertDialogDescription>{{ houseToDelete()?.full_address }}. Это удаление дома, а не только его метки. При наличии зависимостей операция будет заблокирована.</p></hlm-alert-dialog-header>@if (houseDeleteError()) { <p class="text-sm text-destructive" role="alert">{{ houseDeleteError() }}</p> }<hlm-alert-dialog-footer><button hlmAlertDialogCancel [disabled]="houseDeleting()">Отмена</button><button hlmAlertDialogAction variant="destructive" [disabled]="houseDeleting()" (click)="deleteHouse()">Удалить дом</button></hlm-alert-dialog-footer></hlm-alert-dialog-content>
+    <hlm-alert-dialog-content *hlmAlertDialogPortal
+      ><hlm-alert-dialog-header
+        ><h3 hlmAlertDialogTitle>Удалить дом из адресного каталога?</h3>
+        <p hlmAlertDialogDescription>
+          {{ houseToDelete()?.full_address }}. Это удаление дома, а не только его метки. При наличии
+          зависимостей операция будет заблокирована.
+        </p></hlm-alert-dialog-header
+      >
+      @if (houseDeleteError()) {
+        <p class="text-sm text-destructive" role="alert">{{ houseDeleteError() }}</p>
+      }
+      <hlm-alert-dialog-footer
+        ><button hlmAlertDialogCancel [disabled]="houseDeleting()">Отмена</button
+        ><button
+          hlmAlertDialogAction
+          variant="destructive"
+          [disabled]="houseDeleting()"
+          (click)="deleteHouse()"
+        >
+          Удалить дом
+        </button></hlm-alert-dialog-footer
+      ></hlm-alert-dialog-content
+    >
   </hlm-alert-dialog>
   @if (!expanded()) {
-    <button #expandButton hlmBtn variant="outline" size="icon-sm" type="button" class="absolute bottom-3 right-3 z-10 size-9 bg-background/90 shadow-sm backdrop-blur-md" aria-label="Развернуть карту" data-testid="expand-address-map" (click)="expandMap()"><ng-icon name="lucideMaximize" /></button>
+    <button
+      #expandButton
+      hlmBtn
+      size="icon"
+      variant="secondary"
+      type="button"
+      class="absolute bottom-3 right-3 z-10"
+      aria-label="Развернуть карту"
+      data-testid="expand-address-map"
+      (click)="expandMap()"
+    >
+      <ng-icon name="lucideMaximize" />
+    </button>
   }
 
   @if (state() === 'loading') {
@@ -38,12 +80,23 @@
     [disableClose]="markerSaving()"
     (closed)="onMarkerDialogClosed()"
   >
-    <app-map-toolbar class="absolute left-3 top-3 z-10 isolate max-w-[calc(100%-5rem)]"
-      [(activePanel)]="activePanel" [canManage]="canManage()" [expanded]="expanded()"
-      [markers]="legendMarkers()" [connections]="visibleConnections()" [hasBuildings]="legendBuildings()"
-      (closeRequested)="closeMapSurface()" (addMarker)="openCreateMarker()" (addConnection)="startCreateConnection()"
-      (modeRequested)="requestConnectionMode($event)" (resetRequested)="resetFilters()"
-      (editLayer)="layerEditor.open($event)" (deleteLayer)="layerEditor.requestDelete($event)" (reorderLayer)="layerEditor.reorder($event.layer, $event.direction)" />
+    <app-map-toolbar
+      class="absolute left-3 top-3 z-10 isolate max-w-[calc(100%-5rem)]"
+      [(activePanel)]="activePanel"
+      [canManage]="canManage()"
+      [expanded]="expanded()"
+      [markers]="legendMarkers()"
+      [connections]="visibleConnections()"
+      [hasBuildings]="legendBuildings()"
+      (closeRequested)="closeMapSurface()"
+      (addMarker)="openCreateMarker()"
+      (addConnection)="startCreateConnection()"
+      (modeRequested)="requestConnectionMode($event)"
+      (resetRequested)="resetFilters()"
+      (editLayer)="layerEditor.open($event)"
+      (deleteLayer)="layerEditor.requestDelete($event)"
+      (reorderLayer)="layerEditor.reorder($event.layer, $event.direction)"
+    />
 
     <hlm-dialog-content
       *hlmDialogPortal="let ctx"
@@ -86,7 +139,6 @@
       />
     </hlm-dialog-content>
   </hlm-dialog>
-
 
   @if (connectionMapMode(); as mode) {
     <section
@@ -275,94 +327,160 @@
       <div
         hlmPopoverContent
         *hlmPopoverPortal
-        class="w-72 gap-1 rounded-xl border bg-popover/95 p-2 text-popover-foreground shadow-lg backdrop-blur-md"
+        class="w-[min(19rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] gap-1 overflow-y-auto p-3"
+        aria-label="Добавить на трассу"
         data-testid="route-object-menu"
       >
-        <h3 class="px-2 py-1.5 text-xs font-medium">Добавить на трассу</h3>
-        <p class="px-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-          Сетевой узел · разделить кабель
+        <h3 class="mb-1 flex items-center gap-2 px-1 text-sm font-medium"><ng-icon name="lucideRoute" class="text-muted-foreground" />Добавить на трассу</h3>
+        <p class="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+          Сетевые узлы
         </p>
         @for (item of routeNodeOptions; track item.type) {
           <button
             hlmBtn
             variant="ghost"
             type="button"
-            class="h-9 justify-start gap-2 rounded-lg px-2 text-xs"
+            class="h-9 w-full justify-start gap-2 px-2 text-xs"
             [hlmTooltip]="item.description"
             [attr.data-testid]="'route-node-' + item.type"
             (click)="selectRouteObject(item.type, 'split')"
           >
-            <app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}
+            <span class="flex size-5 shrink-0 items-center justify-center"><app-map-icon [name]="item.icon" class="size-5" /></span><span class="truncate">{{ item.label }}</span>
           </button>
         }
-        <p
-          class="mt-1 border-t px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground"
-        >
-          Вдоль трассы · без разрыва
+        <hlm-separator class="my-1" />
+        <p class="px-2 pt-1 pb-1 text-xs font-medium text-muted-foreground">
+          Объекты вдоль трассы
         </p>
         @for (item of routePassOptions; track item.type) {
           <button
             hlmBtn
             variant="ghost"
             type="button"
-            class="h-9 justify-start gap-2 rounded-lg px-2 text-xs"
+            class="h-9 w-full justify-start gap-2 px-2 text-xs"
             [hlmTooltip]="item.description"
             [attr.data-testid]="'route-place-' + item.type"
             (click)="selectRouteObject(item.type, 'place')"
           >
-            <app-map-icon [name]="item.icon" class="size-5" />{{ item.label }}
+            <span class="flex size-5 shrink-0 items-center justify-center"><app-map-icon [name]="item.icon" class="size-5" /></span><span class="truncate">{{ item.label }}</span>
           </button>
         }
+        <hlm-separator class="my-1" />
         <button
           hlmBtn
           variant="ghost"
           type="button"
-          class="mt-1 h-9 justify-start gap-2 rounded-lg border-t px-2 text-xs"
+          class="h-9 w-full justify-start gap-2 px-2 text-xs"
           data-testid="route-installation-boundary"
           (click)="startInstallationBoundary()"
         >
-          Изменить прокладку отсюда…
+          <ng-icon name="lucidePencil" class="mx-0.5" />Изменить прокладку отсюда
         </button>
       </div>
     </hlm-popover>
   }
   @for (handle of installationHandles(); track handle.vertex) {
-    <button hlmBtn variant="ghost" size="icon" type="button" class="absolute z-20 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-200 bg-slate-900 p-0 shadow-sm transition-transform hover:scale-125 hover:bg-slate-800 dark:hover:bg-slate-800 focus-visible:scale-125 data-disabled:opacity-100" [style.left.px]="handle.x" [style.top.px]="handle.y" [hlmTooltip]="installationLabel(handle.before) + ' → ' + installationLabel(handle.after)" [attr.aria-label]="'Граница прокладки: ' + installationLabel(handle.before) + ' → ' + installationLabel(handle.after)" [disabled]="boundarySaving() || movingBoundary()" (pointerdown)="$event.stopPropagation()" (mouseenter)="holdSpliceHover(true)" (mouseleave)="holdSpliceHover(false)" (click)="$event.stopPropagation(); openBoundary(handle)" data-testid="installation-boundary-handle"><span class="size-1 rounded-full bg-slate-100"></span></button>
+    <button
+      #boundaryHandle
+      hlmBtn
+      variant="ghost"
+      size="icon"
+      type="button"
+      class="group/handle absolute z-20 size-7 -translate-x-1/2 -translate-y-1/2 rounded-full p-0 hover:bg-transparent dark:hover:bg-transparent aria-expanded:bg-transparent data-disabled:opacity-100"
+      [style.left.px]="handle.x"
+      [style.top.px]="handle.y"
+      [hlmTooltip]="installationLabel(handle.before) + ' → ' + installationLabel(handle.after)"
+      [attr.aria-label]="
+        'Граница прокладки: ' +
+        installationLabel(handle.before) +
+        ' → ' +
+        installationLabel(handle.after)
+      "
+      [disabled]="boundarySaving() || movingBoundary()"
+      [attr.aria-pressed]="activeBoundary()?.boundary?.vertex === handle.vertex"
+      aria-haspopup="dialog"
+      [attr.aria-expanded]="activeBoundary()?.boundary?.vertex === handle.vertex && !movingBoundary()"
+      (pointerdown)="$event.stopPropagation()"
+      (mouseenter)="holdSpliceHover(true)"
+      (mouseleave)="holdSpliceHover(false)"
+      (click)="$event.stopPropagation(); openBoundary(handle)"
+      data-testid="installation-boundary-handle"
+    >
+      <span class="pointer-events-none flex size-3 items-center justify-center rounded-full border border-background bg-foreground shadow-sm transition-transform group-hover/handle:scale-110 group-focus-visible/handle:scale-110" [class.ring-2]="activeBoundary()?.boundary?.vertex === handle.vertex" [class.ring-primary]="activeBoundary()?.boundary?.vertex === handle.vertex" aria-hidden="true" data-testid="installation-boundary-dot"><span class="size-1 rounded-full bg-background"></span></span>
+    </button>
   }
   @if (activeBoundary(); as target) {
     @if (!movingBoundary() && !boundaryPreview()) {
-    <hlm-popover state="open" [attachTo]="boundaryAnchor" [sideOffset]="12" (closed)="cancelBoundaryEdit()">
-      <span #boundaryAnchor class="pointer-events-none absolute" [style.left.px]="target.boundary.x" [style.top.px]="target.boundary.y"></span>
-      <section hlmPopoverContent *hlmPopoverPortal class="w-72 gap-3" data-testid="installation-boundary-menu">
-        <h3 class="text-sm font-medium">Граница прокладки</h3>
-        <p class="text-xs text-muted-foreground">{{ installationLabel(target.boundary.before) }} → {{ installationLabel(target.boundary.after) }}</p>
-        <p class="text-xs text-muted-foreground">{{ target.boundary.position[1].toFixed(6) }}, {{ target.boundary.position[0].toFixed(6) }}</p>
-        @if (boundaryAction() === 'menu') {
-          <button hlmBtn variant="ghost" size="sm" class="justify-start" (click)="boundaryAction.set('set')">Изменить способ после точки</button>
-          <button hlmBtn variant="ghost" size="sm" class="justify-start" (click)="moveBoundary()">Переместить границу</button>
-          <button hlmBtn variant="ghost" size="sm" class="justify-start" (click)="boundaryAction.set('remove')">Удалить границу</button>
-        } @else if (boundaryAction() === 'set') {
-          <hlm-select [value]="boundaryMethod()" [disabled]="boundarySaving()" [itemToString]="installationLabel" (valueChange)="$event && boundaryMethod.set($event)">
-            <hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal>@for (style of installationStyles; track style.value) { <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item> }</hlm-select-content>
-          </hlm-select>
-          <p class="text-xs text-muted-foreground">До следующей границы.</p>
-          <button hlmBtn size="sm" [disabled]="boundarySaving()" (click)="saveBoundaryEdit({operation:'set',installation_after:boundaryMethod()})">{{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}</button>
-        } @else {
-          <p class="text-xs text-muted-foreground">Какой способ сохранить на объединённом участке?</p>
-          <button hlmBtn variant="outline" size="sm" [disabled]="boundarySaving()" (click)="saveBoundaryEdit({operation:'remove',keep:'previous'})">Предыдущий · {{ installationLabel(target.boundary.before) }}</button>
-          <button hlmBtn variant="outline" size="sm" [disabled]="boundarySaving()" (click)="saveBoundaryEdit({operation:'remove',keep:'next'})">Следующий · {{ installationLabel(target.boundary.after) }}</button>
-        }
-        @if (boundaryError()) { <p class="text-xs text-destructive" role="alert">{{ boundaryError() }}</p> }
-      </section>
-    </hlm-popover>
+      <hlm-popover
+        state="open"
+        [attachTo]="boundaryOrigin() ?? boundaryAnchor"
+        align="start"
+        [closeOnOutsidePointerEvents]="!boundarySaving()"
+        [sideOffset]="12"
+        (closed)="cancelBoundaryEdit()"
+      >
+        <span
+          #boundaryAnchor
+          class="pointer-events-none absolute"
+          [style.left.px]="target.boundary.x"
+          [style.top.px]="target.boundary.y"
+        ></span>
+        <section
+          hlmPopoverContent
+          *hlmPopoverPortal
+          class="w-[min(19rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto p-0"
+          aria-label="Граница прокладки"
+          data-testid="installation-boundary-menu"
+        >
+          <app-map-installation-boundary-menu
+            [boundary]="target.boundary"
+            [(method)]="boundaryMethod"
+            [saving]="boundarySaving()"
+            [error]="boundaryError()"
+            (saveRequested)="saveBoundaryEdit($event)"
+            (moveRequested)="moveBoundary()"
+            (cancelRequested)="cancelBoundaryEdit()"
+          />
+        </section>
+      </hlm-popover>
     }
   }
   @if (installationEditId() || movingBoundary() || boundaryPreview()) {
-    <section class="absolute bottom-4 left-1/2 z-20 flex w-[min(34rem,calc(100%-6rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-md backdrop-blur-md" data-testid="installation-edit-toolbar">
-      <p class="min-w-0 flex-1 text-xs">{{ movingBoundary() ? 'Выберите новую точку на трассе' : boundaryPreview() ? 'Предпросмотр границы' : 'Прокладка · выберите границу или добавьте новую плюсом' }}</p>
-      @if (boundaryPreview()) { <button hlmBtn size="sm" [disabled]="boundarySaving() || movingBoundary()" (click)="saveBoundaryEdit()">{{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}</button> }
-      <button hlmBtn variant="outline" size="sm" [disabled]="boundarySaving()" (click)="activeBoundary() ? cancelBoundaryEdit() : finishInstallationEdit()">{{ activeBoundary() ? 'Отмена' : 'Готово' }}</button>
-      @if (boundaryError()) { <p class="w-full text-xs text-destructive" role="alert">{{ boundaryError() }}</p> }
+    <section
+      class="absolute bottom-4 left-1/2 z-20 flex w-[min(34rem,calc(100%-6rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-md backdrop-blur-md"
+      data-testid="installation-edit-toolbar"
+    >
+      <p class="min-w-0 flex-1 text-xs">
+        {{
+          movingBoundary()
+            ? 'Выберите новую точку на трассе'
+            : boundaryPreview()
+              ? 'Предпросмотр границы'
+              : 'Прокладка · выберите границу или добавьте новую плюсом'
+        }}
+      </p>
+      @if (boundaryPreview()) {
+        <button
+          hlmBtn
+          size="sm"
+          [disabled]="boundarySaving() || movingBoundary()"
+          (click)="saveBoundaryEdit()"
+        >
+          {{ boundarySaving() ? 'Сохраняем…' : 'Сохранить' }}
+        </button>
+      }
+      <button
+        hlmBtn
+        variant="outline"
+        size="sm"
+        [disabled]="boundarySaving()"
+        (click)="activeBoundary() ? cancelBoundaryEdit() : finishInstallationEdit()"
+      >
+        {{ activeBoundary() ? 'Отмена' : 'Готово' }}
+      </button>
+      @if (boundaryError() && (movingBoundary() || boundaryPreview() || !activeBoundary())) {
+        <p class="w-full text-xs text-destructive" role="alert">{{ boundaryError() }}</p>
+      }
     </section>
   }
 </div>
@@ -390,7 +508,7 @@
             size="icon-sm"
             type="button"
             class="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10"
-aria-label="Удалить метку с карты"
+            aria-label="Удалить метку с карты"
             hlmTooltip="Удалить метку с карты"
             data-testid="delete-marker-popup"
             (click)="requestDeleteMarker(marker)"
@@ -426,14 +544,32 @@ aria-label="Удалить метку с карты"
     </header>
     <div hlmCardContent class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain">
       <div class="flex flex-wrap items-center gap-2">
-        <button hlmBtn variant="outline" size="sm" (click)="openPassport({kind:'marker',id:marker.id})">Паспорт</button>
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          (click)="openPassport({ kind: 'marker', id: marker.id })"
+        >
+          <ng-icon name="lucideBookOpen" />Паспорт
+        </button>
         @if (marker.can_manage) {
-          <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="markerLinkActions">Действия</button>
-          <ng-template #markerLinkActions><hlm-dropdown-menu class="w-60">
-            <button hlmDropdownMenuItem (click)="moveMarker(marker)">Переместить метку</button>
-            <button hlmDropdownMenuItem (click)="editBuildingLink(marker)">{{ marker.building_id === null ? 'Привязать дом' : 'Перепривязать дом' }}</button>
-            @if (marker.building_id !== null) { <button hlmDropdownMenuItem (click)="editBuildingLink(marker, true)">Отвязать дом от метки</button> }
-          </hlm-dropdown-menu></ng-template>
+          <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="markerLinkActions">
+            <ng-icon name="lucideEllipsis" />Действия
+          </button>
+          <ng-template #markerLinkActions
+            ><hlm-dropdown-menu class="w-60">
+              <button hlmDropdownMenuItem (click)="moveMarker(marker)"><ng-icon name="lucideMove" />Переместить метку</button>
+              <button hlmDropdownMenuItem (click)="editBuildingLink(marker)">
+                <ng-icon name="lucideLink" />
+                {{ marker.building_id === null ? 'Привязать дом' : 'Перепривязать дом' }}
+              </button>
+              @if (marker.building_id !== null) {
+                <button hlmDropdownMenuItem (click)="editBuildingLink(marker, true)">
+                  <ng-icon name="lucideUnlink" />Отвязать дом от метки
+                </button>
+              }
+            </hlm-dropdown-menu></ng-template
+          >
         }
       </div>
       <div class="space-y-1">
@@ -479,8 +615,17 @@ aria-label="Удалить метку с карты"
         }
       </dl>
       <div class="grid gap-1">
-        <button hlmBtn variant="ghost" size="sm" (click)="showObjectConnections({kind:'marker',id:marker.id})">Показать связи</button>
-        <p class="text-xs text-muted-foreground">Связи отображаются с учётом активных фильтров и доступа.</p>
+        <button
+          hlmBtn
+          variant="ghost"
+          size="sm"
+          (click)="showObjectConnections({ kind: 'marker', id: marker.id })"
+        >
+          Показать связи
+        </button>
+        <p class="text-xs text-muted-foreground">
+          Связи отображаются с учётом активных фильтров и доступа.
+        </p>
         <h4 class="text-sm font-medium">Присоединённые линии</h4>
         @for (line of popupConnections(); track line.id) {
           <button
@@ -520,7 +665,14 @@ aria-label="Удалить метку с карты"
     </header>
     <div hlmCardContent class="grid min-w-0 gap-3">
       <h3 hlmCardTitle class="break-words">{{ building.full_address }}</h3>
-      <button hlmBtn variant="outline" size="sm" (click)="openPassport({kind:'building',id:building.id})">Паспорт дома</button>
+      <button
+        hlmBtn
+        variant="outline"
+        size="sm"
+        (click)="openPassport({ kind: 'building', id: building.id })"
+      >
+        <ng-icon name="lucideBookOpen" />Паспорт дома
+      </button>
       <div class="flex flex-wrap gap-2">
         <button
           hlmBtn
@@ -542,19 +694,45 @@ aria-label="Удалить метку с карты"
           <button hlmBtn variant="outline" size="sm" (click)="startBuildingStyle(building.id)">
             Оформление и расположение
           </button>
-          <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="houseActions">Действия с домом</button>
-          <ng-template #houseActions><hlm-dropdown-menu class="w-64">
-            @if (primaryMarkerForBuilding(building.id); as primary) {
-              <button hlmDropdownMenuItem (click)="moveMarker(primary)">Изменить расположение дома</button>
-              <button hlmDropdownMenuItem (click)="editBuildingLink(primary, true)">Отвязать дом от метки</button>
-              <button hlmDropdownMenuItem (click)="requestDeleteMarker(primary)">Удалить метку с карты</button>
-            }
-            <button hlmDropdownMenuItem class="text-destructive" (click)="requestDeleteHouse(building.id)">Удалить дом из каталога</button>
-          </hlm-dropdown-menu></ng-template>
+          <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="houseActions">
+            <ng-icon name="lucideEllipsis" />Действия с домом
+          </button>
+          <ng-template #houseActions
+            ><hlm-dropdown-menu class="w-64">
+              @if (primaryMarkerForBuilding(building.id); as primary) {
+                <button hlmDropdownMenuItem (click)="moveMarker(primary)">
+                  Изменить расположение дома
+                </button>
+                <button hlmDropdownMenuItem (click)="editBuildingLink(primary, true)">
+                  Отвязать дом от метки
+                </button>
+                <button hlmDropdownMenuItem (click)="requestDeleteMarker(primary)">
+                  Удалить метку с карты
+                </button>
+              }
+              <button
+                hlmDropdownMenuItem
+                variant="destructive"
+                class="text-destructive"
+                (click)="requestDeleteHouse(building.id)"
+              >
+                <ng-icon name="lucideTrash2" />Удалить дом из каталога
+              </button>
+            </hlm-dropdown-menu></ng-template
+          >
         }
       </div>
-      <button hlmBtn variant="ghost" size="sm" (click)="showObjectConnections({kind:'building',id:building.id})">Показать связи</button>
-      <p class="text-xs text-muted-foreground">Связи отображаются с учётом активных фильтров и доступа.</p>
+      <button
+        hlmBtn
+        variant="ghost"
+        size="sm"
+        (click)="showObjectConnections({ kind: 'building', id: building.id })"
+      >
+        Показать связи
+      </button>
+      <p class="text-xs text-muted-foreground">
+        Связи отображаются с учётом активных фильтров и доступа.
+      </p>
       <h4 class="text-sm font-medium">Присоединённые линии</h4>
       @for (line of popupConnections(); track line.id) {
         <button
@@ -593,7 +771,14 @@ aria-label="Удалить метку с карты"
     </header>
     <div hlmCardContent class="grid min-w-0 gap-3">
       <h3 hlmCardTitle class="break-words">{{ line.name }}</h3>
-      <button hlmBtn variant="outline" size="sm" (click)="openPassport({kind:'connection',id:line.id})">Паспорт кабеля</button>
+      <button
+        hlmBtn
+        variant="outline"
+        size="sm"
+        (click)="openPassport({ kind: 'connection', id: line.id })"
+      >
+        <ng-icon name="lucideBookOpen" />Паспорт кабеля
+      </button>
       <p class="text-sm">{{ connectionStatusLabel(line.status) }}</p>
       @if (line.description) {
         <p class="break-words text-sm text-muted-foreground">{{ line.description }}</p>
@@ -656,10 +841,12 @@ aria-label="Удалить метку с карты"
                 <button
                   hlmBtn
                   variant="ghost"
-                  size="sm"
+                  size="icon-sm"
+                  aria-label="Отвязать объект от трассы"
+                  hlmTooltip="Отвязать объект"
                   (click)="requestDetachObject(line, object.marker_id, object.name)"
                 >
-                  Отвязать
+                  <ng-icon name="lucideUnlink" />
                 </button>
               }
             </div>
@@ -670,7 +857,15 @@ aria-label="Удалить метку с карты"
         </div>
       }
       @if (canManage() && line.can_manage && line.geometry && line.geometry_token) {
-        <button hlmBtn variant="outline" size="sm" (click)="startInstallationEdit(line)" data-testid="edit-installation-card">Редактировать прокладку</button>
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          (click)="startInstallationEdit(line)"
+          data-testid="edit-installation-card"
+        >
+          <ng-icon name="lucideRoute" />Редактировать прокладку
+        </button>
         <button
           hlmBtn
           variant="outline"
@@ -684,9 +879,9 @@ aria-label="Удалить метку с карты"
       @if (line.can_manage) {
         <div class="flex gap-2">
           <button hlmBtn variant="outline" size="sm" (click)="startEditConnection(line)">
-            Изменить</button
+            <ng-icon name="lucidePencil" />Изменить</button
           ><button hlmBtn variant="destructive" size="sm" (click)="requestDeleteConnection(line)">
-            Удалить
+            <ng-icon name="lucideTrash2" />Удалить
           </button>
         </div>
       }

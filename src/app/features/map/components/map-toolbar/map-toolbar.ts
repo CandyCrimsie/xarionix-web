@@ -8,6 +8,8 @@ import { HlmPopoverImports } from '@spartan-ng/helm/popover';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
+import { HlmFieldImports } from '@spartan-ng/helm/field';
+import { HlmSeparatorImports } from '@spartan-ng/helm/separator';
 import { MapWorkspaceState } from '../../services/map-workspace.state';
 import type { ConnectionMode, MapLayer } from '../../models/map-workspace.models';
 import type { MapConnection, MapMarker, MapPointType } from '../../models/map.models';
@@ -19,7 +21,7 @@ import { MapIcon } from '../map-icon/map-icon';
 export type MapPanel = 'filters' | 'layers' | 'legend';
 @Component({
     selector: 'app-map-toolbar',
-    imports: [NgIcon, HlmButtonImports, HlmButtonGroupImports, HlmCheckboxImports, HlmPopoverImports, HlmSelectImports, HlmTooltipImports, HlmCollapsibleImports, MapLegend, MapIcon],
+    imports: [NgIcon, HlmButtonImports, HlmButtonGroupImports, HlmCheckboxImports, HlmPopoverImports, HlmSelectImports, HlmTooltipImports, HlmCollapsibleImports, HlmFieldImports, HlmSeparatorImports, MapLegend, MapIcon],
     providers: [provideIcons({ lucideCable, lucideFolder, lucideLayers, lucideListFilter, lucideMap, lucideMapPinPlus, lucidePencil, lucidePlus, lucideTrash2, lucideX, lucideArrowUp, lucideArrowDown, lucideInfo, lucideChevronDown, lucideChevronRight })],
     templateUrl: './map-toolbar.html', changeDetection: ChangeDetectionStrategy.OnPush,
 })

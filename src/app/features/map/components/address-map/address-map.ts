@@ -12,6 +12,7 @@ import {
     untracked,
     TemplateRef,
     viewChild,
+    viewChildren,
     ViewContainerRef,
     computed,
     HostListener,
@@ -38,6 +39,12 @@ import {
     lucideUndo2,
     lucidePlus,
     lucideMaximize,
+    lucideRoute,
+    lucideMove,
+    lucideLink,
+    lucideUnlink,
+    lucideBookOpen,
+    lucideEllipsis,
 } from '@ng-icons/lucide';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSliderImports } from '@spartan-ng/helm/slider';
@@ -51,6 +58,7 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmSeparatorImports } from '@spartan-ng/helm/separator';
 import { AddressApiService } from '../../../../core/addresses/address-api.service';
 
 import type { AddressObject, Building } from '../../../../core/addresses/address.models';
@@ -118,6 +126,7 @@ import { MapToolbar } from '../map-toolbar/map-toolbar';
 import { MapLayerEditor } from '../map-layer-editor/map-layer-editor';
 import { AddressDependenciesDialog, type AddressDependencyConflict } from '../../../../shared/address-dependencies-dialog/address-dependencies-dialog';
 import { MapPassportDialog } from '../map-passport/map-passport';
+import { MapInstallationBoundaryMenu } from '../map-installation-boundary-menu/map-installation-boundary-menu';
 
 
 type MapInstance = import('maplibre-gl').Map;
@@ -174,6 +183,8 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         AddressDependenciesDialog,
         MapPassportDialog,
         HlmDropdownMenuImports,
+        HlmSeparatorImports,
+        MapInstallationBoundaryMenu,
     ],
     providers: [MapWorkspaceState, provideIcons({
         lucideBuilding2,
@@ -190,6 +201,12 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         lucideUndo2,
         lucidePlus,
         lucideMaximize,
+        lucideRoute,
+        lucideMove,
+        lucideLink,
+        lucideUnlink,
+        lucideBookOpen,
+        lucideEllipsis,
     })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './address-map.html',
@@ -211,6 +228,12 @@ export class AddressMap implements AfterViewInit {
     private resizeFrame: number | null = null;
     readonly expanded = signal(false);
     readonly expandButton = viewChild<ElementRef<HTMLButtonElement>>('expandButton');
+    readonly boundaryButtons = viewChildren<ElementRef<HTMLButtonElement>>('boundaryHandle');
+    readonly boundaryOrigin = computed<HTMLButtonElement | undefined>(() => {
+        const vertex = this.activeBoundary()?.boundary.vertex;
+        const index = this.installationHandles().findIndex(handle => handle.vertex === vertex);
+        return index >= 0 ? this.boundaryButtons()[index]?.nativeElement : undefined;
+    });
 
     readonly selectedObject = input<AddressObject | null>(null);
     readonly selectedBuilding = input<Building | null>(null);
@@ -307,7 +330,6 @@ export class AddressMap implements AfterViewInit {
     readonly activeBoundary = signal<{ line: MapConnection; boundary: InstallationBoundary } | null>(null);
     readonly movingBoundary = signal(false);
     readonly boundaryPreview = signal<{ line: MapConnection; snap: RouteSnap } | null>(null);
-    readonly boundaryAction = signal<'menu' | 'set' | 'remove'>('menu');
     readonly detachDialog=viewChild<HlmAlertDialog>('detachDialog');
     readonly objectToDetach=signal<{line:MapConnection;markerId:number;name:string}|null>(null);
     readonly objectDetaching=signal(false);
@@ -1538,7 +1560,7 @@ export class AddressMap implements AfterViewInit {
         const line=this.visibleConnections().find(line=>line.id===this.selectedConnectionId());
         if(!line||!line.can_manage||!this.canManage())return;
         this.spliceController?.clear();this.activeBoundary.set({line:structuredClone(line),boundary});
-        this.boundaryAction.set('menu');this.boundaryMethod.set(boundary.after);this.boundaryError.set(null);
+        this.boundaryMethod.set(boundary.after);this.boundaryError.set(null);
     }
 
     moveBoundary():void { this.boundaryError.set(null);this.movingBoundary.set(true); }

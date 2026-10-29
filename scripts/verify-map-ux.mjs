@@ -28,10 +28,15 @@ export async function verifyMapUx(page, screenshot, state) {
     ...state.markers.filter((m) => m.id < 1000 || m.id >= 9000),
   );
   const edits = [];
+  let failNextBoundarySave = false;
   await page.route('**/api/v1/map/connections/8500/installation-boundaries/*', async (route) => {
     const data = route.request().postDataJSON(),
       vertex = Number(new URL(route.request().url()).pathname.split('/').at(-1));
     edits.push(data);
+    if (failNextBoundarySave) {
+      failNextBoundarySave = false;
+      return route.fulfill({status:409,json:{detail:{code:'stale_version',message:'Трасса изменилась. Проверьте выбранную границу.'}}});
+    }
     assert.equal(data.expected_version, line.version);
     assert.equal(data.expected_geometry_token, line.geometry_token);
     const boundaries = line.installation_methods.flatMap((m, i) =>
@@ -90,12 +95,11 @@ export async function verifyMapUx(page, screenshot, state) {
   assert.equal(await page.getByTestId('insert-splice-hover').count(),0,'Existing boundary must take precedence over the plus');
   await page.mouse.click(savedBoundary.x,savedBoundary.y);await page.getByTestId('installation-boundary-menu').waitFor();
   const handleStyle=await page.getByTestId('installation-boundary-handle').first().evaluate(button=>{
-    const style=getComputedStyle(button),c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=style.backgroundColor;ctx.fillRect(0,0,1,1);
-    return {color:Array.from(ctx.getImageData(0,0,1,1).data),width:parseFloat(style.width),height:parseFloat(style.height),opacity:style.opacity};
+    const style=getComputedStyle(button),dot=button.querySelector('[data-testid="installation-boundary-dot"]'),dotStyle=getComputedStyle(dot),c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.fillStyle=dotStyle.backgroundColor;ctx.fillRect(0,0,1,1);
+    return {color:Array.from(ctx.getImageData(0,0,1,1).data),width:parseFloat(style.width),height:parseFloat(style.height),dotWidth:parseFloat(dotStyle.width),opacity:style.opacity};
   });
   assert.equal(handleStyle.color[3],255,'The boundary handle background must be opaque in both themes');
-  assert(handleStyle.color[0]<65&&handleStyle.color[1]<80&&handleStyle.color[2]<100);
-  assert.equal(handleStyle.width,12);assert.equal(handleStyle.height,12);assert.equal(handleStyle.opacity,'1');
+  assert.equal(handleStyle.width,28);assert.equal(handleStyle.height,28);assert.equal(handleStyle.dotWidth,12);assert.equal(handleStyle.opacity,'1');
   await page.keyboard.press('Escape');await page.getByTestId('installation-boundary-menu').waitFor({state:'detached'});
   await evaluate(() =>
     window.ng.getComponent(document.querySelector('app-address-map')).openConnectionPopup(8500),
@@ -105,18 +109,36 @@ export async function verifyMapUx(page, screenshot, state) {
   await handles.first().waitFor();
   assert.equal(await handles.count(), 2);
   const open = async () => {
-    await handles.first().click();
+    // Click the 28px hit area outside the 12px visible dot.
+    await handles.first().click({position:{x:3,y:14}});
     await page.getByTestId('installation-boundary-menu').waitFor();
   };
   await open();
   await screenshot('ux-boundary-menu');
+  assert.equal(await page.getByTestId('boundary-coordinates').isVisible(),false);
+  await page.getByRole('button',{name:'Координаты границы',exact:true}).click();
+  await page.getByTestId('boundary-coordinates').waitFor({state:'visible'});
   await page.keyboard.press('Escape');
   await page.getByTestId('installation-boundary-menu').waitFor({ state: 'detached' });
+  assert.equal(await handles.first().evaluate(el=>document.activeElement===el),true,'Escape must restore focus to the handle');
   await open();
-  await page.getByRole('button', { name: 'Изменить способ после точки', exact: true }).click();
-  await evaluate(() =>
-    window.ng.getComponent(document.querySelector('app-address-map')).boundaryMethod.set('facade'),
-  );
+  await page.getByTestId('boundary-change-method').click();
+  await page.getByTestId('boundary-method-select').click();
+  await page.getByRole('listbox').waitFor();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByTestId('installation-boundary-menu').count(),1,'Escape closes only the nested Select');
+  await page.getByTestId('boundary-method-select').click();
+  await page.getByRole('option',{name:'По фасаду здания',exact:true}).click();
+  assert.equal(await page.getByTestId('installation-boundary-menu').count(),1,'Nested Select must not close its parent');
+  await page.getByRole('button',{name:'Назад',exact:true}).click();
+  await page.getByTestId('boundary-change-method').click();
+  assert((await page.getByTestId('boundary-method-select').innerText()).includes('По фасаду'));
+  failNextBoundarySave = true;
+  await page.getByTestId('installation-boundary-menu').getByRole('button',{name:'Сохранить',exact:true}).click();
+  await page.getByTestId('installation-boundary-menu').getByRole('alert').waitFor();
+  assert.equal(await page.getByTestId('installation-edit-toolbar').getByRole('alert').count(),0,'Do not duplicate the form error in the map toolbar');
+  assert.equal(line.installation_methods[1],'duct','A failed save must not mutate the route');
+  await screenshot('ux-boundary-error');
   await page
     .getByTestId('installation-boundary-menu')
     .getByRole('button', { name: 'Сохранить', exact: true })
@@ -163,7 +185,12 @@ export async function verifyMapUx(page, screenshot, state) {
   assert.equal(JSON.stringify(line), saved);
   await open();
   await page.getByRole('button', { name: 'Удалить границу', exact: true }).click();
-  await page.getByRole('button', { name: /Следующий ·/ }).click();
+  assert.equal(await page.getByRole('button',{name:'Объединить участки',exact:true}).isDisabled(),true);
+  await page.getByText('Сохранить следующий',{exact:true}).click();
+  await screenshot('ux-boundary-remove');
+  await page.getByRole('button',{name:'Назад',exact:true}).click();
+  await page.getByRole('button',{name:'Удалить границу',exact:true}).click();
+  await page.getByRole('button',{name:'Объединить участки',exact:true}).click();
   await page.waitForFunction(
     () =>
       window.ng.getComponent(document.querySelector('app-address-map')).installationHandles()
@@ -244,6 +271,7 @@ export async function verifyMapUx(page, screenshot, state) {
     c.selectedConnectionId.set(8500);
   });
   for (let i = 0; i < 2; i++) {
+    assert.equal(await page.getByTestId('expand-address-map').getAttribute('variant'),'secondary');
     await page.getByTestId('expand-address-map').click();
     assert(
       await evaluate(
@@ -253,6 +281,38 @@ export async function verifyMapUx(page, screenshot, state) {
     );
     await screenshot('ux-expanded-' + i);
     await page.keyboard.press('Escape');
+  }
+  // Real CDK positioning near the top-right map edge, including a narrow fullscreen.
+  // The portal must not be clipped to the map or squeezed to the anchor's tiny width.
+  for (const narrow of [false,true]) {
+    if (narrow) {
+      await page.setViewportSize({width:420,height:860});
+      await page.getByTestId('expand-address-map').click();
+    }
+    await page.waitForFunction(()=>{
+      const c=window.ng.getComponent(document.querySelector('app-address-map'));
+      return Math.abs(c.map.getCanvas().clientWidth-c.map.getContainer().clientWidth)<1;
+    });
+    await evaluate(()=>{
+      const c=window.ng.getComponent(document.querySelector('app-address-map'));
+      c.startInstallationEdit(c.connections().find(l=>l.id===8500));
+      const handle=c.installationHandles()[0];
+      c.map.jumpTo({center:handle.position,zoom:17});
+      const p=c.map.project(handle.position),canvas=c.map.getContainer();
+      c.map.panBy([p.x-(canvas.clientWidth-20),p.y-20],{duration:0});
+    });
+    await handles.first().click();
+    await page.getByTestId('installation-boundary-menu').waitFor();
+    await page.getByTestId('installation-boundary-menu').evaluate(el=>Promise.all(el.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{}))));
+    const menuBox=await page.getByTestId('installation-boundary-menu').boundingBox(),size=page.viewportSize();
+    assert(menuBox.width>=270&&menuBox.width<=320);
+    assert(menuBox.x>=0&&menuBox.y>=0&&menuBox.x+menuBox.width<=size.width&&menuBox.y+menuBox.height<=size.height,JSON.stringify({narrow,menuBox,size,handle:await handles.first().boundingBox()}));
+    assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('data-testid')),'boundary-change-method');
+    await screenshot(narrow?'ux-boundary-narrow-edge':'ux-boundary-edge');
+    await page.mouse.click(menuBox.x>size.width/2?24:size.width-24,size.height/2);
+    await page.getByTestId('installation-boundary-menu').waitFor({state:'detached'});
+    await evaluate(()=>window.ng.getComponent(document.querySelector('app-address-map')).finishInstallationEdit());
+    if(narrow)await page.keyboard.press('Escape');
   }
   await page.setViewportSize({ width: 420, height: 860 });
   await page.getByTestId('add-map-marker').click();
@@ -271,6 +331,12 @@ export async function verifyMapUx(page, screenshot, state) {
     swapReversesMethods: true,
     coordinateDraftPreserved: true,
     nestedPopover: true,
+    nestedSelectEscape: true,
+    errorKeepsMenu: true,
+    mergeRequiresConfirmation: true,
+    edgePopoverFits: true,
+    handleHitSize: 28,
+    handleVisibleSize: 12,
     sameMapInstance: true,
     narrowOverflow: false,
   };

@@ -1,0 +1,60 @@
+<div class="grid gap-3 p-3" [attr.aria-busy]="saving()">
+  @if (action() === 'menu') {
+    <hlm-collapsible [expanded]="infoExpanded()" (expandedChange)="infoExpanded.set($event)" class="relative grid gap-3">
+    <header class="flex items-start gap-2.5 pr-8 pl-1">
+      <ng-icon name="lucideRoute" class="mt-0.5 shrink-0 text-muted-foreground" />
+      <div class="min-w-0 flex-1">
+        <h3 class="text-sm font-medium">Граница прокладки</h3>
+        <p class="mt-0.5 text-xs text-muted-foreground">Переход между участками</p>
+      </div>
+    </header>
+    <p hlmCollapsibleContent class="px-1 text-xs tabular-nums text-muted-foreground" data-testid="boundary-coordinates">{{ boundary().position[1].toFixed(6) }}, {{ boundary().position[0].toFixed(6) }}</p>
+    <dl class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-md bg-muted/50 px-3 py-2.5 text-xs">
+      <dt class="text-muted-foreground">До границы</dt><dd class="text-right font-medium">{{ label(boundary().before) }}</dd>
+      <ng-icon name="lucideArrowDown" class="col-span-2 mx-auto text-muted-foreground" />
+      <dt class="text-muted-foreground">После границы</dt><dd class="text-right font-medium">{{ label(boundary().after) }}</dd>
+    </dl>
+    <nav class="grid gap-0.5" aria-label="Действия с границей">
+      <button #firstAction hlmBtn variant="ghost" type="button" class="h-9 w-full justify-start gap-2 px-2 text-xs" [disabled]="saving()" (click)="action.set('set')" data-testid="boundary-change-method"><ng-icon name="lucidePencil" />Изменить способ прокладки</button>
+      <button hlmBtn variant="ghost" type="button" class="h-9 w-full justify-start gap-2 px-2 text-xs" [disabled]="saving()" (click)="moveRequested.emit()"><ng-icon name="lucideMove" />Переместить границу</button>
+      <hlm-separator class="my-1" />
+      <button hlmBtn variant="ghost" type="button" class="h-9 w-full justify-start gap-2 px-2 text-xs text-destructive" [disabled]="saving()" (click)="action.set('remove')"><ng-icon name="lucideTrash2" />Удалить границу</button>
+    </nav>
+    <button hlmBtn hlmCollapsibleTrigger variant="ghost" size="icon-sm" type="button" class="absolute right-0 top-0" aria-label="Координаты границы" hlmTooltip="Координаты границы" [disabled]="saving()"><ng-icon name="lucideInfo" /></button>
+    </hlm-collapsible>
+  } @else {
+    <header class="flex items-center gap-2">
+      <button #backAction hlmBtn variant="ghost" size="icon-sm" type="button" aria-label="Назад" hlmTooltip="Назад" [disabled]="saving()" (click)="action.set('menu')"><ng-icon name="lucideArrowLeft" /></button>
+      <h3 class="text-sm font-medium">{{ action() === 'set' ? 'Изменить прокладку' : 'Удалить границу' }}</h3>
+    </header>
+    @if (action() === 'set') {
+      <p class="px-1 text-xs leading-relaxed text-muted-foreground">Изменится участок после выбранной точки — до следующей границы или конца кабеля.</p>
+      <hlm-field>
+      <label hlmFieldLabel for="boundary-method" class="sr-only">Способ прокладки после границы</label>
+      <hlm-select [value]="method()" [disabled]="saving()" [itemToString]="label" (valueChange)="$event && method.set($event)">
+        <hlm-select-trigger buttonId="boundary-method" class="w-full" data-testid="boundary-method-select"><hlm-select-value /></hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>@for (style of styles; track style.value) { <hlm-select-item [value]="style.value">{{ style.label }}</hlm-select-item> }</hlm-select-content>
+      </hlm-select>
+      </hlm-field>
+      <footer class="flex justify-end gap-2 pt-1">
+        <button hlmBtn variant="outline" size="sm" type="button" [disabled]="saving()" (click)="cancelRequested.emit()">Отмена</button>
+        <button hlmBtn size="sm" type="button" [disabled]="saving()" (click)="saveRequested.emit({operation:'set',installation_after:method()})">@if (saving()) { <ng-icon name="lucideLoaderCircle" class="animate-spin" /> }{{ saving() ? 'Сохраняем…' : 'Сохранить' }}</button>
+      </footer>
+    } @else {
+      <p class="px-1 text-xs leading-relaxed text-muted-foreground">Два соседних участка объединятся. Выберите, какой способ прокладки сохранить.</p>
+      <hlm-radio-group [value]="keep()" (valueChange)="selectKeep($event)" [disabled]="saving()" aria-label="Способ объединённого участка" class="gap-1">
+        @for (option of [{value:'previous',title:'Сохранить предыдущий',method:boundary().before},{value:'next',title:'Сохранить следующий',method:boundary().after}]; track option.value) {
+          <label class="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2" [class.bg-muted]="keep() === option.value">
+            <hlm-radio [value]="option.value" [disabled]="saving()"><hlm-radio-indicator /></hlm-radio>
+            <span class="grid min-w-0 gap-0.5"><span class="text-xs font-medium">{{ option.title }}</span><span class="text-xs text-muted-foreground">{{ label(option.method) }}</span></span>
+          </label>
+        }
+      </hlm-radio-group>
+      <footer class="flex justify-end gap-2 pt-1">
+        <button hlmBtn variant="outline" size="sm" type="button" [disabled]="saving()" (click)="cancelRequested.emit()">Отмена</button>
+        <button hlmBtn variant="destructive" size="sm" type="button" [disabled]="!keep() || saving()" (click)="confirmRemove()">@if (saving()) { <ng-icon name="lucideLoaderCircle" class="animate-spin" /> }{{ saving() ? 'Объединяем…' : 'Объединить участки' }}</button>
+      </footer>
+    }
+  }
+  @if (error()) { <p class="px-1 text-xs leading-relaxed text-destructive" role="alert">{{ error() }}</p> }
+</div>

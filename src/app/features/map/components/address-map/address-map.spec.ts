@@ -1207,6 +1207,17 @@ describe('AddressMap', () => {
         expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[data-testid="expand-address-map"]'));
     });
 
+    it('preserves the user-selected secondary fullscreen button without glass overrides or a visible caption', async () => {
+        await initialize();
+        const button = fixture.nativeElement.querySelector('[data-testid="expand-address-map"]') as HTMLButtonElement;
+        expect(button.getAttribute('variant')).toBe('secondary');
+        expect(button.getAttribute('size')).toBe('icon');
+        expect(button.className).not.toContain('backdrop-blur');
+        expect(button.className).not.toContain('bg-background/90');
+        expect(button.textContent?.trim()).toBe('');
+        expect(button.getAttribute('aria-label')).toBe('Развернуть карту');
+    });
+
     it('blocks the map gesture used to dismiss an open tools panel', async () => {
         await initialize(); const c = fixture.componentInstance, canvas = c.mapContainer().nativeElement, gesture = vi.fn();
         canvas.addEventListener('pointerdown', gesture); canvas.addEventListener('click', gesture);
@@ -1304,6 +1315,25 @@ describe('AddressMap', () => {
         expect(mapData.setInstallationBoundary).not.toHaveBeenCalled();expect(mapData.createMarker).not.toHaveBeenCalled();
         c.cancelBoundaryEdit();c.connections.set([]);fixture.detectChanges();
         expect(source.setData?.mock.calls.at(-1)?.[0].features).toEqual([]);
+    });
+
+    it('uses one large hit target per small boundary dot and keeps the selected menu after a failed save', async () => {
+        vi.useRealTimers(); await initialize(); fixture.componentRef.setInput('canManage', true);
+        Object.assign(fakeMap, { project: ([x,y]:number[]) => ({x,y}) });
+        const c = fixture.componentInstance, line: MapConnection = {...splitLine(), vertices:[[38.5,55.3]], installation_methods:['aerial','duct']};
+        c.connections.set([line]); c.startInstallationEdit(line); fixture.detectChanges();
+        const handles = fixture.nativeElement.querySelectorAll('[data-testid="installation-boundary-handle"]');
+        expect(handles).toHaveLength(1); expect(handles[0].className).toContain('size-7');
+        expect(handles[0].querySelector('[data-testid="installation-boundary-dot"]').className).toContain('size-3');
+        const bubbled = vi.fn(); fixture.nativeElement.addEventListener('click', bubbled);
+        handles[0].click(); fixture.detectChanges(); await fixture.whenStable();
+        expect(bubbled).not.toHaveBeenCalled(); expect(c.activeBoundary()?.boundary.vertex).toBe(1);
+        expect(c.spliceHover()).toBeNull(); expect(handles[0].getAttribute('aria-pressed')).toBe('true');
+        mapData.editInstallationBoundary.mockReturnValue(throwError(() => new HttpErrorResponse({status:409,error:{detail:{message:'Трасса изменилась'}}})));
+        c.saveBoundaryEdit({operation:'set',installation_after:'facade'}); fixture.detectChanges(); await fixture.whenStable();
+        expect(c.activeBoundary()?.boundary.vertex).toBe(1); expect(c.boundaryError()).toBe('Трасса изменилась');
+        expect(document.querySelector('[data-testid="installation-boundary-menu"] [role="alert"]')?.textContent).toContain('Трасса изменилась');
+        expect(fixture.nativeElement.querySelector('[data-testid="installation-edit-toolbar"] [role="alert"]')).toBeNull();
     });
 
     it('opens a splice at the frozen snapped point, reuses the marker editor and cancels without requests', async () => {

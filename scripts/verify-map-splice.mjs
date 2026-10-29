@@ -43,6 +43,8 @@ export async function verifyMapSplice(page, screenshot) {
     const pressed = await plus.boundingBox();
     assert(Math.hypot(resting.x - pressed.x, resting.y - pressed.y) < .1, 'Spartan active styling must not move the snapped plus');
     await page.mouse.up();
+    await page.getByTestId('route-object-menu').waitFor();
+    await screenshot('route-object-menu');
     await page.getByTestId('route-node-splice').click();
     await page.getByTestId('map-marker-dialog').waitFor();
     assert((await page.locator('app-map-marker-editor').textContent()).includes('разделит соединение'));
