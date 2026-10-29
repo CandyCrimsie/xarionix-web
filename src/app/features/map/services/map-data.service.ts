@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from '../../../core/api/api.config';
+import type { DependencyReport, LayerDraft, MapLayer, MapPassport, MapPreference, MapQuery, MapSettings, MapTarget, PassportWrite } from '../models/map-workspace.models';
 import type { MapConnection, MapConnectionPayload, MapConnectionSplitPayload, MapConnectionSplitResponse, MapEndpointDetail, MapMarkerAppearance, MapStylePreset, MapRouteObjectPayload, MapRouteObjectResponse, MapInstallationBoundaryPayload } from '../models/map.models';
 import type {
     MapAddressObjectBounds,
@@ -25,12 +26,12 @@ export class MapDataService {
     }
 
 
-    getBuildings(bounds: MapBounds): Observable<MapBuildingFeatureCollection> {
-        const params = new HttpParams()
+    getBuildings(bounds: MapBounds, filters?: MapQuery): Observable<MapBuildingFeatureCollection> {
+        const params = this.queryParams(new HttpParams()
             .set('west', bounds.west)
             .set('south', bounds.south)
             .set('east', bounds.east)
-            .set('north', bounds.north);
+            .set('north', bounds.north), filters);
         return this.http.get<MapBuildingFeatureCollection>(
             `${API_BASE_URL}/map/buildings`,
             { params },
@@ -45,14 +46,14 @@ export class MapDataService {
     }
 
 
-    getMarkers(bounds?: MapBounds): Observable<MapMarker[]> {
-        const params = bounds
+    getMarkers(bounds?: MapBounds, filters?: MapQuery): Observable<MapMarker[]> {
+        const params = this.queryParams(bounds
             ? new HttpParams()
                 .set('west', bounds.west)
                 .set('south', bounds.south)
                 .set('east', bounds.east)
                 .set('north', bounds.north)
-            : undefined;
+            : new HttpParams(), filters);
         return this.http.get<MapMarker[]>(
             `${API_BASE_URL}/map/markers`,
             params ? { params } : undefined,
@@ -82,8 +83,8 @@ export class MapDataService {
     }
 
 
-    deleteMarker(id: number): Observable<void> {
-        return this.http.delete<void>(`${API_BASE_URL}/map/markers/${id}`);
+    deleteMarker(id: number, expectedVersion?: number): Observable<void> {
+        return this.http.delete<void>(`${API_BASE_URL}/map/markers/${id}`, expectedVersion ? { params: { expected_version: expectedVersion } } : undefined);
     }
 
     searchEndpoints(q: string, offset = 0) {
@@ -92,10 +93,10 @@ export class MapDataService {
         );
     }
 
-    getConnections(bounds?: MapBounds, endpoint?: { kind: 'building' | 'marker'; id: number }): Observable<MapConnection[]> {
-        const params: Record<string, string | number> = { ...(bounds ?? {}) };
-        if (endpoint) Object.assign(params, { endpoint_kind: endpoint.kind, endpoint_id: endpoint.id });
-        return this.http.get<MapConnection[]>(`${API_BASE_URL}/map/connections`, { params });
+    getConnections(bounds?: MapBounds, endpoint?: { kind: 'building' | 'marker'; id: number }, filters?: MapQuery): Observable<MapConnection[]> {
+        let params = new HttpParams({ fromObject: { ...(bounds ?? {}) } });
+        if (endpoint) params = params.set('endpoint_kind', endpoint.kind).set('endpoint_id', endpoint.id);
+        return this.http.get<MapConnection[]>(`${API_BASE_URL}/map/connections`, { params: this.queryParams(params, filters) });
     }
 
     createConnection(data: MapConnectionPayload): Observable<MapConnection> {
@@ -106,8 +107,8 @@ export class MapDataService {
         return this.http.patch<MapConnection>(`${API_BASE_URL}/map/connections/${id}`, data);
     }
 
-    deleteConnection(id: number): Observable<void> {
-        return this.http.delete<void>(`${API_BASE_URL}/map/connections/${id}`);
+    deleteConnection(id: number, expectedVersion?: number): Observable<void> {
+        return this.http.delete<void>(`${API_BASE_URL}/map/connections/${id}`, expectedVersion ? { params: { expected_version: expectedVersion } } : undefined);
     }
 
     splitConnection(id: number, data: MapConnectionSplitPayload): Observable<MapConnectionSplitResponse> {
@@ -143,4 +144,37 @@ export class MapDataService {
     deleteStyle(id: number): Observable<void> {
         return this.http.delete<void>(`${API_BASE_URL}/map/marker-styles/${id}`);
     }
+
+    private queryParams(params: HttpParams, filters?: MapQuery): HttpParams {
+        if (!filters) return params;
+        for (const [key, value] of Object.entries(filters)) {
+            if (Array.isArray(value)) { for (const item of value) params = params.append(key, String(item)); }
+            else params = params.set(key, String(value));
+        }
+        return params;
+    }
+
+    getLayers(): Observable<MapLayer[]> { return this.http.get<MapLayer[]>(`${API_BASE_URL}/map/layers`); }
+    createLayer(draft: LayerDraft): Observable<MapLayer> { return this.http.post<MapLayer>(`${API_BASE_URL}/map/layers`, draft); }
+    updateLayer(layer: MapLayer, draft: LayerDraft): Observable<MapLayer> {
+        const { name, parent_id, mode, sort_order, rules } = draft;
+        return this.http.patch<MapLayer>(`${API_BASE_URL}/map/layers/${layer.id}`, { name, parent_id, mode, sort_order, rules, expected_version: layer.version });
+    }
+    deleteLayer(layer: MapLayer): Observable<void> {
+        return this.http.delete<void>(`${API_BASE_URL}/map/layers/${layer.id}`, { params: { expected_version: layer.version } });
+    }
+    setLayerMember(layer: MapLayer, target: MapTarget, present: boolean): Observable<MapLayer> {
+        return this.http.put<MapLayer>(`${API_BASE_URL}/map/layers/${layer.id}/members`, { expected_version: layer.version, target, present });
+    }
+    moveLayer(layer: MapLayer, direction: -1 | 1): Observable<MapLayer[]> {
+        return this.http.post<MapLayer[]>(`${API_BASE_URL}/map/layers/${layer.id}/move`, { expected_version: layer.version, direction });
+    }
+    getTargetLayers(target: MapTarget): Observable<MapLayer[]> { return this.http.get<MapLayer[]>(`${API_BASE_URL}/map/objects/${target.kind}/${target.id}/layers`); }
+    getPreferences(): Observable<MapPreference> { return this.http.get<MapPreference>(`${API_BASE_URL}/map/preferences`); }
+    savePreferences(settings: MapSettings, expected_version: number): Observable<MapPreference> {
+        return this.http.put<MapPreference>(`${API_BASE_URL}/map/preferences`, { settings, expected_version });
+    }
+    getPassport(target: MapTarget): Observable<MapPassport> { return this.http.get<MapPassport>(`${API_BASE_URL}/map/passports/${target.kind}/${target.id}`); }
+    savePassport(target: MapTarget, data: PassportWrite): Observable<MapPassport> { return this.http.put<MapPassport>(`${API_BASE_URL}/map/passports/${target.kind}/${target.id}`, data); }
+    getDependencies(target: MapTarget): Observable<DependencyReport> { return this.http.get<DependencyReport>(`${API_BASE_URL}/map/objects/${target.kind}/${target.id}/dependencies`); }
 }

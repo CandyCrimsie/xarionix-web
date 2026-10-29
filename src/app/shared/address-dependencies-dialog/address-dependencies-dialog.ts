@@ -8,14 +8,14 @@ import { HlmAlertDialog, HlmAlertDialogImports } from '@spartan-ng/helm/alert-di
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 
 export interface AddressDependencyGroup {
-    type: 'map_connection' | 'address_object' | 'building' | 'entrance' | 'location' | 'equipment' | 'restricted' | 'integrity';
+    type: 'map_connection' | 'address_object' | 'building' | 'entrance' | 'location' | 'equipment' | 'restricted' | 'integrity' | 'route_object';
     count?: number;
     message?: string;
     has_more?: boolean;
-    items?: { id: number; name: string; medium: 'fiber' | 'utp'; source_name: string; target_name: string }[];
+    items?: { id: number; name: string; medium?: 'fiber' | 'utp'; source_name?: string; target_name?: string }[];
 }
 export interface AddressDependencyConflict {
-    code: 'object_has_dependencies';
+    code: 'object_has_dependencies' | 'endpoint_has_connections' | 'route_has_objects';
     message: string;
     object: { kind: string; id: number };
     dependencies: AddressDependencyGroup[];
@@ -38,7 +38,7 @@ export class AddressDependenciesDialog {
     readonly labels: Record<AddressDependencyGroup['type'], string> = {
         map_connection: 'Сетевые соединения', address_object: 'Дочерние адресные объекты',
         building: 'Дома', entrance: 'Подъезды', location: 'Помещения и места размещения', equipment: 'Оборудование',
-        restricted: 'Другие связи', integrity: 'Ограничение целостности',
+        restricted: 'Другие связи', integrity: 'Ограничение целостности', route_object: 'Объекты вдоль трассы',
     };
 
     show(conflict: AddressDependencyConflict, focus: HTMLElement | null): void {

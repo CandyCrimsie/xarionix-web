@@ -20,6 +20,7 @@ import { MapLineSample } from '../map-line-sample/map-line-sample';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MapLegend {
+    readonly embedded = input(false);
     readonly markers = input<MapMarker[]>([]);
     readonly connections = input<MapConnection[]>([]);
     readonly hasBuildings = input(false);

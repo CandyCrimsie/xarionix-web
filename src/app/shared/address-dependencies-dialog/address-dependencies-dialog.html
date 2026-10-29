@@ -17,13 +17,13 @@
                 <ul class="grid gap-2 text-muted-foreground">
                     @for (item of group.items; track item.id) {
                     <li class="grid gap-0.5 border-l pl-3">
-                        <span class="text-foreground">{{ item.medium === 'fiber' ? 'Оптическая линия' : 'UTP-линия' }} №{{ item.id }} · {{ item.name }}</span>
-                        <span class="break-words text-xs">{{ item.source_name }} → {{ item.target_name }}</span>
+                        <span class="text-foreground">@if (group.type === 'map_connection') { {{ item.medium === 'fiber' ? 'Оптическая линия' : 'UTP-линия' }} №{{ item.id }} · }{{ item.name }}</span>
+                        @if (item.source_name) { <span class="break-words text-xs">{{ item.source_name }} → {{ item.target_name }}</span> }
                     </li>
                     }
                 </ul>
                 }
-                @if (group.has_more) { <p class="text-xs text-muted-foreground">Показаны первые {{ group.items?.length }} соединений из {{ group.count }}.</p> }
+                @if (group.has_more) { <p class="text-xs text-muted-foreground">Показаны первые {{ group.items?.length }} связей из {{ group.count }}.</p> }
             </section>
             }
         </div>

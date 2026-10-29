@@ -13,6 +13,7 @@ import {
     type MapLibreModule,
 } from '../../services/maplibre-loader.service';
 import { AddressMap } from './address-map';
+import { defaultMapSettings } from '../../models/map-workspace.models';
 
 
 const EMPTY_FEATURES: MapBuildingFeatureCollection = {
@@ -36,6 +37,7 @@ class FakeMap {
     readonly easeTo = vi.fn();
     readonly fitBounds = vi.fn();
     readonly remove = vi.fn();
+    readonly resize = vi.fn();
     readonly dragPan = { enable: vi.fn(), disable: vi.fn() };
     private loaded = false;
 
@@ -256,6 +258,8 @@ describe('AddressMap', () => {
     };
 
     const mapData = {
+        getPreferences: vi.fn(), getLayers: vi.fn(), savePreferences: vi.fn(), getDependencies: vi.fn(),
+        getPassport: vi.fn(), savePassport: vi.fn(), setLayerMember: vi.fn(),
         createTileSession: vi.fn(),
         getBuildings: vi.fn(),
         getMarkers: vi.fn(),
@@ -279,6 +283,11 @@ describe('AddressMap', () => {
         firstViewport = new Subject<MapBuildingFeatureCollection>();
         secondViewport = new Subject<MapBuildingFeatureCollection>();
         vi.clearAllMocks();
+        mapData.getPreferences.mockReset().mockImplementation(() => of({ version: 0, settings: defaultMapSettings(), notice: null }));
+        mapData.getLayers.mockReset().mockReturnValue(of([]));
+        mapData.savePreferences.mockReset().mockImplementation((settings, version) => of({ settings, version: version + 1, notice: null }));
+        mapData.getDependencies.mockReset().mockReturnValue(of({ code: 'object_has_dependencies', message: '', object: { kind: 'marker', id: marker.id }, dependencies: [] }));
+        mapData.getBuildingMarker.mockReset().mockReturnValue(of(null));
         mapData.createTileSession.mockReset();
         mapData.getBuildings.mockReset();
         mapData.getMarkers.mockReset();
@@ -414,8 +423,8 @@ describe('AddressMap', () => {
         expect(group).not.toBeNull();
         expect(group?.getAttribute('role')).toBe('group');
         expect(group?.getAttribute('aria-label')).toBe('Управление картой');
-        expect(group?.classList.contains('bg-background')).toBe(true);
-        expect(group?.classList.contains('shadow-md')).toBe(true);
+        expect(group?.classList.contains('bg-background/90')).toBe(true);
+        expect(group?.classList.contains('shadow-sm')).toBe(true);
         expect(group?.parentElement?.classList.contains('isolate')).toBe(true);
 
         const directButtons = Array.from(group?.children ?? [])
@@ -425,13 +434,14 @@ describe('AddressMap', () => {
             'close-address-map',
             'add-map-marker',
             'add-map-connection',
-            undefined,
         ]);
+        for (const id of ['map-filters-toggle', 'map-layers-toggle', 'map-legend-toggle'])
+            expect(group?.querySelector(`[data-testid="${id}"]`)).not.toBeNull();
         expect(directButtons[0]?.getAttribute('aria-label')).toBe('Закрыть карту');
-        expect(directButtons.every(button => button.classList.contains('border-border'))).toBe(true);
-        expect(directButtons.some(button => button.classList.contains('border-transparent'))).toBe(false);
-        expect(directButtons.every(button => button.classList.contains('bg-background'))).toBe(true);
-        expect(directButtons.every(button => button.classList.contains('dark:bg-background'))).toBe(true);
+        expect(directButtons.every(button => button.classList.contains('hover:bg-muted'))).toBe(true);
+        expect(directButtons.every(button => button.classList.contains('size-7'))).toBe(true);
+        expect(directButtons.some(button => button.classList.contains('bg-primary'))).toBe(false);
+        expect(group?.classList.contains('backdrop-blur-md')).toBe(true);
     });
 
     it('opens the marker editor in the overlay, switches settings and cancels without saving', async () => {
@@ -494,7 +504,7 @@ describe('AddressMap', () => {
             south: 55,
             east: 38,
             north: 56,
-        });
+        }, expect.objectContaining({ layers_active: true, include_unassigned: true }));
         expect(latestMapOptions).toMatchObject({
             center: [37.6176, 55.7558],
             zoom: 10,
@@ -740,6 +750,14 @@ describe('AddressMap', () => {
         await Promise.resolve();
     });
 
+    it('caps far-future tile expiry to a valid browser timer instead of a millisecond refresh loop', async () => {
+        mapData.createTileSession.mockReturnValue(of({ tile_url_template: '/map/tiles/{z}/{x}/{y}.png', expires_at: 9_999_999_999,
+            min_zoom: 0, max_zoom: 20, tile_size: 256, default_latitude: 55, default_longitude: 38, default_zoom: 12 }));
+        const timer = vi.spyOn(globalThis, 'setTimeout'); await initialize();
+        expect(timer.mock.calls.some(call => call[1] === 2_147_483_647)).toBe(true);
+        expect(timer.mock.calls.every(call => Number(call[1] ?? 0) <= 2_147_483_647)).toBe(true);
+    });
+
     it('zooms into a cluster and emits the selected building from its popup', async () => {
         await initialize();
         fakeMap.emitLayer('click', 'building-clusters', {
@@ -836,7 +854,7 @@ describe('AddressMap', () => {
         expect(group.getAttribute('role')).toBe('group');
         expect(buttons.map(button => button.getAttribute('aria-label')).sort()).toEqual([
             'Редактировать маркер',
-            'Удалить маркер',
+            'Удалить метку с карты',
             'Закрыть карточку метки',
         ].sort());
         expect(buttons.every(button => button.getAttribute('data-slot') === 'button')).toBe(true);
@@ -1078,6 +1096,125 @@ describe('AddressMap', () => {
         expect(mapData.getBuildings).toHaveBeenCalledOnce();
         expect(mapData.getMarkers).toHaveBeenCalledOnce();
         expect(mapData.getConnections).toHaveBeenCalledOnce();
+    });
+
+    it('really unloads connections, hit sources and late responses when hidden, including after pan', async () => {
+        const pending = new Subject<MapConnection[]>(); mapData.getConnections.mockReturnValue(pending);
+        await initialize(); const c = fixture.componentInstance;
+        c.connections.set([splitLine()]); c.popupConnections.set([splitLine()]); c.selectedConnectionId.set(71);
+        c.requestConnectionMode('hidden'); fixture.detectChanges();
+        pending.next([splitLine()]); fakeMap.emit('moveend'); await vi.advanceTimersByTimeAsync(500); fixture.detectChanges();
+        expect(mapData.getConnections).toHaveBeenCalledOnce(); expect(c.connections()).toEqual([]); expect(c.popupConnections()).toEqual([]);
+        expect(c.selectedConnectionId()).toBeNull(); expect(c.spliceHover()).toBeNull();
+        for (const source of ['xarionix-connections', 'xarionix-connection-hits', 'xarionix-connection-halos'])
+            expect(fakeMap.sources.get(source)?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+    });
+
+    it('makes a new request on re-enable instead of restoring an old geometry array', async () => {
+        await initialize(); const c = fixture.componentInstance;
+        c.requestConnectionMode('hidden'); fixture.detectChanges(); const reads = mapData.getConnections.mock.calls.length;
+        mapData.getConnections.mockReturnValue(of([splitLine()]));
+        c.requestConnectionMode('viewport'); fixture.detectChanges();
+        expect(mapData.getConnections.mock.calls.length).toBe(reads + 1); expect(c.connections().map(line => line.id)).toEqual([71]);
+    });
+
+    it('does not fetch geometry on a normal marker click when hidden; dependencies use the bounded contract', async () => {
+        mapData.getPreferences.mockReturnValue(of({ version: 1, settings: { ...defaultMapSettings(), connection_mode: 'hidden' }, notice: null }));
+        fixture.componentInstance.workspace.load();
+        mapData.getMarkers.mockReturnValue(of([marker])); await initialize();
+        clickCustomMarker(); fixture.detectChanges();
+        expect(mapData.getConnections).not.toHaveBeenCalled();
+        fixture.componentInstance.requestDeleteMarker(marker);
+        expect(mapData.getDependencies).toHaveBeenCalledWith({ kind: 'marker', id: marker.id });
+        expect(mapData.getConnections).not.toHaveBeenCalled();
+    });
+
+    it('uses one-hop object mode, replaces selection and clears it without keeping old geometry', async () => {
+        await initialize(); const c = fixture.componentInstance;
+        mapData.getConnections.mockClear(); c.requestConnectionMode('object'); fixture.detectChanges();
+        expect(mapData.getConnections).not.toHaveBeenCalled();
+        const first = new Subject<MapConnection[]>(), second = new Subject<MapConnection[]>();
+        mapData.getConnections.mockReturnValueOnce(first).mockReturnValueOnce(second);
+        c.selectedMapEndpoint.set({ kind: 'marker', id: 7 }); fixture.detectChanges();
+        c.selectedMapEndpoint.set({ kind: 'marker', id: 8 }); fixture.detectChanges();
+        first.next([{ ...splitLine(), id: 72 }]); second.next([splitLine()]);
+        expect(mapData.getConnections).toHaveBeenLastCalledWith(undefined, { kind: 'marker', id: 8 }, expect.objectContaining({ layers_active: true }));
+        expect(c.connections().map(line => line.id)).toEqual([71]);
+        const count = mapData.getConnections.mock.calls.length;
+        fakeMap.emit('moveend'); await vi.advanceTimersByTimeAsync(220);
+        expect(mapData.getConnections.mock.calls.length).toBe(count);
+        c.closePopup(); fixture.detectChanges(); expect(c.connections()).toEqual([]);
+    });
+
+    it('keeps the current query when an old filter request responds late', async () => {
+        await initialize(); const c = fixture.componentInstance;
+        const old = new Subject<MapConnection[]>(), current = new Subject<MapConnection[]>();
+        mapData.getConnections.mockReturnValueOnce(old).mockReturnValueOnce(current);
+        c.mediumFilter.set('fiber'); fixture.detectChanges(); c.mediumFilter.set('utp'); fixture.detectChanges();
+        current.next([{ ...splitLine(), id: 99, medium: 'utp', fiber_count: null }]); old.error(new HttpErrorResponse({ status: 500 }));
+        expect(c.connections().map(line => line.id)).toEqual([99]); expect(c.connectionLoadError()).toBeNull();
+    });
+
+    it('does not restore old company geometry or errors after the context is replaced', async () => {
+        const old = new Subject<MapConnection[]>(); mapData.getConnections.mockReturnValueOnce(old);
+        await initialize(); const c = fixture.componentInstance;
+        mapData.getConnections.mockReturnValue(of([{ ...splitLine(), id: 99 }]));
+        companyChanged.next(2); fixture.detectChanges(); await vi.advanceTimersByTimeAsync(200); fixture.detectChanges();
+        old.error(new HttpErrorResponse({ status: 500 }));
+        expect(c.connections().map(line => line.id)).toEqual([99]); expect(c.connectionLoadError()).toBeNull();
+        expect(c.selectedMapEndpoint()).toBeNull(); expect(c.popupConnections()).toEqual([]);
+    });
+
+    it('finishes a saved route without retaining its selected ID in hidden mode', async () => {
+        fixture.componentRef.setInput('canManage', true); await initialize(); const c = fixture.componentInstance;
+        c.requestConnectionMode('hidden'); fixture.detectChanges(); c.connectionDraft.set(routeDraft()); c.connectionDraftActive.set(true);
+        mapData.createConnection.mockReturnValueOnce(of(splitLine())); c.saveConnection(); fixture.detectChanges();
+        expect(c.connections()).toEqual([]); expect(c.selectedConnectionId()).toBeNull(); expect(c.connectionDraftActive()).toBe(false);
+    });
+
+    it('does not resurrect a selected house when every layer including unassigned is off', async () => {
+        mapData.getPreferences.mockReturnValue(of({ version: 1, settings: { ...defaultMapSettings(), include_unassigned: false }, notice: null }));
+        fixture.componentInstance.workspace.load();
+        fixture.componentRef.setInput('selectedBuilding', house); await initialize();
+        expect(fakeMap.sources.get('xarionix-selected-building')?.setData).toHaveBeenLastCalledWith(EMPTY_FEATURES);
+        expect(fixture.componentInstance.selectedBuilding()?.id).toBe(house.id);
+    });
+
+    it('does not discard a dirty route to change the connection mode', async () => {
+        await initialize(); const c = fixture.componentInstance; c.connectionDraft.set(routeDraft()); c.connectionDraftActive.set(true);
+        c.requestConnectionMode('hidden'); expect(c.connectionMode()).toBe('viewport'); expect(c.connectionDraft().name).toBe('Магистраль');
+    });
+
+    it('uses the server primary lookup when its styling marker is outside the filtered viewport', async () => {
+        mapData.getBuildingMarker.mockReturnValue(of(linkedMarker));
+        TestBed.inject(AddressApiService).getBuilding = vi.fn().mockReturnValue(of(house));
+        await initialize(); const c = fixture.componentInstance; c.markers.set([]);
+        c.startBuildingStyle(house.id);
+        expect(mapData.getBuildingMarker).toHaveBeenCalledWith(house.id);
+        expect(c.editingMarker()?.id).toBe(linkedMarker.id); expect(mapData.createMarker).not.toHaveBeenCalled();
+    });
+
+    it('expands the same map, restores the host/focus and does not recreate MapLibre', async () => {
+        vi.useRealTimers(); await initialize(); const c = fixture.componentInstance;
+        const host = fixture.nativeElement, parent = host.parentElement, cameraMoves = fakeMap.easeTo.mock.calls.length;
+        c.expandMap(); fixture.detectChanges(); await fixture.whenStable();
+        expect(c.expanded()).toBe(true); expect(host.parentElement).not.toBe(parent);
+        expect(document.querySelector('[aria-label="Развёрнутая карта"]')?.contains(host)).toBe(true);
+        c.collapseMap(); fixture.detectChanges(); await fixture.whenStable();
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        expect(host.parentElement).toBe(parent); expect(c.expanded()).toBe(false);
+        expect(loader.load).toHaveBeenCalledOnce(); expect(fakeMap.easeTo.mock.calls.length).toBe(cameraMoves);
+        expect(document.activeElement).toBe(fixture.nativeElement.querySelector('[data-testid="expand-address-map"]'));
+    });
+
+    it('blocks the map gesture used to dismiss an open tools panel', async () => {
+        await initialize(); const c = fixture.componentInstance, canvas = c.mapContainer().nativeElement, gesture = vi.fn();
+        canvas.addEventListener('pointerdown', gesture); canvas.addEventListener('click', gesture);
+        c.activePanel.set('filters');
+        canvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+        canvas.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        expect(c.activePanel()).toBeNull(); expect(gesture).not.toHaveBeenCalled();
+        canvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); expect(gesture).toHaveBeenCalledOnce();
     });
 
     it('keeps a binding conflict unsaved until the exact snapshot token is confirmed', async () => {

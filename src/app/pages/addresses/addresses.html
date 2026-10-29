@@ -556,6 +556,7 @@
               [canManage]="canManageAddresses()"
               (buildingSelected)="openMapBuilding($event)"
               (buildingCoordinatesChanged)="onBuildingCoordinatesChanged($event)"
+              (buildingDeleted)="onMapBuildingDeleted($event)"
               (closeRequested)="closeMap()"
             />
           } @else if (selectedObject(); as addressObject) {

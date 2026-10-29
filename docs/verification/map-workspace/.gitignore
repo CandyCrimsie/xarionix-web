@@ -1,0 +1,13 @@
+# The runner produces the complete matrix locally. Keep representative visual
+# evidence in Git, not every duplicate DPR/theme screenshot or failure capture.
+*.png
+!dark-dpr1-workspace-filters.png
+!dark-dpr1-workspace-expanded-legend.png
+!dark-dpr2-workspace-expanded-legend.png
+!dark-dpr1-workspace-passport-view.png
+!dark-dpr1-workspace-passport-conflict.png
+!light-dpr1-workspace-narrow.png
+!dark-dpr1-delete-dependencies.png
+!dark-dpr1-mixed-methods.png
+!dark-dpr1-transparent-marker-clipping.png
+!dark-dpr1-icon-grid.png

@@ -11,7 +11,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { forkJoin, of, type Observable } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { AddressDependenciesDialog, type AddressDependencyConflict } from './address-dependencies-dialog';
+import { AddressDependenciesDialog, type AddressDependencyConflict } from '../../shared/address-dependencies-dialog/address-dependencies-dialog';
 
 import {
     CdkDrag,
@@ -665,6 +665,13 @@ export class Addresses {
         this.entrances.set([]);
         this.locations.set([]);
         this.detailsState.set('idle');
+    }
+
+    onMapBuildingDeleted(id: number): void {
+        const remove = (nodes: AddressTreeNode[]): AddressTreeNode[] => nodes.map(node => ({ ...node,
+            buildings: node.buildings.filter(building => building.id !== id), children: remove(node.children) }));
+        this.roots.update(remove); this.buildings.update(buildings => buildings.filter(building => building.id !== id));
+        if (this.selectedBuilding()?.id === id) this.backToAddressObject();
     }
 
 

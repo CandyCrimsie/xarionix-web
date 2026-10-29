@@ -1,0 +1,1146 @@
+[
+  {
+    "theme": "light",
+    "dpr": 1,
+    "layers": [
+      "yandex-map-layer",
+      "connection-selected-halo",
+      "connection-method-unknown",
+      "connection-method-aerial",
+      "connection-method-duct",
+      "connection-method-direct_buried",
+      "connection-method-facade",
+      "connection-method-indoor",
+      "route-draft-method-unknown",
+      "route-draft-method-aerial",
+      "route-draft-method-duct",
+      "route-draft-method-direct_buried",
+      "route-draft-method-facade",
+      "route-draft-method-indoor",
+      "connection-hit-target",
+      "connection-labels",
+      "building-clusters",
+      "building-cluster-count",
+      "building-points",
+      "building-popup-label",
+      "selected-building-marker",
+      "selected-building-marker-label",
+      "custom-marker-clusters",
+      "custom-marker-cluster-count",
+      "custom-marker-points",
+      "custom-marker-labels",
+      "custom-marker-selected-label",
+      "route-edit-vertices"
+    ],
+    "labels": 9,
+    "images": 9,
+    "fontLoaded": true,
+    "toolbarColor": "oklch(0.141 0.005 285.823)",
+    "rootColor": "oklch(0.141 0.005 285.823)",
+    "spliceChecks": {
+      "grid": [
+        {
+          "id": "marker-icon-map-house",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-network-node",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-cabinet",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-splice",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-pole",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-chamber",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-equipment",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-note",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-fiber-box",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-odf",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-transition",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-router",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-wifi",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-radio-tower",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        }
+      ],
+      "transparency": [
+        {
+          "shape": "circle",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "rounded",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "pill",
+          "maxAlpha": 102,
+          "clearPixels": 0.928125
+        },
+        {
+          "shape": "icon",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        }
+      ],
+      "snapped": {
+        "latitude": 55.577546461895025,
+        "longitude": 38.24539822476231
+      },
+      "cameraPreserved": true,
+      "splitTopology": true,
+      "overlapChoice": true,
+      "cardAlternative": true,
+      "hiddenDuringRouteEditing": true
+    },
+    "routeChecks": {
+      "genericBoxSplit": true,
+      "passThroughWithoutSplit": true,
+      "boundaryWithoutNode": true,
+      "frozenPosition": [
+        38.24760109137313,
+        55.578329244627554
+      ],
+      "conflictRetainsForm": true,
+      "rendering": {
+        "styleLayers": [
+          "connection-method-unknown",
+          "connection-method-aerial",
+          "connection-method-duct",
+          "connection-method-direct_buried",
+          "connection-method-facade",
+          "connection-method-indoor"
+        ],
+        "allMethods": 6,
+        "belowMarkers": true,
+        "fullHitGeometry": true,
+        "dash": [
+          null,
+          null,
+          [
+            3,
+            1.8
+          ],
+          [
+            0.35,
+            1.8
+          ],
+          [
+            5,
+            1.5,
+            0.5,
+            1.5
+          ],
+          null
+        ]
+      },
+      "clipping": [
+        {
+          "shape": "circle",
+          "changedPixels": 0
+        },
+        {
+          "shape": "rounded",
+          "changedPixels": 0
+        },
+        {
+          "shape": "pill",
+          "changedPixels": 0
+        },
+        {
+          "shape": "icon",
+          "changedPixels": 0
+        }
+      ]
+    },
+    "addressChecks": {
+      "singleConflictDialog": true,
+      "closeButton": true,
+      "backdrop": true,
+      "escape": true,
+      "focusRestored": true,
+      "patchPreservesId": true,
+      "canonicalPosition": {
+        "latitude": 55.577800570715596,
+        "longitude": 38.247490470023166
+      },
+      "sources": {
+        "standard": 0,
+        "selected": 1,
+        "custom": 0,
+        "notice": null,
+        "placing": false,
+        "editing": null
+      }
+    },
+    "workspaceChecks": {
+      "cameraPreserved": true,
+      "sameMapInstance": true,
+      "nestedEscape": true,
+      "layerCreated": true,
+      "membership": [
+        101
+      ],
+      "hiddenGeometryReads": 0,
+      "allOffEmpty": true,
+      "passportConflictDraftKept": true,
+      "preferenceWrites": 6,
+      "narrowOverflow": false
+    },
+    "clusters": 1,
+    "equalPixels": true,
+    "dragOffset": 0.4807616108040909,
+    "errors": [],
+    "unknownApi": []
+  },
+  {
+    "theme": "light",
+    "dpr": 2,
+    "layers": [
+      "yandex-map-layer",
+      "connection-selected-halo",
+      "connection-method-unknown",
+      "connection-method-aerial",
+      "connection-method-duct",
+      "connection-method-direct_buried",
+      "connection-method-facade",
+      "connection-method-indoor",
+      "route-draft-method-unknown",
+      "route-draft-method-aerial",
+      "route-draft-method-duct",
+      "route-draft-method-direct_buried",
+      "route-draft-method-facade",
+      "route-draft-method-indoor",
+      "connection-hit-target",
+      "connection-labels",
+      "building-clusters",
+      "building-cluster-count",
+      "building-points",
+      "building-popup-label",
+      "selected-building-marker",
+      "selected-building-marker-label",
+      "custom-marker-clusters",
+      "custom-marker-cluster-count",
+      "custom-marker-points",
+      "custom-marker-labels",
+      "custom-marker-selected-label",
+      "route-edit-vertices"
+    ],
+    "labels": 9,
+    "images": 9,
+    "fontLoaded": true,
+    "toolbarColor": "oklch(0.141 0.005 285.823)",
+    "rootColor": "oklch(0.141 0.005 285.823)",
+    "spliceChecks": {
+      "grid": [
+        {
+          "id": "marker-icon-map-house",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-network-node",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-cabinet",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-splice",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-pole",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-chamber",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-equipment",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-note",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-fiber-box",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-odf",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-transition",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-router",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-wifi",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-radio-tower",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        }
+      ],
+      "transparency": [
+        {
+          "shape": "circle",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "rounded",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "pill",
+          "maxAlpha": 102,
+          "clearPixels": 0.928125
+        },
+        {
+          "shape": "icon",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        }
+      ],
+      "snapped": {
+        "latitude": 55.577546461895025,
+        "longitude": 38.24539822476231
+      },
+      "cameraPreserved": true,
+      "splitTopology": true,
+      "overlapChoice": true,
+      "cardAlternative": true,
+      "hiddenDuringRouteEditing": true
+    },
+    "routeChecks": {
+      "genericBoxSplit": true,
+      "passThroughWithoutSplit": true,
+      "boundaryWithoutNode": true,
+      "frozenPosition": [
+        38.24760109137313,
+        55.578329244627554
+      ],
+      "conflictRetainsForm": true,
+      "rendering": {
+        "styleLayers": [
+          "connection-method-unknown",
+          "connection-method-aerial",
+          "connection-method-duct",
+          "connection-method-direct_buried",
+          "connection-method-facade",
+          "connection-method-indoor"
+        ],
+        "allMethods": 6,
+        "belowMarkers": true,
+        "fullHitGeometry": true,
+        "dash": [
+          null,
+          null,
+          [
+            3,
+            1.8
+          ],
+          [
+            0.35,
+            1.8
+          ],
+          [
+            5,
+            1.5,
+            0.5,
+            1.5
+          ],
+          null
+        ]
+      },
+      "clipping": [
+        {
+          "shape": "circle",
+          "changedPixels": 0
+        },
+        {
+          "shape": "rounded",
+          "changedPixels": 0
+        },
+        {
+          "shape": "pill",
+          "changedPixels": 0
+        },
+        {
+          "shape": "icon",
+          "changedPixels": 0
+        }
+      ]
+    },
+    "addressChecks": {
+      "singleConflictDialog": true,
+      "closeButton": true,
+      "backdrop": true,
+      "escape": true,
+      "focusRestored": true,
+      "patchPreservesId": true,
+      "canonicalPosition": {
+        "latitude": 55.577800570715596,
+        "longitude": 38.247490470023166
+      },
+      "sources": {
+        "standard": 0,
+        "selected": 1,
+        "custom": 0,
+        "notice": null,
+        "placing": false,
+        "editing": null
+      }
+    },
+    "workspaceChecks": {
+      "cameraPreserved": true,
+      "sameMapInstance": true,
+      "nestedEscape": true,
+      "layerCreated": true,
+      "membership": [
+        101
+      ],
+      "hiddenGeometryReads": 0,
+      "allOffEmpty": true,
+      "passportConflictDraftKept": true,
+      "preferenceWrites": 6,
+      "narrowOverflow": false
+    },
+    "clusters": 1,
+    "equalPixels": true,
+    "dragOffset": 0.4807616108040909,
+    "errors": [],
+    "unknownApi": []
+  },
+  {
+    "theme": "dark",
+    "dpr": 1,
+    "layers": [
+      "yandex-map-layer",
+      "connection-selected-halo",
+      "connection-method-unknown",
+      "connection-method-aerial",
+      "connection-method-duct",
+      "connection-method-direct_buried",
+      "connection-method-facade",
+      "connection-method-indoor",
+      "route-draft-method-unknown",
+      "route-draft-method-aerial",
+      "route-draft-method-duct",
+      "route-draft-method-direct_buried",
+      "route-draft-method-facade",
+      "route-draft-method-indoor",
+      "connection-hit-target",
+      "connection-labels",
+      "building-clusters",
+      "building-cluster-count",
+      "building-points",
+      "building-popup-label",
+      "selected-building-marker",
+      "selected-building-marker-label",
+      "custom-marker-clusters",
+      "custom-marker-cluster-count",
+      "custom-marker-points",
+      "custom-marker-labels",
+      "custom-marker-selected-label",
+      "route-edit-vertices"
+    ],
+    "labels": 9,
+    "images": 9,
+    "fontLoaded": true,
+    "toolbarColor": "oklch(0.985 0 0)",
+    "rootColor": "oklch(0.985 0 0)",
+    "thousandPointResources": {
+      "images": 9,
+      "domMarkers": 0
+    },
+    "spliceChecks": {
+      "grid": [
+        {
+          "id": "marker-icon-map-house",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-network-node",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-cabinet",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-splice",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-pole",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-chamber",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-equipment",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-note",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-fiber-box",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-odf",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-transition",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-router",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-wifi",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-radio-tower",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        }
+      ],
+      "transparency": [
+        {
+          "shape": "circle",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "rounded",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "pill",
+          "maxAlpha": 102,
+          "clearPixels": 0.928125
+        },
+        {
+          "shape": "icon",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        }
+      ],
+      "snapped": {
+        "latitude": 55.577546461895025,
+        "longitude": 38.24539822476231
+      },
+      "cameraPreserved": true,
+      "splitTopology": true,
+      "overlapChoice": true,
+      "cardAlternative": true,
+      "hiddenDuringRouteEditing": true
+    },
+    "routeChecks": {
+      "genericBoxSplit": true,
+      "passThroughWithoutSplit": true,
+      "boundaryWithoutNode": true,
+      "frozenPosition": [
+        38.24760109137313,
+        55.578329244627554
+      ],
+      "conflictRetainsForm": true,
+      "rendering": {
+        "styleLayers": [
+          "connection-method-unknown",
+          "connection-method-aerial",
+          "connection-method-duct",
+          "connection-method-direct_buried",
+          "connection-method-facade",
+          "connection-method-indoor"
+        ],
+        "allMethods": 6,
+        "belowMarkers": true,
+        "fullHitGeometry": true,
+        "dash": [
+          null,
+          null,
+          [
+            3,
+            1.8
+          ],
+          [
+            0.35,
+            1.8
+          ],
+          [
+            5,
+            1.5,
+            0.5,
+            1.5
+          ],
+          null
+        ]
+      },
+      "clipping": [
+        {
+          "shape": "circle",
+          "changedPixels": 0
+        },
+        {
+          "shape": "rounded",
+          "changedPixels": 0
+        },
+        {
+          "shape": "pill",
+          "changedPixels": 0
+        },
+        {
+          "shape": "icon",
+          "changedPixels": 0
+        }
+      ]
+    },
+    "addressChecks": {
+      "singleConflictDialog": true,
+      "closeButton": true,
+      "backdrop": true,
+      "escape": true,
+      "focusRestored": true,
+      "patchPreservesId": true,
+      "canonicalPosition": {
+        "latitude": 55.577800570715596,
+        "longitude": 38.247490470023166
+      },
+      "sources": {
+        "standard": 0,
+        "selected": 1,
+        "custom": 0,
+        "notice": null,
+        "placing": false,
+        "editing": null
+      }
+    },
+    "workspaceChecks": {
+      "cameraPreserved": true,
+      "sameMapInstance": true,
+      "nestedEscape": true,
+      "layerCreated": true,
+      "membership": [
+        101
+      ],
+      "hiddenGeometryReads": 0,
+      "allOffEmpty": true,
+      "passportConflictDraftKept": true,
+      "preferenceWrites": 6,
+      "narrowOverflow": false
+    },
+    "clusters": 1,
+    "equalPixels": true,
+    "dragOffset": 0.4807616108040909,
+    "errors": [],
+    "unknownApi": []
+  },
+  {
+    "theme": "dark",
+    "dpr": 2,
+    "layers": [
+      "yandex-map-layer",
+      "connection-selected-halo",
+      "connection-method-unknown",
+      "connection-method-aerial",
+      "connection-method-duct",
+      "connection-method-direct_buried",
+      "connection-method-facade",
+      "connection-method-indoor",
+      "route-draft-method-unknown",
+      "route-draft-method-aerial",
+      "route-draft-method-duct",
+      "route-draft-method-direct_buried",
+      "route-draft-method-facade",
+      "route-draft-method-indoor",
+      "connection-hit-target",
+      "connection-labels",
+      "building-clusters",
+      "building-cluster-count",
+      "building-points",
+      "building-popup-label",
+      "selected-building-marker",
+      "selected-building-marker-label",
+      "custom-marker-clusters",
+      "custom-marker-cluster-count",
+      "custom-marker-points",
+      "custom-marker-labels",
+      "custom-marker-selected-label",
+      "route-edit-vertices"
+    ],
+    "labels": 9,
+    "images": 9,
+    "fontLoaded": true,
+    "toolbarColor": "oklch(0.985 0 0)",
+    "rootColor": "oklch(0.985 0 0)",
+    "spliceChecks": {
+      "grid": [
+        {
+          "id": "marker-icon-map-house",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-network-node",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-cabinet",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-splice",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-pole",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-chamber",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-equipment",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-note",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-fiber-box",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-odf",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-transition",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-router",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-wifi",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        },
+        {
+          "id": "marker-icon-radio-tower",
+          "w": 44,
+          "h": 44,
+          "sw": 24,
+          "sh": 24,
+          "offset": 0
+        }
+      ],
+      "transparency": [
+        {
+          "shape": "circle",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "rounded",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        },
+        {
+          "shape": "pill",
+          "maxAlpha": 102,
+          "clearPixels": 0.928125
+        },
+        {
+          "shape": "icon",
+          "maxAlpha": 102,
+          "clearPixels": 0.899375
+        }
+      ],
+      "snapped": {
+        "latitude": 55.577546461895025,
+        "longitude": 38.24539822476231
+      },
+      "cameraPreserved": true,
+      "splitTopology": true,
+      "overlapChoice": true,
+      "cardAlternative": true,
+      "hiddenDuringRouteEditing": true
+    },
+    "routeChecks": {
+      "genericBoxSplit": true,
+      "passThroughWithoutSplit": true,
+      "boundaryWithoutNode": true,
+      "frozenPosition": [
+        38.24760109137313,
+        55.578329244627554
+      ],
+      "conflictRetainsForm": true,
+      "rendering": {
+        "styleLayers": [
+          "connection-method-unknown",
+          "connection-method-aerial",
+          "connection-method-duct",
+          "connection-method-direct_buried",
+          "connection-method-facade",
+          "connection-method-indoor"
+        ],
+        "allMethods": 6,
+        "belowMarkers": true,
+        "fullHitGeometry": true,
+        "dash": [
+          null,
+          null,
+          [
+            3,
+            1.8
+          ],
+          [
+            0.35,
+            1.8
+          ],
+          [
+            5,
+            1.5,
+            0.5,
+            1.5
+          ],
+          null
+        ]
+      },
+      "clipping": [
+        {
+          "shape": "circle",
+          "changedPixels": 0
+        },
+        {
+          "shape": "rounded",
+          "changedPixels": 0
+        },
+        {
+          "shape": "pill",
+          "changedPixels": 0
+        },
+        {
+          "shape": "icon",
+          "changedPixels": 0
+        }
+      ]
+    },
+    "addressChecks": {
+      "singleConflictDialog": true,
+      "closeButton": true,
+      "backdrop": true,
+      "escape": true,
+      "focusRestored": true,
+      "patchPreservesId": true,
+      "canonicalPosition": {
+        "latitude": 55.577800570715596,
+        "longitude": 38.247490470023166
+      },
+      "sources": {
+        "standard": 0,
+        "selected": 1,
+        "custom": 0,
+        "notice": null,
+        "placing": false,
+        "editing": null
+      }
+    },
+    "workspaceChecks": {
+      "cameraPreserved": true,
+      "sameMapInstance": true,
+      "nestedEscape": true,
+      "layerCreated": true,
+      "membership": [
+        101
+      ],
+      "hiddenGeometryReads": 0,
+      "allOffEmpty": true,
+      "passportConflictDraftKept": true,
+      "preferenceWrites": 6,
+      "narrowOverflow": false
+    },
+    "clusters": 1,
+    "equalPixels": true,
+    "dragOffset": 0.4807616108040909,
+    "errors": [],
+    "unknownApi": []
+  }
+]

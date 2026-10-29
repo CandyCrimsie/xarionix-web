@@ -17,7 +17,7 @@ import {
     HostListener,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom, Subscription, map as mapResult, type Observable } from 'rxjs';
+import { firstValueFrom, forkJoin, Subscription, map as mapResult, type Observable } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import { toast } from '@spartan-ng/brain/sonner';
@@ -37,6 +37,7 @@ import {
     lucideListFilter,
     lucideUndo2,
     lucidePlus,
+    lucideMaximize,
 } from '@ng-icons/lucide';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSliderImports } from '@spartan-ng/helm/slider';
@@ -49,6 +50,7 @@ import { HlmDialog, HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { AddressApiService } from '../../../../core/addresses/address-api.service';
 
 import type { AddressObject, Building } from '../../../../core/addresses/address.models';
@@ -97,7 +99,6 @@ import {
     type MapLibreModule,
 } from '../../services/maplibre-loader.service';
 import { MapMarkerEditor } from '../map-marker-editor/map-marker-editor';
-import { MapLegend } from '../map-legend/map-legend';
 import { MapSpliceHover, type SpliceHover, type SpliceTarget } from '../../map-splice-hover';
 import { routePosition } from '../../map-connection-geometry';
 import { INSTALLATION_STYLES, installationMethods, installationLabel, removeRouteVertex as removeVertexWithMethods } from '../../map-line-styles';
@@ -105,6 +106,15 @@ import { MarkerFootprintCache } from '../../map-marker-footprints';
 import type { MarkerFootprint } from '../../map-line-clipping';
 import { MapIcon } from '../map-icon/map-icon';
 import { ROUTE_NODE_OPTIONS, ROUTE_PASS_OPTIONS } from '../../map-route.config';
+import { MapWorkspaceState } from '../../services/map-workspace.state';
+import type { ConnectionMode, MapPassport, MapTarget } from '../../models/map-workspace.models';
+import { Overlay, type OverlayRef } from '@angular/cdk/overlay';
+import { DomPortal } from '@angular/cdk/portal';
+import { ConfigurableFocusTrapFactory, type ConfigurableFocusTrap } from '@angular/cdk/a11y';
+import { MapToolbar } from '../map-toolbar/map-toolbar';
+import { MapLayerEditor } from '../map-layer-editor/map-layer-editor';
+import { AddressDependenciesDialog, type AddressDependencyConflict } from '../../../../shared/address-dependencies-dialog/address-dependencies-dialog';
+import { MapPassportDialog } from '../map-passport/map-passport';
 
 
 type MapInstance = import('maplibre-gl').Map;
@@ -154,11 +164,15 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         HlmCheckboxImports,
         HlmSelectImports,
         HlmSliderImports,
-        MapLegend,
         HlmPopoverImports,
         MapIcon,
+        MapToolbar,
+        MapLayerEditor,
+        AddressDependenciesDialog,
+        MapPassportDialog,
+        HlmDropdownMenuImports,
     ],
-    providers: [provideIcons({
+    providers: [MapWorkspaceState, provideIcons({
         lucideBuilding2,
         lucideMapPin,
         lucideMapPinPlus,
@@ -172,33 +186,47 @@ const EMPTY_MARKER_FEATURES: FeatureCollection<Point> = {
         lucideListFilter,
         lucideUndo2,
         lucidePlus,
+        lucideMaximize,
     })],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './address-map.html',
     styleUrl: './address-map.css',
 })
 export class AddressMap implements AfterViewInit {
+    readonly workspace = inject(MapWorkspaceState);
     private readonly mapData = inject(MapDataService);
     private readonly mapLibreLoader = inject(MapLibreLoaderService);
     private readonly companyContext = inject(CompanyContextService);
     private readonly destroyRef = inject(DestroyRef);
     private readonly popupViews = inject(ViewContainerRef);
     private readonly addressApi = inject(AddressApiService);
+    private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+    private readonly overlay = inject(Overlay);
+    private readonly focusTraps = inject(ConfigurableFocusTrapFactory);
+    private expandedOverlay: OverlayRef | null = null;
+    private expandedFocusTrap: ConfigurableFocusTrap | null = null;
+    private resizeFrame: number | null = null;
+    readonly expanded = signal(false);
+    readonly expandButton = viewChild<ElementRef<HTMLButtonElement>>('expandButton');
 
     readonly selectedObject = input<AddressObject | null>(null);
     readonly selectedBuilding = input<Building | null>(null);
     readonly canManage = input(false);
     readonly buildingSelected = output<number>();
     readonly buildingCoordinatesChanged = output<Pick<Building, 'id' | 'latitude' | 'longitude'>>();
+    readonly buildingDeleted = output<number>();
     readonly closeRequested = output<void>();
 
     readonly mapContainer = viewChild.required<ElementRef<HTMLElement>>('mapContainer');
     readonly markerDialog = viewChild<HlmDialog>('markerDialog');
     readonly deleteMarkerDialog = viewChild<HlmAlertDialog>('deleteMarkerDialog');
+    readonly dependenciesDialog = viewChild.required(AddressDependenciesDialog);
+    readonly passportDialog = viewChild.required(MapPassportDialog);
     readonly markerPopup = viewChild.required<TemplateRef<{ $implicit: MapMarker }>>('markerPopup');
     readonly state = signal<MapLoadState>('loading');
     readonly setupError = signal<string | null>(null);
     readonly viewportError = signal<string | null>(null);
+    readonly connectionLoadError = signal<string | null>(null);
     readonly coordinateNotice = signal<string | null>(null);
     readonly yandexMapsUrl = signal(YANDEX_MAPS_URL);
     readonly markers = signal<MapMarker[]>([]);
@@ -236,13 +264,23 @@ export class AddressMap implements AfterViewInit {
     readonly popupConnections = signal<MapConnection[]>([]);
     readonly markerDependencies = signal<MapConnection[]>([]);
     readonly markerDeleteError = signal<string | null>(null);
-    readonly filterPanelOpen = signal(false);
-    readonly showBuildings = signal(true);
-    readonly showInfrastructure = signal(true);
-    readonly showPersonal = signal(true);
-    readonly showConnections = signal(true);
-    readonly mediumFilter = signal<'all' | 'fiber' | 'utp'>('all');
-    readonly statusFilter = signal<'all' | MapConnection['status']>('all');
+    readonly houseToDelete = signal<Building | null>(null);
+    readonly houseDeleting = signal(false);
+    readonly houseDeleteError = signal<string | null>(null);
+    readonly deleteHouseDialog = viewChild.required<HlmAlertDialog>('deleteHouseDialog');
+    readonly activePanel = signal<'filters' | 'layers' | 'legend' | null>(null);
+    readonly filterPanelOpen = computed(() => this.activePanel() === 'filters');
+    readonly showBuildings = this.workspace.field('show_buildings');
+    readonly showInfrastructure = this.workspace.field('show_infrastructure');
+    readonly showPersonal = this.workspace.field('show_personal');
+    readonly connectionMode = this.workspace.field('connection_mode');
+    readonly showConnections = Object.assign(computed(() => this.connectionMode() !== 'hidden'), {
+        set: (visible: boolean) => this.requestConnectionMode(visible ? 'viewport' : 'hidden'),
+    });
+    readonly mediumFilter = this.workspace.field('medium');
+    readonly statusFilter = this.workspace.field('status');
+    readonly installationFilter = this.workspace.field('installation');
+    readonly selectedMapEndpoint = signal<{ kind: 'building' | 'marker'; id: number } | null>(null);
     readonly dark = signal(document.documentElement.classList.contains('dark'));
     readonly spliceHover = signal<SpliceHover | null>(null);
     readonly spliceTarget = signal<SpliceTarget | null>(null);
@@ -301,6 +339,7 @@ export class AddressMap implements AfterViewInit {
     private map: MapInstance | null = null;
     private viewportBuildings: MapBuildingFeatureCollection = EMPTY_FEATURES;
     private popup: MapPopup | null = null;
+    private popupKind: 'building' | 'marker' | 'connection' | null = null;
     private destroyed = false;
     private initializationGeneration = 0;
     private viewportGeneration = 0;
@@ -325,6 +364,9 @@ export class AddressMap implements AfterViewInit {
     private readonly footprintCache=new MarkerFootprintCache();
     private spliceController: MapSpliceHover | null = null;
     private connectionViewportSubscription: Subscription | null = null;
+    private connectionLoadGeneration = 0;
+    private markerDependencyGeneration = 0;
+    private lastConnectionContext = '';
     private contextGeneration = 0;
     private popupGeneration = 0;
     private connectionMutationGeneration = 0;
@@ -333,6 +375,14 @@ export class AddressMap implements AfterViewInit {
     private themeObserver: MutationObserver | null = null;
     private viewReady = false;
     private routeBeforeMap: MapConnectionDraft | null = null;
+    private swallowPanelClick = false;
+    private readonly panelPointerGuard = (event: Event) => {
+        if (event.type === 'pointerdown' && !this.activePanel()) { this.swallowPanelClick = false; return; }
+        if (!this.activePanel() && !this.swallowPanelClick) return;
+        if (event.type === 'pointerdown') this.swallowPanelClick = true;
+        if (event.type === 'click') this.swallowPanelClick = false;
+        this.activePanel.set(null); event.preventDefault(); event.stopImmediatePropagation();
+    };
 
 
     constructor() {
@@ -351,6 +401,12 @@ export class AddressMap implements AfterViewInit {
             this.viewportSubscription?.unsubscribe();
             this.markerViewportSubscription?.unsubscribe();
             this.connectionViewportSubscription?.unsubscribe();
+            this.connectionLoadGeneration++;
+            this.activePanel.set(null);
+            this.selectedMapEndpoint.set(null);
+            this.lastConnectionContext = '';
+            this.houseDeleting.set(false); this.houseToDelete.set(null); this.houseDeleteError.set(null); this.deleteHouseDialog()?.close({});
+            this.dependenciesDialog()?.clear();
             this.focusSubscription?.unsubscribe();
             this.coordinateNotice.set(null);
             this.suppressFocusForBuildingId = null;
@@ -418,6 +474,7 @@ export class AddressMap implements AfterViewInit {
         effect(() => {
             const selectedObject = this.selectedObject();
             const selectedBuilding = this.selectedBuilding();
+            untracked(() => this.selectedMapEndpoint.set(selectedBuilding ? { kind: 'building', id: selectedBuilding.id } : null));
             if (!this.map) {
                 return;
             }
@@ -452,16 +509,144 @@ export class AddressMap implements AfterViewInit {
                 this.connectionLayer?.setDraft(active ? draft : null, mode === 'vertices',this.editingConnection()?.id??null);
             });
         });
+        effect(() => {
+            const ready = this.workspace.ready();
+            this.workspace.query();
+            if (ready) untracked(() => {
+                if (this.state() !== 'ready') return;
+                this.setBuildingData(EMPTY_FEATURES); this.markers.set([]); this.setMarkerData([]);
+                this.loadViewport();
+                if (this.connectionMode() === 'object') this.loadConnections();
+            });
+        });
+        effect(() => {
+            const mode = this.connectionMode(), endpoint = this.selectedMapEndpoint(), ready = this.workspace.ready();
+            untracked(() => {
+                if (this.state() === 'ready' && ready && this.connectionContext(mode, endpoint) !== this.lastConnectionContext) this.loadConnections();
+            });
+        });
     }
 
 
     ngAfterViewInit(): void {
         this.viewReady = true;
+        this.mapContainer().nativeElement.addEventListener('pointerdown', this.panelPointerGuard, true);
+        this.mapContainer().nativeElement.addEventListener('click', this.panelPointerGuard, true);
         if (typeof MutationObserver !== 'undefined') {
             this.themeObserver = new MutationObserver(() => this.dark.set(document.documentElement.classList.contains('dark')));
             this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
         }
         void this.initializeMap();
+    }
+
+    openCreateMarker(): void { this.startCreateMarker(); this.markerDialog()?.open(); }
+
+    resetFilters(): void {
+        if (this.connectionDraftActive() || this.connectionSaving()) { toast.error('Сначала завершите редактирование соединения.'); return; }
+        this.workspace.reset();
+    }
+
+    openPassport(target: MapTarget): void { this.activePanel.set(null); this.closePopup(false); this.passportDialog().open(target); }
+
+    onPassportSaved(passport: MapPassport): void {
+        const entity = passport.entity;
+        if (entity.kind === 'marker') {
+            this.markers.update(markers => markers.map(marker => marker.id === entity.id ? { ...marker,
+                name: entity.name, description: entity.description, version: entity.version! } : marker));
+            this.setMarkerData(this.markers());
+        } else if (entity.kind === 'connection') {
+            this.connections.update(lines => lines.map(line => line.id === entity.id ? { ...line,
+                name: entity.name, description: entity.description, status: entity.status!, version: entity.version! } : line));
+            this.renderConnections();
+        }
+        this.loadViewport();
+        if (this.connectionMode() === 'object') this.loadConnections();
+    }
+
+    primaryMarkerForBuilding(id: number): MapMarker | undefined { return this.markers().find(marker => this.markerRepresentsBuilding(marker, id)); }
+
+    editBuildingLink(marker: MapMarker, unlink = false): void {
+        this.startEditMarker(marker);
+        if (unlink) this.markerDraft.update(draft => ({ ...draft, building_id: null, building_link_role: 'none', building_position: null }));
+    }
+
+    moveMarker(marker: MapMarker): void {
+        this.startEditMarker(marker);
+        if (marker.building_link_role === 'represents' && marker.latitude !== null && marker.longitude !== null)
+            this.markerDraft.update(draft => ({ ...draft, building_position: { latitude: marker.latitude!, longitude: marker.longitude! } }));
+        this.startPointSelection();
+    }
+
+    requestDeleteHouse(id: number): void {
+        if (!this.canManage() || this.houseDeleting()) return;
+        const context = this.contextGeneration, generation = ++this.popupGeneration;
+        this.addressApi.getBuilding(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: house => { if (context === this.contextGeneration && generation === this.popupGeneration) { this.houseToDelete.set(house); this.houseDeleteError.set(null); this.deleteHouseDialog().open(); } },
+            error: () => { if (context === this.contextGeneration) toast.error('Дом больше недоступен'); },
+        });
+    }
+
+    deleteHouse(): void {
+        const house = this.houseToDelete(); if (!house || this.houseDeleting()) return;
+        const context = this.contextGeneration; this.houseDeleting.set(true); this.houseDeleteError.set(null);
+        this.addressApi.deleteBuilding(house.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: () => {
+                if (context !== this.contextGeneration || this.destroyed) return;
+                this.houseDeleting.set(false); this.deleteHouseDialog().close({}); this.houseToDelete.set(null); this.closePopup();
+                this.setBuildingData({ ...this.viewportBuildings, features: this.viewportBuildings.features.filter(feature => feature.properties.id !== house.id) });
+                this.markers.update(markers => markers.filter(marker => marker.building_id !== house.id)); this.setMarkerData(this.markers());
+                this.buildingDeleted.emit(house.id); this.loadViewport(); toast.success('Дом удалён из адресного каталога');
+            },
+            error: (error: HttpErrorResponse) => {
+                if (context !== this.contextGeneration || this.destroyed) return;
+                this.houseDeleting.set(false);
+                if (error.status === 409 && error.error?.detail?.code === 'object_has_dependencies') {
+                    this.deleteHouseDialog().close({}); this.dependenciesDialog().show(error.error.detail, this.map?.getCanvas() ?? null); return;
+                }
+                this.houseDeleteError.set(error.error?.detail?.message ?? 'Не удалось удалить дом. Проверьте доступ и повторите действие.');
+            },
+        });
+    }
+
+    closeMapSurface(): void { if (this.expanded()) this.collapseMap(); else this.closeRequested.emit(); }
+
+    expandMap(): void {
+        if (this.expandedOverlay) return;
+        this.activePanel.set(null);
+        const overlay = this.overlay.create({ hasBackdrop: true, backdropClass: 'cdk-overlay-dark-backdrop',
+            width: '100vw', height: '100dvh', positionStrategy: this.overlay.position().global().centerHorizontally().centerVertically(),
+            scrollStrategy: this.overlay.scrollStrategies.block() });
+        this.expandedOverlay = overlay;
+        overlay.overlayElement.style.padding = '1rem';
+        overlay.overlayElement.style.boxSizing = 'border-box';
+        overlay.overlayElement.style.display = 'block';
+        overlay.overlayElement.setAttribute('aria-label', 'Развёрнутая карта');
+        overlay.overlayElement.setAttribute('role', 'dialog');
+        overlay.overlayElement.setAttribute('aria-modal', 'true');
+        this.expanded.set(true);
+        overlay.attach(new DomPortal(this.hostElement));
+        this.expandedFocusTrap = this.focusTraps.create(this.hostElement.nativeElement);
+        void this.expandedFocusTrap.focusFirstTabbableElementWhenReady();
+        overlay.keydownEvents().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+            if (event.key !== 'Escape' || this.activePanel() || this.placingMarker() || this.connectionMapMode()
+                || Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="popover-content"]'))
+                    .some(element => element !== overlay.overlayElement)) return;
+            event.preventDefault(); event.stopPropagation(); this.collapseMap();
+        });
+        this.resizeFrame = requestAnimationFrame(() => { this.resizeFrame = null; this.map?.resize(); });
+    }
+
+    collapseMap(restoreFocus = true): void {
+        if (!this.expandedOverlay) return;
+        this.activePanel.set(null);
+        this.expandedFocusTrap?.destroy(); this.expandedFocusTrap = null;
+        this.expandedOverlay.dispose(); this.expandedOverlay = null; this.expanded.set(false);
+        if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
+        this.resizeFrame = requestAnimationFrame(() => {
+            this.resizeFrame = null;
+            if (!this.destroyed) this.map?.resize();
+            if (restoreFocus) this.expandButton()?.nativeElement.focus();
+        });
     }
 
 
@@ -546,6 +731,7 @@ export class AddressMap implements AfterViewInit {
                 this.updateExternalMapLink();
                 this.focusSelection(this.selectedObject(), this.selectedBuilding());
                 this.loadViewport();
+                if (this.connectionMode() === 'object') this.loadConnections();
                 this.loadPersonalStyles();
             });
             map.on('click', event => {
@@ -907,7 +1093,7 @@ export class AddressMap implements AfterViewInit {
         const building = this.selectedBuilding();
         return building
             ? this.markers().find(marker => this.markerRepresentsBuilding(marker, building.id)
-                && marker.latitude !== null && marker.longitude !== null)
+                && marker.latitude !== null && marker.longitude !== null && this.visibleMarker(marker))
             : undefined;
     }
 
@@ -937,6 +1123,8 @@ export class AddressMap implements AfterViewInit {
 
 
     private visibleMarker(marker: MapMarker): boolean {
+        const settings = this.workspace.settings();
+        if (settings.point_types_enabled && !settings.point_types.includes(marker.point_type)) return false;
         if (marker.building_link_role === 'represents') return this.showBuildings();
         return marker.visibility === 'private' ? this.showPersonal() : this.showInfrastructure();
     }
@@ -944,6 +1132,7 @@ export class AddressMap implements AfterViewInit {
 
     private showBuildingPopup(coordinates: [number, number], buildingId: number, fullAddress: string): void {
         this.renderPopup(this.buildingPopup(), { id: buildingId, full_address: fullAddress }, coordinates);
+        this.popupKind = 'building';
         this.popupBuildingId.set(buildingId);
         this.selectedMarkerId.set(this.markers().find(marker => this.markerRepresentsBuilding(marker, buildingId))?.id ?? null);
         this.loadPopupConnections({ kind: 'building', id: buildingId });
@@ -952,7 +1141,7 @@ export class AddressMap implements AfterViewInit {
 
     private renderPopup<T>(template: TemplateRef<{ $implicit: T }>, data: T, coordinates: [number, number]): void {
         if (!this.map || !this.mapLibre) return;
-        this.closePopup();
+        this.closePopup(false);
         const view = this.popupViews.createEmbeddedView(template, { $implicit: data });
         view.detectChanges();
         const container = document.createElement('div');
@@ -961,7 +1150,11 @@ export class AddressMap implements AfterViewInit {
             .setLngLat(coordinates).setDOMContent(container);
         popup.on('close', () => {
             view.destroy();
-            if (this.popup === popup) { this.popup = null; this.popupGeneration++; }
+            if (this.popup === popup) {
+                this.popup = null; this.popupKind = null; this.popupGeneration++;
+                this.popupConnections.set([]); this.selectedMapEndpoint.set(null); this.selectedMarkerId.set(null);
+                this.selectedConnectionId.set(null); this.popupBuildingId.set(null);
+            }
         });
         this.popup = popup.addTo(this.map);
     }
@@ -973,18 +1166,19 @@ export class AddressMap implements AfterViewInit {
             return;
         }
         this.renderPopup(this.markerPopup(), marker, coordinates);
+        this.popupKind = 'marker';
         this.selectedMarkerId.set(marker.id);
         this.loadPopupConnections({ kind: 'marker', id: marker.id });
     }
 
 
-    closePopup(): void {
+    closePopup(clearSelection = true): void {
         this.popupGeneration++;
-        this.popup?.remove();
-        this.popup = null;
+        const popup = this.popup; this.popup = null; this.popupKind = null; popup?.remove();
         this.popupConnections.set([]);
         this.selectedMarkerId.set(null);
         this.popupBuildingId.set(null);
+        if (clearSelection) this.selectedMapEndpoint.set(null);
     }
 
 
@@ -1045,7 +1239,7 @@ export class AddressMap implements AfterViewInit {
                 this.closePopup();
                 const effects = new Map(saved.binding_effects?.map(effect => [effect.id, effect]));
                 this.markers.update(current => [...current.filter(item => item.id !== saved.id)
-                    .map(item => effects.has(item.id) ? { ...item, ...effects.get(item.id)! } : item), saved]);
+                    .map(item => effects.has(item.id) ? { ...item, ...effects.get(item.id)! } : item), ...(this.workspace.layers().length ? [] : [saved])]);
                 this.selectedMarkerId.set(saved.id);
                 this.setMarkerData(this.markers());
                 this.markerDialog()?.close({});
@@ -1120,14 +1314,12 @@ export class AddressMap implements AfterViewInit {
     startBuildingStyle(buildingId: number): void {
         const generation = this.contextGeneration;
         const request = ++this.popupGeneration;
-        this.addressApi.getBuilding(buildingId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            next: building => {
+        forkJoin({ building: this.addressApi.getBuilding(buildingId), primary: this.mapData.getBuildingMarker(buildingId) }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: ({ building, primary }) => {
                 if (this.destroyed || generation !== this.contextGeneration || request !== this.popupGeneration) return;
-                const existing = this.markers().find(marker => this.markerRepresentsBuilding(marker, buildingId));
+                const existing = primary;
                 if (existing) { this.startEditMarker(existing); return; }
-                this.closePopup();
-                this.editingMarker.set(null);
-                this.markerError.set(null);
+                this.startCreateMarker(); this.closePopup();
                 this.markerDraft.set({
                     ...createDefaultMapMarker(), visibility: 'company', point_type: 'building',
                     building_link_role: 'represents', building_id: buildingId, icon_name: 'map-house',
@@ -1208,12 +1400,76 @@ export class AddressMap implements AfterViewInit {
 
 
     private loadPopupConnections(endpoint: { kind: 'building' | 'marker'; id: number }): void {
-        const generation = ++this.popupGeneration;
-        const context = this.contextGeneration;
-        this.mapData.getConnections(undefined, endpoint).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            next: lines => { if (!this.destroyed && generation === this.popupGeneration && context === this.contextGeneration) this.popupConnections.set(lines); },
-            error: () => { if (generation === this.popupGeneration && context === this.contextGeneration) toast.error('Не удалось загрузить присоединённые линии'); },
+        this.selectedMapEndpoint.set(endpoint);
+        this.syncPopupConnections();
+    }
+
+    showObjectConnections(endpoint: { kind: 'building' | 'marker'; id: number }): void {
+        this.selectedMapEndpoint.set(endpoint);
+        this.requestConnectionMode('object');
+    }
+
+    requestConnectionMode(mode: ConnectionMode): void {
+        if (this.connectionDraftActive() || this.connectionDialog()?.stateComputed() === 'open' || this.connectionSaving()
+            || this.connectionDeleteDialog()?.stateComputed() === 'open' || this.boundaryDialog()?.stateComputed() === 'open' || this.spliceTarget()) {
+            toast.error('Сначала сохраните или отмените редактирование соединения.'); return;
+        }
+        this.connectionMode.set(mode);
+        if (mode === 'hidden') this.clearConnectionDisplay();
+    }
+
+    private syncPopupConnections(): void {
+        const endpoint = this.selectedMapEndpoint();
+        this.popupConnections.set(endpoint && this.showConnections() ? this.connections().filter(line =>
+            [line.source, line.target].some(end => end.kind === endpoint.kind && end.id === endpoint.id)) : []);
+    }
+
+    private clearConnectionDisplay(): void {
+        this.connectionLoadGeneration++;
+        this.connectionViewportSubscription?.unsubscribe(); this.connectionViewportSubscription = null;
+        if (this.popupKind === 'connection') this.closePopup(false);
+        this.connections.set([]); this.popupConnections.set([]); this.selectedConnectionId.set(null);
+        this.connectionLoadError.set(null);
+        this.routeMenuTarget.set(null); this.spliceChoices.set([]); this.alternativeSpliceLine.set(null);
+        this.boundaryTarget.set(null); this.spliceController?.clear(); this.spliceHover.set(null);
+        this.connectionLayer?.clear();
+        if (!this.connectionDraftActive() && this.connectionDialog()?.stateComputed() !== 'open') {
+            this.editingConnection.set(null); this.connectionDraft.set(createConnectionDraft()); this.routeHistory.set([]); this.routeBeforeMap = null;
+            this.connectionToDelete.set(null);
+        }
+    }
+
+    private loadConnections(viewport?: MapBounds): void {
+        const mode = this.connectionMode(), endpoint = this.selectedMapEndpoint();
+        this.lastConnectionContext = this.connectionContext(mode, endpoint);
+        if (mode === 'hidden' || (mode === 'object' && !endpoint)) { this.clearConnectionDisplay(); return; }
+        const bounds = viewport ?? this.currentViewport();
+        if (!this.workspace.ready() || (mode === 'viewport' && !bounds)) return;
+        const generation = ++this.connectionLoadGeneration, context = this.contextGeneration;
+        this.connectionLoadError.set(null);
+        this.connectionViewportSubscription?.unsubscribe();
+        this.connections.set([]); this.popupConnections.set([]); this.connectionLayer?.clear(); this.spliceController?.clear();
+        this.connectionViewportSubscription = this.mapData.getConnections(mode === 'viewport' ? bounds! : undefined,
+            mode === 'object' ? endpoint! : undefined, this.workspace.query()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: lines => {
+                if (generation !== this.connectionLoadGeneration || context !== this.contextGeneration || this.destroyed || mode !== this.connectionMode()) return;
+                this.connections.set(lines); this.syncPopupConnections(); this.renderConnections();
+            },
+            error: (error: HttpErrorResponse) => {
+                if (generation !== this.connectionLoadGeneration || context !== this.contextGeneration || this.destroyed) return;
+                this.connectionLoadError.set(error.error?.detail?.message ?? 'Не удалось загрузить соединения. Повторите запрос.');
+            },
         });
+    }
+
+    private connectionContext(mode: ConnectionMode, endpoint: { kind: string; id: number } | null): string {
+        return JSON.stringify([mode, mode === 'object' ? endpoint : null, this.workspace.query()]);
+    }
+
+    private currentViewport(): MapBounds | undefined {
+        const bounds = this.map?.getBounds();
+        return bounds ? { west: Math.max(-180, bounds.getWest()), south: Math.max(-90, bounds.getSouth()),
+            east: Math.min(180, bounds.getEast()), north: Math.min(90, bounds.getNorth()) } : undefined;
     }
 
 
@@ -1375,10 +1631,14 @@ export class AddressMap implements AfterViewInit {
 
     private applyRouteMutation(connections:MapConnection[],marker?:MapMarker):void {
         this.viewportGeneration++;this.viewportSubscription?.unsubscribe();this.markerViewportSubscription?.unsubscribe();this.connectionViewportSubscription?.unsubscribe();
+        this.connectionLoadGeneration++;
         const ids=new Set(connections.map(line=>line.id));
-        this.connections.update(lines=>[...lines.filter(line=>!ids.has(line.id)),...connections]);
+        const endpoint = this.selectedMapEndpoint();
+        const candidates = this.workspace.layers().length || this.installationFilter() !== 'all' ? [] : connections.filter(line =>
+            this.connectionMode() === 'viewport' || (this.connectionMode() === 'object' && endpoint && [line.source, line.target].some(end => end.kind === endpoint.kind && end.id === endpoint.id)));
+        this.connections.update(lines=>this.connectionMode() === 'hidden' ? [] : [...lines.filter(line=>!ids.has(line.id)),...candidates]);
         this.markers.update(current=>{
-            const points=marker?[...current.filter(point=>point.id!==marker.id),marker]:current;
+            const points=marker?[...current.filter(point=>point.id!==marker.id),...(this.workspace.layers().length ? [] : [marker])]:current;
             return points.map(point=>{
                 for(const line of connections){
                     const attachment=line.route_objects?.find(item=>item.marker_id===point.id);
@@ -1388,6 +1648,8 @@ export class AddressMap implements AfterViewInit {
             });
         });
         this.setMarkerData(this.markers());this.renderConnections();
+        if (this.workspace.layers().length) this.workspace.reloadLayers();
+        if (this.workspace.layers().length || this.installationFilter() !== 'all' || this.connectionMode() !== 'viewport') this.loadConnections();
     }
 
     startInstallationBoundary():void {
@@ -1474,9 +1736,12 @@ export class AddressMap implements AfterViewInit {
 
 
     onConnectionDialogClosed(): void {
+        if (this.connectionDialog()?.stateComputed() === 'open') return;
         if (this.connectionMapMode() === null) {
             this.connectionDraftActive.set(false);
             this.connectionLayer?.setDraft(null);
+            if (this.connectionSaving()) { this.connectionMutationGeneration++; this.connectionSaving.set(false); }
+            this.editingConnection.set(null); this.connectionDraft.set(createConnectionDraft()); this.routeHistory.set([]); this.routeBeforeMap = null;
         }
     }
 
@@ -1515,6 +1780,7 @@ export class AddressMap implements AfterViewInit {
 
     @HostListener('window:keydown', ['$event'])
     handleMapKey(event: KeyboardEvent): void {
+        if (event.defaultPrevented || document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [data-slot="popover-content"], [role="listbox"]')) return;
         if (this.connectionMapMode()) {
             if (event.key === 'Escape') { event.preventDefault(); this.cancelConnectionMap(); }
             else if (event.key === 'Enter') { event.preventDefault(); this.finishConnectionMap(); }
@@ -1544,7 +1810,7 @@ export class AddressMap implements AfterViewInit {
                 this.connectionDraftActive.set(false);
                 this.connectionLayer?.setDraft(null);
                 this.connectionDialog()?.close({});
-                this.selectedConnectionId.set(line.id);
+                this.selectedConnectionId.set(this.showConnections() ? line.id : null);
                 this.renderConnections();
                 this.loadViewport();
                 toast.success(editing ? 'Соединение изменено' : 'Соединение создано');
@@ -1566,6 +1832,7 @@ export class AddressMap implements AfterViewInit {
         if (!point) { toast.error('Для отображения трассы нужны координаты обоих концов'); return; }
         this.selectedConnectionId.set(id);
         this.renderPopup(this.connectionPopup(), connection, point);
+        this.popupKind = 'connection';
     }
 
 
@@ -1581,7 +1848,7 @@ export class AddressMap implements AfterViewInit {
         if (!line || this.connectionDeleting()) return;
         const generation = ++this.connectionMutationGeneration;
         this.connectionDeleting.set(true);
-        this.mapData.deleteConnection(line.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.mapData.deleteConnection(line.id, line.version).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: () => {
                 if (this.destroyed || generation !== this.connectionMutationGeneration) return;
                 this.connectionDeleting.set(false);
@@ -1590,7 +1857,14 @@ export class AddressMap implements AfterViewInit {
                 this.connectionToDelete.set(null);
                 toast.success('Соединение удалено');
             },
-            error: () => { if (generation === this.connectionMutationGeneration && !this.destroyed) { this.connectionDeleting.set(false); toast.error('Не удалось удалить соединение'); } },
+            error: (error: HttpErrorResponse) => {
+                if (generation !== this.connectionMutationGeneration || this.destroyed) return;
+                this.connectionDeleting.set(false);
+                const detail = error.error?.detail;
+                if (detail?.dependencies && detail.code === 'route_has_objects') {
+                    this.connectionDeleteDialog()?.close({}); this.dependenciesDialog().show(detail as AddressDependencyConflict, this.map?.getCanvas() ?? null);
+                } else toast.error(detail?.message ?? 'Не удалось удалить соединение');
+            },
         });
     }
 
@@ -1600,11 +1874,14 @@ export class AddressMap implements AfterViewInit {
         this.markerToDelete.set(marker);
         this.markerDeleteError.set(null);
         this.markerDependencies.set([]);
-        this.deleteMarkerDialog()?.open();
-        const generation = this.contextGeneration;
-        this.mapData.getConnections(undefined, { kind: 'marker', id: marker.id }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-            next: lines => { if (!this.destroyed && generation === this.contextGeneration && this.markerToDelete()?.id === marker.id) this.markerDependencies.set(lines); },
-            error: () => { if (generation === this.contextGeneration) this.markerDeleteError.set('Не удалось проверить присоединённые линии. Попробуйте снова.'); },
+        const generation = this.contextGeneration, request = ++this.markerDependencyGeneration;
+        this.mapData.getDependencies({ kind: 'marker', id: marker.id }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: report => {
+                if (this.destroyed || generation !== this.contextGeneration || request !== this.markerDependencyGeneration) return;
+                if (report.dependencies.length) this.dependenciesDialog().show(report as AddressDependencyConflict, this.map?.getCanvas() ?? null);
+                else this.deleteMarkerDialog()?.open();
+            },
+            error: () => { if (generation === this.contextGeneration && request === this.markerDependencyGeneration) toast.error('Не удалось проверить зависимости. Повторите удаление.'); },
         });
     }
 
@@ -1616,7 +1893,7 @@ export class AddressMap implements AfterViewInit {
         }
         const generation = ++this.markerMutationGeneration;
         this.markerDeleting.set(true);
-        this.mapData.deleteMarker(marker.id).pipe(
+        this.mapData.deleteMarker(marker.id, marker.version).pipe(
             takeUntilDestroyed(this.destroyRef),
         ).subscribe({
             next: () => {
@@ -1636,8 +1913,12 @@ export class AddressMap implements AfterViewInit {
                 }
                 this.markerDeleting.set(false);
                 const detail = error.error?.detail;
+                if (detail?.dependencies && ['object_has_dependencies', 'endpoint_has_connections'].includes(detail.code)) {
+                    this.deleteMarkerDialog()?.close({});
+                    this.dependenciesDialog().show(detail as AddressDependencyConflict, this.map?.getCanvas() ?? null);
+                    return;
+                }
                 this.markerDeleteError.set(detail?.message ?? 'Не удалось удалить маркер');
-                toast.error(this.markerDeleteError()!);
             },
         });
     }
@@ -1737,7 +2018,7 @@ export class AddressMap implements AfterViewInit {
         const map = this.map;
         // Adding GeoJSON sources in the load callback temporarily makes
         // isStyleLoaded() false. That must not suppress the initial API read.
-        if (!map || !map.getSource(MAP_BUILDINGS_SOURCE_ID)) {
+        if (!map || !map.getSource(MAP_BUILDINGS_SOURCE_ID) || !this.workspace.ready()) {
             return;
         }
         const bounds = map.getBounds();
@@ -1753,7 +2034,7 @@ export class AddressMap implements AfterViewInit {
         const generation = ++this.viewportGeneration;
         this.viewportSubscription?.unsubscribe();
         this.viewportError.set(null);
-        this.viewportSubscription = this.mapData.getBuildings(viewport).subscribe({
+        this.viewportSubscription = this.mapData.getBuildings(viewport, this.workspace.query()).subscribe({
             next: data => {
                 if (generation !== this.viewportGeneration || this.destroyed) {
                     return;
@@ -1773,7 +2054,7 @@ export class AddressMap implements AfterViewInit {
             },
         });
         this.markerViewportSubscription?.unsubscribe();
-        this.markerViewportSubscription = this.mapData.getMarkers(viewport).subscribe({
+        this.markerViewportSubscription = this.mapData.getMarkers(viewport, this.workspace.query()).subscribe({
             next: markers => {
                 if (generation !== this.viewportGeneration || this.destroyed) {
                     return;
@@ -1788,18 +2069,9 @@ export class AddressMap implements AfterViewInit {
                 this.viewportError.set(error.error?.detail?.message ?? 'Не удалось загрузить маркеры для этой области');
             },
         });
-        this.connectionViewportSubscription?.unsubscribe();
-        this.connectionViewportSubscription = this.mapData.getConnections(viewport).subscribe({
-            next: lines => {
-                if (generation !== this.viewportGeneration || this.destroyed) return;
-                this.connections.set(lines);
-                this.renderConnections();
-            },
-            error: (error: HttpErrorResponse) => {
-                if (generation !== this.viewportGeneration || this.destroyed) return;
-                this.viewportError.set(error.error?.detail?.message ?? 'Не удалось загрузить соединения для этой области');
-            },
-        });
+        // Object mode is one-hop and does not refetch on every pan/zoom.
+        if (this.connectionMode() === 'viewport') this.loadConnections(viewport);
+        else if (this.connectionMode() === 'hidden') this.clearConnectionDisplay();
     }
 
 
@@ -1918,6 +2190,11 @@ export class AddressMap implements AfterViewInit {
         const source = this.map.getSource(SELECTED_BUILDING_SOURCE_ID) as GeoJSONSource | undefined;
         if (!this.showBuildings()) { source?.setData(EMPTY_FEATURES); return; }
         const building = this.selectedBuilding();
+        const settings = this.workspace.settings();
+        const unrestricted = this.workspace.ready() && settings.include_unassigned && this.workspace.layers().length === 0
+            && (!settings.point_types_enabled || settings.point_types.includes('building'));
+        if (!building || (settings.point_types_enabled && !settings.point_types.includes('building')) || (!unrestricted && !this.viewportBuildings.features.some(feature => feature.properties.id === building.id)
+            && !this.selectedBuildingMarker())) { source?.setData(EMPTY_FEATURES); return; }
         const center = this.buildingCenter(building);
         const marker = this.selectedBuildingMarker();
         if (building && marker) {
@@ -1954,11 +2231,13 @@ export class AddressMap implements AfterViewInit {
         if (this.sessionRefreshTimer !== null) {
             clearTimeout(this.sessionRefreshTimer);
         }
-        const delay = Math.max(
+        // Browsers clamp an overflowing timeout to ~1 ms, causing a tile
+        // refresh loop if a server/fixture ever supplies an excessive expiry.
+        const delay = Math.min(2_147_483_647, Math.max(
             1000,
             (session.expires_at - Math.floor(Date.now() / 1000)
                 - MAP_SESSION_REFRESH_MARGIN_SECONDS) * 1000,
-        );
+        ));
         this.sessionRefreshTimer = setTimeout(() => {
             this.sessionRefreshTimer = null;
             void this.refreshTileSession();
@@ -2039,6 +2318,13 @@ export class AddressMap implements AfterViewInit {
 
 
     private destroyMap(): void {
+        this.collapseMap(false);
+        if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
+        this.resizeFrame = null;
+        if (this.viewReady) {
+            this.mapContainer().nativeElement.removeEventListener('pointerdown', this.panelPointerGuard, true);
+            this.mapContainer().nativeElement.removeEventListener('click', this.panelPointerGuard, true);
+        }
         this.destroyed = true;
         this.initializationGeneration += 1;
         this.viewportGeneration += 1;

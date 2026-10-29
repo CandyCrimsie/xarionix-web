@@ -1,5 +1,14 @@
-<div class="relative h-full min-h-[32rem] overflow-hidden rounded-lg" data-testid="address-map">
+<div class="relative h-full overflow-hidden rounded-lg border bg-background" [style.min-height]="expanded() ? '0' : '32rem'" data-testid="address-map">
   <div #mapContainer class="h-full w-full" aria-label="Карта адресов"></div>
+  <app-map-layer-editor #layerEditor />
+  <app-address-dependencies-dialog />
+  <app-map-passport [canManageLayers]="canManage()" (saved)="onPassportSaved($event)" (membershipChanged)="workspace.reloadLayers()" />
+  <hlm-alert-dialog #deleteHouseDialog="hlmAlertDialog" [disableClose]="houseDeleting()">
+    <hlm-alert-dialog-content *hlmAlertDialogPortal><hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Удалить дом из адресного каталога?</h3><p hlmAlertDialogDescription>{{ houseToDelete()?.full_address }}. Это удаление дома, а не только его метки. При наличии зависимостей операция будет заблокирована.</p></hlm-alert-dialog-header>@if (houseDeleteError()) { <p class="text-sm text-destructive" role="alert">{{ houseDeleteError() }}</p> }<hlm-alert-dialog-footer><button hlmAlertDialogCancel [disabled]="houseDeleting()">Отмена</button><button hlmAlertDialogAction variant="destructive" [disabled]="houseDeleting()" (click)="deleteHouse()">Удалить дом</button></hlm-alert-dialog-footer></hlm-alert-dialog-content>
+  </hlm-alert-dialog>
+  @if (!expanded()) {
+    <button #expandButton hlmBtn variant="outline" size="icon-sm" type="button" class="absolute bottom-3 right-3 z-10 bg-background/90 shadow-sm backdrop-blur-md" aria-label="Развернуть карту" hlmTooltip="Развернуть карту" data-testid="expand-address-map" (click)="expandMap()"><ng-icon name="lucideMaximize" /></button>
+  }
 
   @if (state() === 'loading') {
     <div class="absolute inset-0 z-20 flex items-center justify-center bg-background/80">
@@ -29,62 +38,12 @@
     [disableClose]="markerSaving()"
     (closed)="onMarkerDialogClosed()"
   >
-    <div class="absolute left-3 top-3 z-10 isolate">
-      <div
-        hlmButtonGroup
-        class="rounded-lg bg-background shadow-md"
-        aria-label="Управление картой"
-        data-testid="map-toolbar-button-group"
-      >
-        <button
-          hlmBtn
-          variant="outline"
-          size="icon"
-          type="button"
-          aria-label="Закрыть карту"
-          class="bg-background dark:bg-background dark:hover:bg-muted"
-          data-testid="close-address-map"
-          (click)="closeRequested.emit()"
-        >
-          <ng-icon name="lucideX" />
-        </button>
-
-        <button
-          hlmDialogTrigger
-          hlmBtn
-          variant="outline"
-          type="button"
-          data-testid="add-map-marker"
-          class="bg-background dark:bg-background dark:hover:bg-muted"
-          (click)="startCreateMarker()"
-        >
-          <ng-icon name="lucideMapPinPlus" />
-          Добавить маркер
-        </button>
-        <button
-          hlmBtn
-          variant="outline"
-          type="button"
-          class="bg-background dark:bg-background dark:hover:bg-muted"
-          data-testid="add-map-connection"
-          (click)="startCreateConnection()"
-        >
-          <ng-icon name="lucideCable" />Добавить соединение
-        </button>
-        <button
-          hlmBtn
-          variant="outline"
-          size="icon"
-          type="button"
-          aria-label="Фильтры карты"
-          hlmTooltip="Фильтры"
-          class="bg-background dark:bg-background dark:hover:bg-muted"
-          (click)="filterPanelOpen.set(!filterPanelOpen())"
-        >
-          <ng-icon name="lucideListFilter" />
-        </button>
-      </div>
-    </div>
+    <app-map-toolbar class="absolute left-3 top-3 z-10 isolate max-w-[calc(100%-5rem)]"
+      [(activePanel)]="activePanel" [canManage]="canManage()" [expanded]="expanded()"
+      [markers]="legendMarkers()" [connections]="visibleConnections()" [hasBuildings]="legendBuildings()"
+      (closeRequested)="closeMapSurface()" (addMarker)="openCreateMarker()" (addConnection)="startCreateConnection()"
+      (modeRequested)="requestConnectionMode($event)" (resetRequested)="resetFilters()"
+      (editLayer)="layerEditor.open($event)" (deleteLayer)="layerEditor.requestDelete($event)" (reorderLayer)="layerEditor.reorder($event.layer, $event.direction)" />
 
     <hlm-dialog-content
       *hlmDialogPortal="let ctx"
@@ -128,83 +87,6 @@
     </hlm-dialog-content>
   </hlm-dialog>
 
-  @if (filterPanelOpen()) {
-    <section
-      class="absolute left-3 top-16 z-10 grid max-w-[calc(100%-1.5rem)] gap-3 rounded-lg border bg-popover p-4 text-sm shadow-md"
-      aria-label="Фильтры карты"
-    >
-      <label class="flex items-center gap-2"
-        ><hlm-checkbox
-          [checked]="showBuildings()"
-          (checkedChange)="showBuildings.set($event)"
-        />Дома</label
-      >
-      <label class="flex items-center gap-2"
-        ><hlm-checkbox
-          [checked]="showInfrastructure()"
-          (checkedChange)="showInfrastructure.set($event)"
-        />Инфраструктура и общие точки</label
-      >
-      <label class="flex items-center gap-2"
-        ><hlm-checkbox
-          [checked]="showPersonal()"
-          (checkedChange)="showPersonal.set($event)"
-        />Личные отметки</label
-      >
-      <label class="flex items-center gap-2"
-        ><hlm-checkbox
-          [checked]="showConnections()"
-          (checkedChange)="showConnections.set($event)"
-        />Соединения</label
-      >
-      <div class="flex flex-wrap gap-1" aria-label="Среда соединения">
-        <button
-          hlmBtn
-          size="sm"
-          [variant]="mediumFilter() === 'all' ? 'secondary' : 'ghost'"
-          (click)="mediumFilter.set('all')"
-        >
-          Все
-        </button>
-        <button
-          hlmBtn
-          size="sm"
-          [variant]="mediumFilter() === 'fiber' ? 'secondary' : 'ghost'"
-          (click)="mediumFilter.set('fiber')"
-        >
-          Оптоволокно
-        </button>
-        <button
-          hlmBtn
-          size="sm"
-          [variant]="mediumFilter() === 'utp' ? 'secondary' : 'ghost'"
-          (click)="mediumFilter.set('utp')"
-        >
-          UTP
-        </button>
-      </div>
-      <div class="flex flex-wrap gap-1" aria-label="Состояние соединения">
-        <button
-          hlmBtn
-          size="sm"
-          [variant]="statusFilter() === 'all' ? 'secondary' : 'ghost'"
-          (click)="statusFilter.set('all')"
-        >
-          Все состояния
-        </button>
-        @for (status of ['planned', 'construction', 'active', 'inactive']; track status) {
-          <button
-            hlmBtn
-            size="sm"
-            [variant]="statusFilter() === status ? 'secondary' : 'ghost'"
-            (click)="statusFilter.set($any(status))"
-          >
-            {{ connectionStatusLabel($any(status)) }}
-          </button>
-        }
-      </div>
-    </section>
-  }
 
   @if (connectionMapMode(); as mode) {
     <section
@@ -323,7 +205,7 @@
     </hlm-alert-dialog-content>
   </hlm-alert-dialog>
 
-  @if (viewportError(); as message) {
+  @if (viewportError() || connectionLoadError(); as message) {
     <hlm-alert
       class="absolute left-1/2 top-3 z-10 w-[min(28rem,calc(100%-8rem))] -translate-x-1/2"
       variant="destructive"
@@ -356,12 +238,6 @@
     </hlm-alert>
   }
 
-  <app-map-legend
-    class="absolute bottom-16 left-3 z-10"
-    [markers]="legendMarkers()"
-    [connections]="visibleConnections()"
-    [hasBuildings]="legendBuildings()"
-  />
   @if (routeAnchor(); as hover) {
     <hlm-popover
       [state]="routeMenuTarget() ? 'open' : 'closed'"
@@ -475,8 +351,8 @@
             size="icon-sm"
             type="button"
             class="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10"
-            aria-label="Удалить маркер"
-            hlmTooltip="Удалить"
+aria-label="Удалить метку с карты"
+            hlmTooltip="Удалить метку с карты"
             data-testid="delete-marker-popup"
             (click)="requestDeleteMarker(marker)"
           >
@@ -510,6 +386,17 @@
       </div>
     </header>
     <div hlmCardContent class="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain">
+      <div class="flex flex-wrap items-center gap-2">
+        <button hlmBtn variant="outline" size="sm" (click)="openPassport({kind:'marker',id:marker.id})">Паспорт</button>
+        @if (marker.can_manage) {
+          <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="markerLinkActions">Действия</button>
+          <ng-template #markerLinkActions><hlm-dropdown-menu class="w-60">
+            <button hlmDropdownMenuItem (click)="moveMarker(marker)">Переместить метку</button>
+            <button hlmDropdownMenuItem (click)="editBuildingLink(marker)">{{ marker.building_id === null ? 'Привязать дом' : 'Перепривязать дом' }}</button>
+            @if (marker.building_id !== null) { <button hlmDropdownMenuItem (click)="editBuildingLink(marker, true)">Отвязать дом от метки</button> }
+          </hlm-dropdown-menu></ng-template>
+        }
+      </div>
       <div class="space-y-1">
         <h3 hlmCardTitle class="break-words">{{ marker.name }}</h3>
         @if (marker.label_text) {
@@ -553,6 +440,8 @@
         }
       </dl>
       <div class="grid gap-1">
+        <button hlmBtn variant="ghost" size="sm" (click)="showObjectConnections({kind:'marker',id:marker.id})">Показать связи</button>
+        <p class="text-xs text-muted-foreground">Связи отображаются с учётом активных фильтров и доступа.</p>
         <h4 class="text-sm font-medium">Присоединённые линии</h4>
         @for (line of popupConnections(); track line.id) {
           <button
@@ -592,6 +481,7 @@
     </header>
     <div hlmCardContent class="grid min-w-0 gap-3">
       <h3 hlmCardTitle class="break-words">{{ building.full_address }}</h3>
+      <button hlmBtn variant="outline" size="sm" (click)="openPassport({kind:'building',id:building.id})">Паспорт дома</button>
       <div class="flex flex-wrap gap-2">
         <button
           hlmBtn
@@ -613,8 +503,19 @@
           <button hlmBtn variant="outline" size="sm" (click)="startBuildingStyle(building.id)">
             Оформление и расположение
           </button>
+          <button hlmBtn variant="outline" size="sm" [hlmDropdownMenuTrigger]="houseActions">Действия с домом</button>
+          <ng-template #houseActions><hlm-dropdown-menu class="w-64">
+            @if (primaryMarkerForBuilding(building.id); as primary) {
+              <button hlmDropdownMenuItem (click)="moveMarker(primary)">Изменить расположение дома</button>
+              <button hlmDropdownMenuItem (click)="editBuildingLink(primary, true)">Отвязать дом от метки</button>
+              <button hlmDropdownMenuItem (click)="requestDeleteMarker(primary)">Удалить метку с карты</button>
+            }
+            <button hlmDropdownMenuItem class="text-destructive" (click)="requestDeleteHouse(building.id)">Удалить дом из каталога</button>
+          </hlm-dropdown-menu></ng-template>
         }
       </div>
+      <button hlmBtn variant="ghost" size="sm" (click)="showObjectConnections({kind:'building',id:building.id})">Показать связи</button>
+      <p class="text-xs text-muted-foreground">Связи отображаются с учётом активных фильтров и доступа.</p>
       <h4 class="text-sm font-medium">Присоединённые линии</h4>
       @for (line of popupConnections(); track line.id) {
         <button
@@ -653,6 +554,7 @@
     </header>
     <div hlmCardContent class="grid min-w-0 gap-3">
       <h3 hlmCardTitle class="break-words">{{ line.name }}</h3>
+      <button hlmBtn variant="outline" size="sm" (click)="openPassport({kind:'connection',id:line.id})">Паспорт кабеля</button>
       <p class="text-sm">{{ connectionStatusLabel(line.status) }}</p>
       @if (line.description) {
         <p class="break-words text-sm text-muted-foreground">{{ line.description }}</p>

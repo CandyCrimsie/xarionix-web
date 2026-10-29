@@ -250,11 +250,11 @@ export class MapCoordinatePicker implements AfterViewInit {
         if (this.sessionRefreshTimer !== null) {
             clearTimeout(this.sessionRefreshTimer);
         }
-        const delay = Math.max(
+        const delay = Math.min(2_147_483_647, Math.max(
             1000,
             (expiresAt - Math.floor(Date.now() / 1000)
                 - MAP_SESSION_REFRESH_MARGIN_SECONDS) * 1000,
-        );
+        ));
         this.sessionRefreshTimer = setTimeout(() => {
             this.sessionRefreshTimer = null;
             void this.refreshTileSession();

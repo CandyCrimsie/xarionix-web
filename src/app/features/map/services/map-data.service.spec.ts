@@ -8,6 +8,7 @@ import {
 import { MapDataService } from './map-data.service';
 import { createDefaultMapMarker } from '../map-marker.config';
 import { pickMarkerAppearance } from '../map-marker.config';
+import { defaultMapSettings, type MapLayer } from '../models/map-workspace.models';
 
 
 describe('MapDataService', () => {
@@ -23,6 +24,32 @@ describe('MapDataService', () => {
     });
 
     afterEach(() => http.verify());
+
+    it('serializes layer OR filters and explicit empty point selection before viewport limits', () => {
+        service.getConnections(undefined, { kind: 'building', id: 42 }, {
+            layers_active: true, layer_ids: [2, 7], include_unassigned: false,
+            point_types: [], point_types_enabled: true, medium: 'fiber', status: 'active', installation: 'duct',
+        }).subscribe();
+        const request = http.expectOne(req => req.url === '/api/v1/map/connections');
+        expect(request.request.params.getAll('layer_ids')).toEqual(['2', '7']);
+        expect(request.request.params.get('include_unassigned')).toBe('false');
+        expect(request.request.params.get('point_types_enabled')).toBe('true');
+        expect(request.request.params.get('endpoint_id')).toBe('42'); request.flush([]);
+    });
+
+    it('sends revisions for metadata and deletion, without client company or unknown layer fields', () => {
+        const layer: MapLayer = { id: 3, version: 7, name: 'Север', parent_id: null, mode: 'manual', rules: {}, sort_order: 0 };
+        service.updateLayer(layer, layer).subscribe();
+        const patch = http.expectOne('/api/v1/map/layers/3');
+        expect(patch.request.body).toEqual({ name: 'Север', parent_id: null, mode: 'manual', rules: {}, sort_order: 0, expected_version: 7 }); patch.flush(layer);
+        service.setLayerMember(layer, { kind: 'marker', id: 42 }, true).subscribe();
+        const member = http.expectOne('/api/v1/map/layers/3/members');
+        expect(member.request.body).toEqual({ expected_version: 7, target: { kind: 'marker', id: 42 }, present: true }); member.flush(layer);
+        service.savePreferences(defaultMapSettings(), 5).subscribe();
+        const prefs = http.expectOne('/api/v1/map/preferences'); expect(prefs.request.body.expected_version).toBe(5); prefs.flush({});
+        service.deleteMarker(42, 3).subscribe(); http.expectOne('/api/v1/map/markers/42?expected_version=3').flush(null);
+        service.getDependencies({ kind: 'marker', id: 42 }).subscribe(); http.expectOne('/api/v1/map/objects/marker/42/dependencies').flush({ dependencies: [] });
+    });
 
     it('sends a typed atomic split snapshot without client ownership or company fields', () => {
         const payload = { expected_version: 3, expected_geometry_token: 'a'.repeat(64), segment_index: 1, fraction: .37,

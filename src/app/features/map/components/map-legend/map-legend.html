@@ -1,9 +1,10 @@
 <hlm-collapsible
-  [expanded]="expanded()"
+  [expanded]="embedded() || expanded()"
   (expandedChange)="expanded.set($event)"
-  class="block w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border bg-background/95 text-foreground shadow-md backdrop-blur-md"
+  [class]="embedded() ? 'block w-full text-foreground' : 'block w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border bg-background/95 text-foreground shadow-md backdrop-blur-md'"
   data-testid="map-legend"
 >
+  @if (!embedded()) {
   <button
     hlmBtn
     hlmCollapsibleTrigger
@@ -25,6 +26,7 @@
       [class.rotate-180]="expanded()"
     />
   </button>
+  } @else { <h3 class="px-3 pt-3 text-sm font-medium">Легенда карты</h3> }
 
   <div
     hlmCollapsibleContent

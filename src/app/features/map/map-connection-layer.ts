@@ -260,6 +260,7 @@ export class MapConnectionLayer {
   }
 
   setConnections(connections: MapConnection[], selectedId: number | null) {
+    if (!connections.length) { this.clear(); return; }
     this.connections = connections;
     this.selected = selectedId;
     const hits: FeatureCollection<LineString> = {
@@ -284,7 +285,17 @@ export class MapConnectionLayer {
     (this.map.getSource(CONNECTION_HIT_SOURCE) as GeoJSONSource)?.setData(hits);
     this.refreshClipping();
   }
+  clear(): void {
+    if (this.frame !== null) cancelAnimationFrame(this.frame);
+    this.frame = null; this.connections = []; this.selected = null; this.hovered = null;
+    for (const id of this.styledStates.keys()) this.map.removeFeatureState?.({ source: CONNECTION_SOURCE, id });
+    this.styledStates.clear(); this.featureIds = []; this.footprintIndex = null; this.haloIndex = null;
+    for (const source of [CONNECTION_SOURCE, CONNECTION_HIT_SOURCE, CONNECTION_HALO_SOURCE])
+      (this.map.getSource(source) as GeoJSONSource | undefined)?.setData(empty());
+    this.map.getCanvas().style.cursor = '';
+  }
   readonly refreshClipping = () => {
+    if (!this.connections.length && !this.draft) return;
     if (this.frame !== null) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = null;

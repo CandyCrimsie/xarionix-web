@@ -1,0 +1,28 @@
+<hlm-dialog #dialog="hlmDialog" [disableClose]="saving()" (closed)="onClosed()">
+    <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg" [showCloseButton]="!saving()" data-testid="map-layer-editor">
+        <hlm-dialog-header><h3 hlmDialogTitle>{{ editing() ? 'Изменить слой' : 'Новый слой' }}</h3><p hlmDialogDescription>Слой организует существующие объекты. Он не копирует их и не предоставляет дополнительных прав.</p></hlm-dialog-header>
+        <hlm-field-group class="max-h-[60dvh] overflow-y-auto pr-1">
+            <hlm-field><label hlmFieldLabel for="layer-name">Название</label><input hlmInput id="layer-name" maxlength="120" [value]="draft().name" (input)="setName($any($event.target).value)" [disabled]="saving()" /></hlm-field>
+            <hlm-field><label hlmFieldLabel>Состав</label><hlm-select [value]="draft().mode" [itemToString]="modeLabel" [disabled]="saving() || editing() !== null" (valueChange)="changeMode($event)"><hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal>@for (mode of ['manual', 'dynamic', 'group']; track mode) { <hlm-select-item [value]="mode">{{ modeLabel(mode) }}</hlm-select-item> }</hlm-select-content></hlm-select></hlm-field>
+            <hlm-field><label hlmFieldLabel>Группа</label><hlm-select [value]="draft().parent_id ?? 0" [itemToString]="parentLabel" [disabled]="saving()" (valueChange)="setParent($event)"><hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal><hlm-select-item [value]="0">Без группы</hlm-select-item>@for (group of groups(); track group.id) { <hlm-select-item [value]="group.id">{{ group.name }}</hlm-select-item> }</hlm-select-content></hlm-select></hlm-field>
+            @if (draft().mode === 'manual') { <p class="text-xs text-muted-foreground">Добавляйте дома, метки и кабели в этот слой через раздел «Слои» в их паспортах.</p> }
+            @if (draft().mode === 'dynamic') {
+                <hlm-field><label hlmFieldLabel>Адрес и его потомки</label>
+                    <hlm-autocomplete [search]="query()" (searchChange)="onQuery($event)" [value]="selectedAddress()" (valueChange)="selectAddress($event)" [itemToString]="objectLabel" [disabled]="saving()">
+                        <hlm-autocomplete-input placeholder="Город, улица или территория" showClear />
+                        <hlm-autocomplete-content *hlmAutocompletePortal>@if (searching()) { <hlm-autocomplete-status>Ищем адресные объекты…</hlm-autocomplete-status> } @else { <hlm-autocomplete-empty>{{ searchError() ? 'Поиск недоступен. Повторите ввод.' : 'Уточните название адресного объекта' }}</hlm-autocomplete-empty><div hlmAutocompleteList>@for (object of addressOptions(); track object.id) { <hlm-autocomplete-item [value]="object">{{ objectLabel(object) }}</hlm-autocomplete-item> }</div> }</hlm-autocomplete-content>
+                    </hlm-autocomplete><p hlmFieldDescription>Необязательно. Для кабеля подходит любой из двух концов, связанных с этим адресом.</p>
+                </hlm-field>
+                <hlm-field><label hlmFieldLabel>Типы объектов / концов кабеля</label><div class="grid grid-cols-2 gap-2">@for (type of pointTypes; track type.value) { <label class="flex items-center gap-2 text-sm"><hlm-checkbox [checked]="draft().rules.point_types?.includes(type.value) ?? false" (checkedChange)="toggleRule('point_types', type.value)" />{{ type.label }}</label> }</div></hlm-field>
+                <hlm-field><label hlmFieldLabel>Среда — только кабели</label><div class="flex gap-4">@for (medium of ['fiber', 'utp']; track medium) { <label class="flex items-center gap-2"><hlm-checkbox [checked]="draft().rules.media?.includes($any(medium)) ?? false" (checkedChange)="toggleRule('media', medium)" />{{ medium === 'fiber' ? 'Оптоволокно' : 'UTP' }}</label> }</div></hlm-field>
+                <hlm-field><label hlmFieldLabel>Статус — только кабели</label><div class="grid grid-cols-2 gap-2">@for (status of statuses; track status.value) { <label class="flex items-center gap-2"><hlm-checkbox [checked]="draft().rules.statuses?.includes(status.value) ?? false" (checkedChange)="toggleRule('statuses', status.value)" />{{ status.label }}</label> }</div></hlm-field>
+                <p class="text-xs text-muted-foreground">Заполните хотя бы одно правило. Разные поля соединяются через «И», значения внутри поля — через «ИЛИ».</p>
+            }
+        </hlm-field-group>
+        @if (error()) { <p class="text-sm text-destructive" role="alert">{{ error() }}</p> }
+        <hlm-dialog-footer><button hlmBtn variant="outline" [disabled]="saving()" (click)="ctx.close()">Отмена</button><button hlmBtn [disabled]="saving() || !draft().name.trim()" (click)="save()" data-testid="save-map-layer">{{ saving() ? 'Сохраняем…' : 'Сохранить' }}</button></hlm-dialog-footer>
+    </hlm-dialog-content>
+</hlm-dialog>
+<hlm-alert-dialog #deleteDialog="hlmAlertDialog" [disableClose]="saving()">
+    <hlm-alert-dialog-content *hlmAlertDialogPortal><hlm-alert-dialog-header><h3 hlmAlertDialogTitle>Удалить {{ deleting()?.mode === 'group' ? 'группу' : 'слой' }} «{{ deleting()?.name }}»?</h3><p hlmAlertDialogDescription>Дома, метки и кабели останутся на месте. Вложенные слои будут перенесены на уровень выше.</p></hlm-alert-dialog-header>@if (error()) { <p class="text-sm text-destructive" role="alert">{{ error() }}</p> }<hlm-alert-dialog-footer><button hlmAlertDialogCancel [disabled]="saving()">Отмена</button><button hlmAlertDialogAction variant="destructive" [disabled]="saving()" (click)="remove()">Удалить слой</button></hlm-alert-dialog-footer></hlm-alert-dialog-content>
+</hlm-alert-dialog>

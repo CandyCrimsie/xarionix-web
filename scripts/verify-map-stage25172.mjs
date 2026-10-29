@@ -10,7 +10,8 @@ const base = process.env.MAP_VISUAL_BASE_URL || 'http://127.0.0.1:4217';
 const verifySplice = process.env.MAP_VERIFY_SPLICE === '1';
 const verifyRoutes = process.env.MAP_VERIFY_ROUTES === '1';
 const verifyAddressFix = process.env.MAP_VERIFY_ADDRESS_FIX === '1';
-const out = new URL(verifyAddressFix ? '../docs/verification/address-map-bugfix/' : verifyRoutes ? '../docs/verification/map-routes/' : verifySplice ? '../docs/verification/map-splice/' : '../docs/verification/stage25.17.2/', import.meta.url);
+const verifyWorkspace = process.env.MAP_VERIFY_WORKSPACE === '1';
+const out = new URL(verifyWorkspace ? '../docs/verification/map-workspace/' : verifyAddressFix ? '../docs/verification/address-map-bugfix/' : verifyRoutes ? '../docs/verification/map-routes/' : verifySplice ? '../docs/verification/map-splice/' : '../docs/verification/stage25.17.2/', import.meta.url);
 await mkdir(out, { recursive: true });
 const date = '2026-10-28T00:00:00Z';
 const appearance = { icon_name: 'map-house', label_text: 'Дом 53', icon_color: '#E3EAF3', icon_opacity: 1, text_color: '#E3EAF3', text_opacity: 1, background_enabled: true, background_color: '#222E3E', background_opacity: 1, border_enabled: true, border_color: '#3B485A', border_width: 1, border_opacity: 1, marker_opacity: 1, marker_size: 'normal', marker_shape: 'circle' };
@@ -27,15 +28,18 @@ const conflict = { code: 'building_binding_conflict', confirmation_token: 'mock-
 line.geometry_token = 'a'.repeat(64);
 
 // A local neutral street-grid raster, encoded without another graphics package.
-function png() {
+function png(satelliteLike = false) {
     const crc = bytes => { let c = -1; for (const b of bytes) { c ^= b; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); } return (c ^ -1) >>> 0; };
     const chunk = (type, data) => { const name = Buffer.from(type); const n = Buffer.alloc(4); n.writeUInt32BE(data.length); const sum = Buffer.alloc(4); sum.writeUInt32BE(crc(Buffer.concat([name, data]))); return Buffer.concat([n, name, data, sum]); };
     const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(256); ihdr.writeUInt32BE(256, 4); ihdr[8] = 8; ihdr[9] = 6;
     const raw = Buffer.alloc(256 * (256 * 4 + 1));
-    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) { const i = y * 1025 + 1 + x * 4; const road = (x % 64 < 6 || y % 64 < 6); raw[i] = road ? 244 : 225; raw[i + 1] = road ? 245 : 231; raw[i + 2] = road ? 247 : 233; raw[i + 3] = 255; }
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) { const i = y * 1025 + 1 + x * 4; const road = (x % 64 < 6 || y % 64 < 6); const noise = ((x * 17 + y * 31) % 23) - 11;
+        if (satelliteLike) { const building = x % 64 > 15 && x % 64 < 47 && y % 64 > 17 && y % 64 < 42; raw[i] = (road ? 156 : building ? 145 : 53) + noise; raw[i + 1] = (road ? 151 : building ? 143 : 68) + noise; raw[i + 2] = (road ? 145 : building ? 139 : 48) + noise; }
+        else { raw[i] = road ? 244 : 225; raw[i + 1] = road ? 245 : 231; raw[i + 2] = road ? 247 : 233; } raw[i + 3] = 255; }
     return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 const tile = png();
+const satelliteTile = png(true);
 const browser = await chromium.launch({ executablePath: process.env.MAP_VISUAL_BROWSER || '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-sandbox'] });
 const results = [];
 try {
@@ -50,13 +54,17 @@ try {
         if (theme === 'light') for (const point of markers) Object.assign(point, { icon_color: '#465366', background_color: '#FFFFFF', border_color: '#DAE1EB', text_color: '#465366' });
         let styles = [{ id: 1, company_id: 1, owner_user_id: 1, version: 1, name: 'Мой спокойный стиль', appearance: { ...appearance, icon_name: 'network-node' }, created_at: date, updated_at: date }];
         let lines = [structuredClone(line)];
+        let preference = { version: 0, notice: null, settings: { schema_version: 1, show_buildings: true, show_infrastructure: true, show_personal: true, point_types: [], point_types_enabled: false, visible_layer_ids: [], include_unassigned: true, medium: 'all', status: 'all', installation: 'all', connection_mode: 'viewport' } };
         await page.route('**/*', async route => {
             const url = new URL(route.request().url());
-            if (url.pathname.startsWith('/map/tiles/')) return route.fulfill({ contentType: 'image/png', body: tile });
+            if (url.pathname.startsWith('/map/tiles/')) return route.fulfill({ contentType: 'image/png', body: verifyWorkspace && dpr === 2 ? satelliteTile : tile });
             if (url.pathname.startsWith('/api/v1/')) {
                 const path = url.pathname.slice(7); const method = route.request().method();
                 let body;
-                if (path === '/setup/status') body = { state: 'installed', setup_allowed: false, has_users: true, has_companies: true, has_memberships: true, has_administrator: true };
+                if (path === '/map/preferences') { if (method === 'PUT') preference = { version: preference.version + 1, notice: null, settings: route.request().postDataJSON().settings }; body = preference; }
+                else if (path === '/map/layers') body = [];
+                else if (/^\/map\/objects\/(marker|connection|building)\/\d+\/dependencies$/.test(path)) body = { code: 'object_has_dependencies', message: 'У данного объекта есть связи', object: { kind: path.split('/')[3], id: Number(path.split('/')[4]) }, dependencies: [] };
+                else if (path === '/setup/status') body = { state: 'installed', setup_allowed: false, has_users: true, has_companies: true, has_memberships: true, has_administrator: true };
                 else if (path === '/auth/refresh') body = { access_token: 'local-visual-test', token_type: 'bearer', expires_in: 600 };
                 else if (path === '/auth/me') body = { id: 1, username: 'map-visual', is_active: true, is_system_admin: false, created_at: date, updated_at: date };
                 else if (path === '/me/companies') body = [{ id: 1, name: 'Xarionix — проверка карты', short_name: 'Xarionix', is_active: true }, { id: 2, name: 'Компания Б', short_name: 'Б', is_active: true }];
@@ -68,7 +76,7 @@ try {
                 else if (path === '/address-objects/12/buildings') body = [house];
                 else if (path === '/buildings/42') body = house;
                 else if (path.endsWith('/entrances') || path.endsWith('/locations')) body = [];
-                else if (path === '/map/session') body = { tile_url_template: '/map/tiles/{z}/{x}/{y}.png?expires=9999999999&signature=local', expires_at: 9999999999, tile_size: 256, min_zoom: 0, max_zoom: 20, default_latitude: 55.577, default_longitude: 38.246, default_zoom: 16 };
+                else if (path === '/map/session') body = { tile_url_template: '/map/tiles/{z}/{x}/{y}.png?expires=9999999999&signature=local', expires_at: Math.floor(Date.now() / 1000) + 600, tile_size: 256, min_zoom: 0, max_zoom: 20, default_latitude: 55.577, default_longitude: 38.246, default_zoom: 16 };
                 else if (path === '/map/buildings') body = { type: 'FeatureCollection', features: [house, ...Array.from({ length: 8 }, (_, i) => ({ ...house, id: 50 + i, longitude: 38.25 + i * 0.000015, latitude: 55.575 }))].map(h => ({ type: 'Feature', id: h.id, properties: { id: h.id, address_object_id: 12, number: h.number, corpus: null, structure: null, full_address: h.full_address }, geometry: { type: 'Point', coordinates: [h.longitude, h.latitude] } })) };
                 else if (path === '/map/markers' && method === 'POST') return route.fulfill({ status: 409, json: { detail: conflict } });
                 else if (path === '/map/markers') body = markers;
@@ -119,6 +127,11 @@ try {
             const { installAddressFixtures } = await import('./verify-map-address-bugfix.mjs');
             addressFixture = await installAddressFixtures(page, { markers, house, objects });
         }
+        let workspaceFixture;
+        if (verifyWorkspace) {
+            const { installWorkspaceFixtures } = await import('./verify-map-workspace.mjs');
+            workspaceFixture = await installWorkspaceFixtures(page, { markers, house, line, getLines: () => lines, setLines: value => { lines = value; } });
+        }
         await page.goto(base + '/addresses');
         await page.evaluate(theme => document.documentElement.classList.toggle('dark', theme === 'dark'), theme);
         await page.getByTestId('open-address-map').click();
@@ -129,7 +142,16 @@ try {
         }, undefined, { timeout: 12000 }).catch(async error => { await page.screenshot({ path: new URL('failure.png', out).pathname }); console.log('map failed', errors, unknownApi, page.url(), await page.locator('body').innerText(), await page.evaluate(() => { const e = document.querySelector('app-address-map'); const c = e && window.ng.getComponent(e); return { state: c?.state(), images: c?.map?.listImages(), loaded: c?.map?.loaded(), markers: c?.markers() }; })); throw error; });
         const component = fn => page.evaluate(fn);
         await component(() => window.ng.getComponent(document.querySelector('app-address-map')).map.jumpTo({ center: [38.2455,55.5763], zoom: 15.3 }));
-        const screenshot = async name => { await page.waitForTimeout(450); await page.screenshot({ path: new URL(`${theme}-dpr${dpr}-${name}.png`, out).pathname, fullPage: true }); };
+        const screenshot = async name => {
+            await page.waitForTimeout(450);
+            // GeoJSON edits may still be processing while a menu is open;
+            // wait for the basemap specifically rather than all data sources.
+            await page.waitForFunction(() => { const element = document.querySelector('app-address-map'), c = element && window.ng?.getComponent(element); if (!c?.map) return true; const source = c.map.getStyle().layers.find(layer => layer.type === 'raster')?.source; return typeof source === 'string' && c.map.isSourceLoaded(source); }, undefined, { timeout: 10000 }).catch(async error => {
+                console.log('Raster readiness', name, await page.evaluate(() => { const c = window.ng.getComponent(document.querySelector('app-address-map')), m = c.map, source = m.getStyle().layers.find(layer => layer.type === 'raster').source, cache = m.style.tileManagers[source]; return { source, loaded: m.isSourceLoaded(source), sourceLoaded: cache._sourceLoaded, updated: cache._updated, sourceReady: cache.getSource().loaded(), moving: m.isMoving(), size: [m.getContainer().clientWidth, m.getContainer().clientHeight], tiles: cache._inViewTiles.getAllTiles().map(tile => ({ id: tile.tileID?.canonical, state: tile.state })) }; }));
+                throw error;
+            });
+            await page.screenshot({ path: new URL(`${theme}-dpr${dpr}-${name}.png`, out).pathname, fullPage: true });
+        };
         await screenshot('overview');
         const rendered = await component(() => {
             const c = window.ng.getComponent(document.querySelector('app-address-map'));
@@ -229,6 +251,10 @@ try {
             const { verifyAddressFixes } = await import('./verify-map-address-bugfix.mjs');
             rendered.addressChecks = await verifyAddressFixes(page, screenshot, addressFixture);
         }
+        if (verifyWorkspace) {
+            const { verifyMapWorkspace } = await import('./verify-map-workspace.mjs');
+            rendered.workspaceChecks = await verifyMapWorkspace(page, screenshot, workspaceFixture);
+        }
         await page.getByTestId('close-address-map').click();
         await page.getByTestId('address-map').waitFor({ state: 'detached' });
         await page.getByTestId('open-address-map').click();
@@ -240,6 +266,7 @@ try {
         await page.evaluate(theme => document.documentElement.classList.toggle('dark', theme === 'dark'), theme);
         await page.getByTestId('open-address-map').click();
         await page.waitForFunction(() => { const e = document.querySelector('app-address-map'); const c = e && window.ng.getComponent(e); return c?.personalStyles().some(s => s.name === 'Стиль после перезагрузки'); });
+        if (verifyWorkspace) { await page.waitForFunction(() => window.ng.getComponent(document.querySelector('app-address-map')).workspace.ready()); assert.equal(await page.evaluate(() => window.ng.getComponent(document.querySelector('app-address-map')).workspace.settings().medium), 'fiber'); }
         assert.deepEqual(unknownApi, [], 'All application requests must be covered by local fixtures');
         assert.deepEqual(errors, [], 'Browser must have no rendering errors');
         results.push({ theme, dpr, ...rendered, clusters, equalPixels, dragOffset, errors, unknownApi });

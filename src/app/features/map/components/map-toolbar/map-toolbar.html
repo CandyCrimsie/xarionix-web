@@ -1,0 +1,58 @@
+<div hlmButtonGroup class="flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-border/70 bg-background/90 p-1 shadow-sm backdrop-blur-md" aria-label="Управление картой" data-testid="map-toolbar-button-group">
+    <button hlmBtn variant="ghost" size="icon-sm" type="button" [attr.aria-label]="expanded() ? 'Свернуть карту' : 'Закрыть карту'" [hlmTooltip]="expanded() ? 'Свернуть карту' : 'Закрыть карту'" data-testid="close-address-map" (click)="closeRequested.emit()"><ng-icon name="lucideX" /></button>
+    <button hlmBtn variant="ghost" size="icon-sm" type="button" aria-label="Добавить маркер" hlmTooltip="Добавить маркер" data-testid="add-map-marker" (click)="activePanel.set(null); addMarker.emit()"><ng-icon name="lucideMapPinPlus" /></button>
+    <button hlmBtn variant="ghost" size="icon-sm" type="button" aria-label="Добавить соединение" hlmTooltip="Добавить соединение" data-testid="add-map-connection" (click)="activePanel.set(null); addConnection.emit()"><ng-icon name="lucideCable" /></button>
+    <span class="mx-1 h-4 w-px bg-border" aria-hidden="true"></span>
+    <hlm-popover [state]="activePanel() === 'filters' ? 'open' : 'closed'" (stateChanged)="panelState('filters', $event)" align="start" [sideOffset]="8">
+        <button hlmBtn hlmPopoverTrigger variant="ghost" size="icon-sm" type="button" aria-label="Фильтры карты" hlmTooltip="Фильтры" data-testid="map-filters-toggle" class="relative" [class.bg-accent]="activePanel() === 'filters'"><ng-icon name="lucideListFilter" />@if (workspace.restricted()) { <span class="absolute right-1 top-1 size-1.5 rounded-full bg-primary" aria-label="Есть активные фильтры"></span> }</button>
+        <section hlmPopoverContent *hlmPopoverPortal class="w-[min(22rem,calc(100vw-2rem))]" aria-label="Фильтры карты" data-testid="map-filters">
+            <header class="flex items-center justify-between gap-2 px-1"><h3 class="font-medium">Отображение</h3><button hlmBtn variant="ghost" size="xs" (click)="resetRequested.emit()" data-testid="reset-map-filters">Сбросить</button></header>
+            <div class="grid max-h-[min(32rem,65dvh)] gap-4 overflow-y-auto p-1">
+                <div class="grid gap-2">
+                    <label class="flex items-center gap-2"><hlm-checkbox [checked]="workspace.settings().show_buildings" (checkedChange)="workspace.update({show_buildings: $event === true})" />Дома</label>
+                    <label class="flex items-center gap-2"><hlm-checkbox [checked]="workspace.settings().show_infrastructure" (checkedChange)="workspace.update({show_infrastructure: $event === true})" />Инфраструктура</label>
+                    <label class="flex items-center gap-2"><hlm-checkbox [checked]="workspace.settings().show_personal" (checkedChange)="workspace.update({show_personal: $event === true})" />Личные отметки</label>
+                </div>
+                <div class="grid gap-1.5 border-t pt-3"><label class="text-xs text-muted-foreground">Соединения</label>
+                    <hlm-select [value]="workspace.settings().connection_mode" [itemToString]="modeLabel" (valueChange)="$event && modeRequested.emit($any($event))"><hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal>@for (mode of modes; track mode.value) { <hlm-select-item [value]="mode.value">{{ mode.label }}</hlm-select-item> }</hlm-select-content></hlm-select>
+                    <p class="text-xs leading-relaxed text-muted-foreground">В режиме «Скрыты» кабели выгружаются. Объектный режим показывает один шаг связей.</p>
+                </div>
+                <div class="grid gap-2">
+                    <hlm-select [value]="workspace.settings().medium" [itemToString]="mediumLabel" (valueChange)="$event && workspace.update({medium: $any($event)})"><hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal>@for (value of ['all', 'fiber', 'utp']; track value) { <hlm-select-item [value]="value">{{ mediumLabel(value) }}</hlm-select-item> }</hlm-select-content></hlm-select>
+                    <hlm-select [value]="workspace.settings().status" [itemToString]="statusLabel" (valueChange)="$event && workspace.update({status: $any($event)})"><hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal>@for (status of statuses; track status.value) { <hlm-select-item [value]="status.value">{{ status.label }}</hlm-select-item> }</hlm-select-content></hlm-select>
+                    <hlm-select [value]="workspace.settings().installation" [itemToString]="installationLabel" (valueChange)="$event && workspace.update({installation: $any($event)})"><hlm-select-trigger class="w-full"><hlm-select-value /></hlm-select-trigger><hlm-select-content *hlmSelectPortal><hlm-select-item value="all">Любая прокладка</hlm-select-item>@for (method of methods; track method.value) { <hlm-select-item [value]="method.value">{{ method.label }}</hlm-select-item> }</hlm-select-content></hlm-select>
+                </div>
+                <hlm-collapsible><button hlmBtn hlmCollapsibleTrigger variant="ghost" size="sm" class="w-full justify-start">Типы объектов</button><div hlmCollapsibleContent class="grid gap-2 pt-2">@for (type of types; track type.value) { <label class="flex items-center gap-2"><hlm-checkbox [checked]="typeChecked(type.value)" (checkedChange)="toggleType(type.value)" /><app-map-icon [name]="type.icon" class="size-4" />{{ type.label }}</label> }</div></hlm-collapsible>
+            </div>
+            @if (workspace.error()) { <div class="border-t pt-2 text-xs" role="status">{{ workspace.error() }}<button hlmBtn variant="link" size="xs" (click)="workspace.retrySave()">{{ workspace.conflict() ? 'Перечитать' : 'Повторить' }}</button></div> }
+            @if (workspace.notice()) { <p class="text-xs text-muted-foreground">{{ workspace.notice() }}</p> }
+            @if (workspace.saving()) { <p class="text-xs text-muted-foreground" role="status">Сохраняем настройки…</p> }
+        </section>
+    </hlm-popover>
+    <hlm-popover [state]="activePanel() === 'layers' ? 'open' : 'closed'" (stateChanged)="panelState('layers', $event)" align="start" [sideOffset]="8">
+        <button hlmBtn hlmPopoverTrigger variant="ghost" size="icon-sm" type="button" aria-label="Слои карты" hlmTooltip="Слои" data-testid="map-layers-toggle" [class.bg-accent]="activePanel() === 'layers'"><ng-icon name="lucideLayers" /></button>
+        <section hlmPopoverContent *hlmPopoverPortal class="w-[min(25rem,calc(100vw-2rem))]" aria-label="Слои карты" data-testid="map-layers">
+            <header class="flex items-center justify-between px-1"><h3 class="font-medium">Слои компании</h3>@if (canManage()) { <button hlmBtn variant="ghost" size="xs" (click)="editLayer.emit(null)" data-testid="create-map-layer"><ng-icon name="lucidePlus" />Добавить</button> }</header>
+            <p class="px-1 text-xs text-muted-foreground">Состав общий, видимость — только ваша. Совпадения включённых слоёв объединяются.</p>
+            <div class="grid max-h-[55dvh] gap-1 overflow-y-auto">
+                @for (row of orderedLayers(); track row.layer.id) {
+                    <div class="flex min-w-0 items-center gap-2 rounded-md p-1 hover:bg-accent/50" [style.padding-left.rem]="0.25 + row.depth * 0.75">
+                        <hlm-checkbox [checked]="layerChecked(row.layer)" [disabled]="layerLeaves(row.layer).length === 0" [attr.aria-label]="row.layer.name" (checkedChange)="toggleLayer(row.layer)" />
+                        <div class="min-w-0 flex-1"><p class="truncate text-sm" [hlmTooltip]="row.layer.name">{{ row.layer.name }}</p><span class="text-[11px] text-muted-foreground">{{ row.layer.mode === 'group' ? 'Группа' : row.layer.mode === 'dynamic' ? 'По правилам' : 'Ручной' }}</span></div>
+                        @if (canManage()) {
+                            <button hlmBtn variant="ghost" size="icon-sm" aria-label="Выше" hlmTooltip="Выше" (click)="reorderLayer.emit({layer:row.layer,direction:-1})"><ng-icon name="lucideArrowUp" /></button>
+                            <button hlmBtn variant="ghost" size="icon-sm" aria-label="Ниже" hlmTooltip="Ниже" (click)="reorderLayer.emit({layer:row.layer,direction:1})"><ng-icon name="lucideArrowDown" /></button>
+                            <button hlmBtn variant="ghost" size="icon-sm" aria-label="Изменить слой" hlmTooltip="Изменить" (click)="editLayer.emit(row.layer)"><ng-icon name="lucidePencil" /></button>
+                            <button hlmBtn variant="ghost" size="icon-sm" aria-label="Удалить слой" hlmTooltip="Удалить слой, сохранив объекты" (click)="deleteLayer.emit(row.layer)"><ng-icon name="lucideTrash2" /></button>
+                        }
+                    </div>
+                } @empty { <p class="p-2 text-xs text-muted-foreground">Слоёв ещё нет. Старые объекты доступны ниже.</p> }
+            </div>
+            <label class="flex items-center gap-2 border-t px-1 pt-2"><hlm-checkbox [checked]="workspace.settings().include_unassigned" (checkedChange)="workspace.update({include_unassigned:$event === true})" />Без слоя</label>
+        </section>
+    </hlm-popover>
+    <hlm-popover [state]="activePanel() === 'legend' ? 'open' : 'closed'" (stateChanged)="panelState('legend', $event)" align="start" [sideOffset]="8">
+        <button hlmBtn hlmPopoverTrigger variant="ghost" size="icon-sm" type="button" aria-label="Легенда карты" hlmTooltip="Легенда" data-testid="map-legend-toggle" [class.bg-accent]="activePanel() === 'legend'"><ng-icon name="lucideMap" /></button>
+        <div hlmPopoverContent *hlmPopoverPortal class="w-[min(22rem,calc(100vw-2rem))] p-0"><app-map-legend [embedded]="true" [markers]="markers()" [connections]="connections()" [hasBuildings]="hasBuildings()" /></div>
+    </hlm-popover>
+</div>
