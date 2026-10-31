@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { of, Subject } from 'rxjs';
 
@@ -48,6 +48,11 @@ describe('MapMarkerEditor', () => {
             label_text: 'Узел №1',
         });
         fixture.detectChanges();
+    });
+
+    afterEach(() => {
+        fixture.destroy();
+        vi.useRealTimers();
     });
 
     it('filters the safe icon allowlist and changes the selected icon', () => {
@@ -173,6 +178,7 @@ describe('MapMarkerEditor', () => {
     });
 
     it('selects a suggested house as an informational link without moving the house', async () => {
+        vi.useFakeTimers();
         vi.mocked(TestBed.inject(AddressApiService).search).mockReturnValue(of({
             items: [{ kind: 'building', building, full_address: building.full_address }],
             total: 1, offset: 0, limit: 20,
@@ -183,14 +189,19 @@ describe('MapMarkerEditor', () => {
         search.value = 'рам гагар 53';
         search.dispatchEvent(new Event('input', { bubbles: true }));
         search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(TestBed.inject(AddressApiService).search).toHaveBeenCalledExactlyOnceWith('рам гагар 53', 20, 0);
+        // Enter cancels the 300ms debounce and schedules reopening the Spartan
+        // overlay. Drive that clock explicitly, rather than racing a real 0ms
+        // timeout against Angular's render scheduler on a busy CI worker.
+        await vi.advanceTimersByTimeAsync(300);
         fixture.detectChanges();
-        await fixture.whenStable();
-        fixture.detectChanges();
+        expect(TestBed.inject(AddressApiService).search).toHaveBeenCalledOnce();
 
-        document.body.querySelector<HTMLElement>('[data-testid="marker-building-result-20"]')!.click();
+        const option = document.body.querySelector<HTMLElement>('[data-testid="marker-building-result-20"]');
+        expect(option).not.toBeNull();
+        option!.click();
         fixture.detectChanges();
-        await fixture.whenStable();
+        await vi.advanceTimersByTimeAsync(300);
         fixture.detectChanges();
         expect(component.draft().building_id).toBe(building.id);
         expect(component.draft().building_link_role).toBe('reference');
