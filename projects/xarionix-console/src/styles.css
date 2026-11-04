@@ -1,0 +1,96 @@
+@import 'tailwindcss' source(none);
+@import '@spartan-ng/brain/hlm-tailwind-preset.css';
+@source '../../../libs/ui';
+@source './app';
+:root {
+  color-scheme: light;
+  --font-sans: 'Segoe UI', sans-serif;
+  --radius: 0.625rem;
+  --background: oklch(0.99 0.002 260);
+  --foreground: oklch(0.18 0.012 260);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.23 0.018 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.955 0.005 260);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: oklch(0.49 0.015 260);
+  --accent: var(--secondary);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.56 0.2 27);
+  --border: oklch(0.9 0.006 260);
+  --input: var(--border);
+  --ring: oklch(0.65 0.03 260);
+  --sidebar: oklch(0.97 0.004 260);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: oklch(0.925 0.008 260);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+:root.dark {
+  color-scheme: dark;
+  --background: oklch(0.165 0.012 260);
+  --foreground: oklch(0.955 0.005 260);
+  --card: oklch(0.2 0.013 260);
+  --popover: oklch(0.23 0.014 260);
+  --primary: oklch(0.91 0.01 260);
+  --primary-foreground: oklch(0.2 0.015 260);
+  --secondary: oklch(0.27 0.015 260);
+  --muted-foreground: oklch(0.71 0.018 260);
+  --destructive: oklch(0.72 0.17 27);
+  --border: oklch(0.95 0.01 260 / 12%);
+  --input: oklch(0.95 0.01 260 / 18%);
+  --ring: oklch(0.6 0.035 260);
+  --sidebar: oklch(0.185 0.012 260);
+  --sidebar-accent: oklch(0.255 0.015 260);
+}
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
+  }
+  h1 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+  h2 {
+    @apply text-base font-semibold tracking-tight;
+  }
+  button,
+  a,
+  input,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+@layer components {
+  .page-heading {
+    @apply mb-7 flex flex-wrap items-start justify-between gap-4;
+  }
+  .eyebrow {
+    @apply mb-2 text-xs font-medium tracking-wide text-muted-foreground;
+  }
+  .description {
+    @apply mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground;
+  }
+  .panel {
+    @apply rounded-xl border bg-card p-5 sm:p-6;
+  }
+  .detail-list {
+    @apply mt-5 grid grid-cols-[minmax(7rem,1fr)_2fr] gap-x-5 gap-y-4 text-sm;
+  }
+  .detail-list dt {
+    @apply text-muted-foreground;
+  }
+  .detail-list dd {
+    @apply min-w-0 break-words;
+  }
+}

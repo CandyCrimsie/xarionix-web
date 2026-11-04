@@ -1,0 +1,9 @@
+{
+  "development": false,
+  "coreApi": "/core-api/api/v1",
+  "coreHealth": "/core-api",
+  "issuer": "https://id.example.test/realms/xarionix",
+  "clientId": "xarionix-console",
+  "mfaAcr": "urn:xarionix:mfa",
+  "maxPackageBytes": 67108864
+}

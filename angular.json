@@ -36,9 +36,7 @@
                 "output": "assets/maplibre"
               }
             ],
-            "styles": [
-              "src/styles.css"
-            ]
+            "styles": ["src/styles.css"]
           },
           "configurations": {
             "production": {
@@ -82,10 +80,83 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "setupFiles": [
-              "src/test-setup.ts"
-            ]
+            "setupFiles": ["src/test-setup.ts"]
           }
+        }
+      }
+    },
+    "xarionix-console": {
+      "projectType": "application",
+      "schematics": {},
+      "root": "projects/xarionix-console",
+      "sourceRoot": "projects/xarionix-console/src",
+      "prefix": "console",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "projects/xarionix-console/src/main.ts",
+            "optimization": {
+              "scripts": true,
+              "styles": { "minify": true, "inlineCritical": false },
+              "fonts": false
+            },
+            "tsConfig": "projects/xarionix-console/tsconfig.app.json",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "projects/xarionix-console/public"
+              }
+            ],
+            "styles": ["projects/xarionix-console/src/styles.css"]
+          },
+          "configurations": {
+            "production": {
+              "assets": [
+                {
+                  "glob": "**/*",
+                  "input": "projects/xarionix-console/public",
+                  "ignore": ["console-config.json"]
+                },
+                { "glob": "console-config.json", "input": "projects/xarionix-console/production" }
+              ],
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "4kB",
+                  "maximumError": "8kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "xarionix-console:build:production"
+            },
+            "development": {
+              "buildTarget": "xarionix-console:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": { "setupFiles": ["projects/xarionix-console/src/test-setup.ts"] }
         }
       }
     }

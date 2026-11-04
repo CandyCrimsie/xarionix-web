@@ -1,0 +1,9 @@
+{
+  "development": true,
+  "coreApi": "/core-api/api/v1",
+  "coreHealth": "/core-api",
+  "issuer": "http://localhost:8081/realms/xarionix",
+  "clientId": "xarionix-console",
+  "mfaAcr": "urn:xarionix:mfa",
+  "maxPackageBytes": 67108864
+}

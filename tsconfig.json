@@ -89,6 +89,12 @@
     },
     {
       "path": "./tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/xarionix-console/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/xarionix-console/tsconfig.spec.json"
     }
   ]
 }

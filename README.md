@@ -1,5 +1,29 @@
 # XarionixWeb
 
+## Xarionix Platform Console · Sprint 5
+
+В workspace теперь два независимых приложения:
+
+| Приложение | Разработка | Production build | API/auth |
+|---|---|---|---|
+| Существующая ERP | `npm start` · порт 4200 | `npm run build` | ERP `/api/**`, существующая авторизация |
+| Platform Console | `npm run console:start` · порт 4300 | `npm run console:build` | Core `/core-api/**`, UUID, Keycloak PKCE |
+
+Console реализует управление компаниями, участниками, сотрудниками, приглашениями, RBAC, администраторами платформы, доверенными издателями/ключами, `.xpkg`, установками, планами и runtime. Пароли, deployment secrets и исполнение пакетов в браузер не переносятся. Core/ERP backend repositories не меняются.
+
+Начните с [локальной разработки и настоящих E2E](docs/platform-console-development.md), [настройки OIDC](docs/platform-console-authentication.md) и [проверенного API contract](docs/platform-console-api-contract.md). Другие документы: [архитектура](docs/platform-console-architecture.md), [UI](docs/platform-console-ui.md), [Module Manager](docs/platform-console-module-manager.md), [deployment](docs/platform-console-deployment.md), [безопасность и dependency exception](docs/platform-console-security.md), [результаты Sprint 5](docs/sprint-5-validation.md).
+
+```bash
+npm ci
+npm run console:typecheck
+npm run console:lint
+npm run console:test
+npm run console:build
+npm run console:bundle-check
+```
+
+Существующие ERP-команды ниже относятся к target `xarionix-web`; при прямом вызове Angular CLI указывайте его явно: `ng serve xarionix-web`, `ng build xarionix-web`, `ng test xarionix-web`.
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.6.
 
 ## Development server
@@ -7,7 +31,7 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 To start a local development server, run:
 
 ```bash
-ng serve
+ng serve xarionix-web
 ```
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
@@ -51,7 +75,7 @@ ng generate --help
 To build the project run:
 
 ```bash
-ng build
+ng build xarionix-web
 ```
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
@@ -61,7 +85,7 @@ This will compile your project and store the build artifacts in the `dist/` dire
 To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
 
 ```bash
-ng test
+ng test xarionix-web
 ```
 
 ## GitLab CI
