@@ -95,6 +95,9 @@ console:integration:
   services:
     - name: docker:29.9.2-dind-rootless@sha256:ae083cc7de51e7a8e5a597f8fb774ca7914c408a95fc0f1477826a913479518a
       alias: docker
+      # This single-platform toolbox does not need a containerd image store with
+      # both compressed and unpacked layers. Rootless isolation and TLS stay on.
+      command: ["--feature", "containerd-snapshotter=false"]
       variables:
         HEALTHCHECK_TCP_PORT: "2376"
   variables:

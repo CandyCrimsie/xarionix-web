@@ -55,6 +55,16 @@ Preflight отвергает Core-stack daemon, непустой/shared daemon �
 
 В Core GitLab project разрешить job token **Web project** в inbound allowlist для read repository. Token не хранится в Git и не передаётся controller. `CONSOLE_CORE_REF` по умолчанию — audited commit `c6ab577...`; смена требует contract review и regeneration. URL строится из стандартных `CI_SERVER_URL` / `CI_PROJECT_NAMESPACE`; нет привязки к локальному Netbird hostname.
 
+В GitLab 19.5: **Core → Settings → CI/CD → Job token permissions → Add → Group or project → `xarionix/xarionix-web` → Fine-grained permissions → Repositories: Read**. Остальные resource scopes оставить `None`; Git push не включать. Добавляется конкретный Web project, не вся группа. Пользователь, запустивший pipeline, также должен иметь доступ к Core. Если clone завершается `Authentication by CI/CD job token not allowed ... 403`, тесты ещё не начинались: исправляется inbound allowlist целевого **Core**, а не регистрация Runner или постоянный PAT. [Официальный контракт GitLab](https://docs.gitlab.com/ci/jobs/ci_job_token/).
+
+### Диск временного Docker job
+
+Toolbox устанавливает только Chromium **headless shell** (`--only-shell`): Console tests используют `headless: true` без browser channel. Полный headed Chromium для этого job не нужен. npm cache и apt package indexes удаляются в том же build layer. Это не меняет установленное по lockfile дерево зависимостей. [Документация Playwright](https://playwright.dev/docs/browsers#chromium-headless-shell).
+
+Для единственной платформы этого disposable job сервис DinD запускается с `--feature containerd-snapshotter=false` (classic `overlay2`). Docker 29 containerd store по умолчанию сохраняет compressed и unpacked layers, повышая пиковое потребление диска. Изменение относится только к новому daemon данного job; настройки системного Docker/Runner и существующие image stores не переключаются. Rootless, pinned image, TLS, network isolation и проверки Core сохраняются. Multi-platform publication/attestations этот frontend tooling job не выполняет. [Документация Docker](https://docs.docker.com/engine/storage/containerd#disk-space-usage).
+
+`no space left on device` при export/extract браузерного слоя — инфраструктурный отказ до E2E. Сначала проверить `df -h`, `df -i` и `docker system df`; не удалять чужие volumes и не выполнять global prune. Оптимизация toolbox не заменяет контроль свободного места Runner VM.
+
 Внутренний controller монтирует workspace по daemon-side absolute path, поэтому Compose bind mounts работают и при DinD. Путь Dockerfile и build context Web также абсолютные: библиотека Core выполняет команды из своего каталога. Для проверки OpenAPI baseline переносится минимальная Git identity Core (HEAD/objects/refs), но не clone config с job credential, hooks и reflogs. Отчёты возвращаются только по allowlist (`console-e2e.xml`). Production secrets не нужны. Автоматического production deployment/publish нет.
 
 Нативный positive runtime отдельно проверяется указанной выше командой. UI job не назначается `runtime-rootless`. Реальный GitLab pipeline считается успешным только после запуска на GitLab; локальные проверки не заменяют этот результат.

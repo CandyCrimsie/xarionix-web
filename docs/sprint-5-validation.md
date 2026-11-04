@@ -131,7 +131,7 @@ Gitleaks: история Git (128 commits) — без находок; финал
 
 Backend gaps документированы в [API contract](platform-console-api-contract.md): нет single-runtime GET, полного host identity view, display name projection участников, OrgUnit API и module navigation metadata. Использованы существующие bounded APIs; чужие права не расширяются.
 
-GitLab pipeline не запускался: изменений на сервере нет, push выполняет пользователь. Jobs подготовлены и локально проверяются. Для Docker job нужен разрешённый `debian` Docker executor с pinned rootless DinD service over TLS, `/certs/client` и ресурсами для браузера/Keycloak. Core project должен разрешить Web CI_JOB_TOKEN для read repository. Нативный `runtime-rootless` Runner не используется frontend jobs.
+На момент первичной проверки GitLab pipeline ещё не запускался; последующий запуск описан в дополнении ниже. Для Docker job нужен разрешённый `debian` Docker executor с pinned rootless DinD service over TLS, `/certs/client` и ресурсами для браузера/Keycloak. Core project должен разрешить Web CI_JOB_TOKEN для read repository. Нативный `runtime-rootless` Runner не используется frontend jobs.
 
 Не выполнена отдельная браузерная матрица всех expiry/generation/failed-job/revocation комбинаций из задания. Основные границы и ошибки покрыты Vitest и настоящими сценариями выше; Core security regression не подменяется заявлениями о frontend coverage. Не выполнены production HTTPS deployment, нагрузочное тестирование и ручной аудит каждого браузера/экранного диктора. Console проверена Chromium, 1440×1000 и 390×844, светлая/тёмная темы; существующая ERP — штатным Brave/SwiftShader WebGL runner, light/dark и DPR 1/2 с `MAP_VERIFY_UX=1`. Остальные opt-in модули старого runner отдельно не перезапускались. Automated visual baseline comparison пока не настроен.
 
@@ -140,3 +140,16 @@ GitLab pipeline не запускался: изменений на сервер�
 Нужен отдельный план миграции ERP identity и числовых company IDs к Core UUID, mapping пользователей/членства, переход ERP API к Core permission model и company context, миграция auth guards/interceptors и совместимые endpoints. Для module navigation нужен закрытый серверный declarative contract и reviewed compiled route registry. Нельзя просто направить существующий `/api/**` proxy на Core или загружать arbitrary package JS.
 
 Быстрый локальный запуск: `npm run console:start` (4300); ERP остаётся `npm start` (4200). Настройка Keycloak и полного E2E описана в [development](platform-console-development.md) и [authentication](platform-console-authentication.md).
+
+## Дополнение: диагностика GitLab jobs №229 и №234
+
+4 ноября 2026 пользователь отправил Sprint 5 commit `ddbb90e5` самостоятельно.
+
+- Job №229 завершился **до E2E**: GitLab отказал Web `CI_JOB_TOKEN` в clone Core (`403`, `Authentication by CI/CD job token not allowed`). С подтверждения пользователя в Core добавлен только `xarionix/xarionix-web`, fine-grained **Repositories: Read**, остальные resource scopes `None`, без Git push и новых постоянных credentials.
+- Повтор №234 подтвердил исправление доступа: Core checkout и rootless/TLS/Compose preflight прошли. Затем сборка остановилась при extract браузерного слоя: **`no space left on device`**. Это отдельный инфраструктурный отказ; до браузерных тестов job не дошёл. Сообщения об отсутствии JUnit — следствие ранней остановки.
+- Read-only диагностика VM: root filesystem 19 ГБ (VM disk 20 ГБ), после cleanup свободно около 6,2 ГБ; inode использованы на 16%. Системный Docker хранит containerd image store. Существующие images/volumes не удалялись, Runner не перенастраивался.
+- Исправления в Web: `--only-shell` вместо одновременной установки полного Chromium и headless shell; удаление npm cache/apt indexes в том же слое; classic image store только для нового disposable DinD этого frontend job (`--feature containerd-snapshotter=false`). Это сохраняет rootless, TLS, pinned image и исходный lockfile; системный Docker VM не переключается.
+
+Проверка нового Dockerfile и service command выполнена настоящим локальным CI bridge с чистым rootless DinD over verified TLS (Linux arm64): production build, bundle gate, snapshot 87 Core paths, реальный Core/PostgreSQL/Keycloak, **5/5 E2E passed**, controller exit подтверждён. Driver фактически `overlay2`. Контрольный `du` от UID 0 во время работы стека показал **4,17 ГиБ** данных DinD. Это наблюдаемый объём, не жёсткая квота диска и не доказательство идентичного пика на amd64 Runner. Проверены YAML и отсутствие whitespace errors. Отчёт измерения — локальный `reports/console-ci-disk-verification.json`. Тестовый DinD и его TLS/volumes удалены.
+
+Эти изменения требуют нового commit/push пользователя; повтор старого job использует прежний Dockerfile и прежнюю service configuration. Успешный GitLab pipeline с новым кодом пока не заявляется. Runner registration/config, системный Docker и чужие volumes не менялись.
