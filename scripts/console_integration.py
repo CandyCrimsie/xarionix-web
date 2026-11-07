@@ -35,14 +35,19 @@ def write(path, value, mode=0o600):
     path.chmod(mode)
 
 
-def run(command, *, env=None, timeout=900):
+def run(command, *, env=None, timeout=900, describe_failure=None):
     result = subprocess.run(
         command, cwd=ROOT, env=env, capture_output=True, timeout=timeout, check=False
     )
     if result.returncode:
         # Never echo Docker expanded config, SQL or credential-bearing stderr.
+        phase = (
+            describe_failure(result.stdout + result.stderr)
+            if describe_failure
+            else Path(command[0]).name
+        )
         raise RuntimeError(
-            f"Test infrastructure command failed: {Path(command[0]).name} (exit {result.returncode})"
+            f"Test infrastructure command failed: {phase} (exit {result.returncode})"
         )
     return result.stdout
 
@@ -196,6 +201,7 @@ def main():
     from runtime_helpers import runtime_package
 
     from scripts import setup
+    from scripts.ci import compose_failure_kind
 
     run(["docker", "info", "--format", "{{.ServerVersion}}"])
     runtime_info = None
@@ -371,10 +377,14 @@ def main():
             "Validating and starting isolated PostgreSQL, migrations, Keycloak and Core",
             flush=True,
         )
-        run(command + ["config", "-q"])
+        run(
+            command + ["config", "-q"],
+            describe_failure=lambda output: f"Compose configuration [{compose_failure_kind(output)}]",
+        )
         run(
             command + ["up", "-d", "--build", "--wait", "--wait-timeout", "420"],
             timeout=1500,
+            describe_failure=lambda output: f"Compose startup [{compose_failure_kind(output)}]",
         )
         wait_for(config["PUBLIC_URL"] + "/health/ready")
         if erp:
