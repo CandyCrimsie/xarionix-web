@@ -45,12 +45,13 @@ production-build:
     - npm ci --prefer-offline
   script:
     - npm run build
+    - npm run erp:legacy:build
   artifacts:
     paths:
       - dist/
     expire_in: 1 week
 
-# Console has its own target/auth/proxy. Existing ERP jobs above remain required.
+# Console is now a compatibility target of the unified Web. ERP regression jobs remain required.
 .console-node:
   rules: *all_events
   image: node:22.22.2-bookworm-slim
@@ -62,6 +63,7 @@ console:validate:
   stage: validate
   script:
     - npm run console:typecheck
+    - npm run web:typecheck
     - npm run console:lint
     - sh -n scripts/console-ci-checkout.sh
     - sh -n scripts/console-ci-inner.sh
@@ -111,7 +113,7 @@ console:integration:
     - apk add --no-cache python3 git
   script:
     - sh scripts/console-ci-checkout.sh
-    - python3 -u scripts/console_ci.py --core .console-core
+    - python3 -u scripts/console_ci.py --core .console-core --erp .console-erp
   artifacts:
     when: always
     expire_in: 1 week

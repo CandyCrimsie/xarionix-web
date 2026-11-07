@@ -1,6 +1,6 @@
 # UI → Core: проверенный контракт
 
-Baseline `c6ab57707a0b2b486715017316e67d52b80b6d4e`, API `/api/v1`. Полный snapshot: `projects/xarionix-console/contracts/core-openapi.json`, 87 paths. Экспорт не запускает lifespan, миграции и не читает deployment `.env`:
+Актуальный Sprint 6B API `/api/v1`: полный snapshot `projects/xarionix-console/contracts/core-openapi.json`, 95 paths. Core checkout отдельно закрепляется полным SHA через `CONSOLE_CORE_REF` после ручной публикации Core; JSON сравнивает API content, не Git HEAD. [Порядок обновления CI pin](unified-web-migration.md). Экспорт не запускает lifespan, миграции и не читает deployment `.env`:
 
 ```bash
 ../xarionix-core/.venv/bin/python scripts/console_contract.py --core ../xarionix-core --check

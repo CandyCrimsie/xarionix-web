@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 
 export interface ConsoleConfig {
   development: boolean;
+  erpEnabled?: boolean;
   coreApi: string;
   coreHealth: string;
   issuer: string;
@@ -14,6 +15,7 @@ export function validateConfig(value: unknown, origin: string): ConsoleConfig {
   const v = value as Record<string, unknown>;
   const allowed = [
     'development',
+    'erpEnabled',
     'coreApi',
     'coreHealth',
     'issuer',
@@ -23,6 +25,8 @@ export function validateConfig(value: unknown, origin: string): ConsoleConfig {
   ];
   if (Object.keys(v).some((k) => !allowed.includes(k)))
     throw new Error('Неизвестные параметры Console');
+  if (v['erpEnabled'] !== undefined && typeof v['erpEnabled'] !== 'boolean')
+    throw new Error('Некорректный режим ERP');
   if (
     typeof v['development'] !== 'boolean' ||
     typeof v['clientId'] !== 'string' ||

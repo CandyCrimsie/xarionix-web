@@ -1,13 +1,2 @@
-import { ApplicationConfig } from '@angular/core';
-import { provideHttpClient } from '@angular/common/http';
-import { provideRouter } from '@angular/router';
-import { routes } from '../../app.routes';
-
+// Contract constant only. Importing an API URL must not initialize the legacy Router.
 export const API_BASE_URL = '/api/v1';
-
-export const appConfig: ApplicationConfig = {
-    providers: [
-        provideRouter(routes),
-        provideHttpClient(),
-    ],
-};

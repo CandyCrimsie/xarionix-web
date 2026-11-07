@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createHmac, randomUUID } from 'node:crypto';
 
 interface State {
+  erp: { company_id: number; user_id: number } | null;
   baseUrl: string;
   coreUrl: string;
   issuer: string;
@@ -57,6 +58,8 @@ async function login(page: Page, name = 'admin') {
   await page.locator('#otp').fill(await otp(name));
   await page.locator('#kc-login').click();
   await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByTestId('unified-shell')).toHaveCount(1);
+  await expect(page.locator('iframe')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Обзор платформы' })).toBeVisible();
   expect(new URL(page.url()).search).toBe('');
 }
@@ -113,6 +116,11 @@ test('smoke: genuine Keycloak PKCE + OTP, profile, themes, no persisted JWT, log
     animations: 'disabled',
   });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Открыть навигацию' }).click();
+  await expect(page.locator('[data-mobile="true"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-mobile="true"]')).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Открыть навигацию' })).toBeFocused();
   await page.screenshot({
     path: 'reports/console-screenshots/profile-mobile.png',
     animations: 'disabled',
@@ -282,7 +290,7 @@ test('signed .xpkg upload, exact server plan approval and separate trusted execu
   expect(enable.plan.ready).toBe(false);
   expect(enable.plan.blockers).toContain('runtime_not_healthy');
   await expect(page.getByRole('button', { name: 'Одобрить план', exact: true })).toBeDisabled();
-  await page.getByRole('link', { name: 'Deployment hosts', exact: true }).click();
+  await page.getByRole('link', { name: 'Серверы развёртывания', exact: true }).click();
   await page.getByRole('button', { name: 'Зарегистрировать host', exact: true }).click();
   for (const [label, value] of [
     ['Host UUID', state.deployment.id],
@@ -423,14 +431,28 @@ test('signed .xpkg upload, exact server plan approval and separate trusted execu
 test('non-admin cannot open platform management; no hidden controls grant access', async ({
   page,
 }) => {
+  const protectedRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/core-api\/api\/v1\/platform\/(packages|module-installations)/.test(request.url()))
+      protectedRequests.push(request.url());
+  });
   await login(page, 'member');
   await expect(page.getByRole('link', { name: 'Издатели', exact: true })).toHaveCount(0);
   await page.evaluate(() => {
-    history.pushState(null, '', '/platform/packages');
+    history.pushState(null, '', '/admin/modules/packages');
     dispatchEvent(new PopStateEvent('popstate'));
   });
   await expect(page.getByRole('heading', { name: 'Раздел недоступен' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Загрузить пакет', exact: true })).toHaveCount(0);
+  expect(protectedRequests).toEqual([]);
+  await page.evaluate(() => {
+    history.pushState(null, '', '/addresses');
+    dispatchEvent(new PopStateEvent('popstate'));
+  });
+  if (state.erp)
+    await expect(page.getByText('Выберите компанию для работы с инфраструктурой.')).toBeVisible();
+  else await expect(page.getByTestId('erp-migration-boundary')).toBeVisible();
+  await expect(page.locator('input[type=password]')).toHaveCount(0);
 });
 
 test('real duplicate and malformed uploads, revoked trust, offline services and memory-only reload', async ({
@@ -493,4 +515,86 @@ test('real duplicate and malformed uploads, revoked trust, offline services and 
   await expect(page.getByText('Не удалось начать вход.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Войти через Keycloak' })).toBeEnabled();
   await expect(page).toHaveURL(/\/login/);
+});
+
+test('one PKCE session reaches real ERP with explicit company bindings and no password fallback', async ({
+  page,
+}) => {
+  test.skip(!state.erp, 'Use --erp with a reviewed backend for the separate shared-session check');
+  let token = '';
+  const legacyAuth: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith('/core-api/api/v1/')) token = request.headers()['authorization'] ?? token;
+    if (/^\/api\/v1\/auth\/(?:login|refresh)$/.test(path)) legacyAuth.push(path);
+  });
+  await login(page);
+  await page.getByRole('link', { name: 'Компании', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Создать компанию', exact: true }).click();
+  await page.getByLabel('Название', { exact: true }).fill('Сеть ERP SSO');
+  await page
+    .getByLabel('Адресное имя', { exact: true })
+    .fill('erp-sso-' + randomUUID().slice(0, 8));
+  const created = await response(page, 'POST', '/api/v1/companies', () => dialogSave(page));
+  const company = await created.json();
+  await page.getByRole('link', { name: 'Сеть ERP SSO', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Сеть ERP SSO', exact: true })).toBeVisible();
+  // An existing Core membership is not sufficient to claim somebody's ERP identity.
+  await page.getByRole('link', { name: 'Карта и адреса', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Доступ к ERP не подтверждён' })).toBeVisible();
+  const message = path.join(state.operatorDirectory, randomUUID() + '.request.json');
+  fs.writeFileSync(message, JSON.stringify({ operation: 'bind-erp', company_id: company.id }));
+  await expect
+    .poll(() => fs.existsSync(message.replace(/\.json$/, '.done')), { timeout: 30000 })
+    .toBe(true);
+  const context = await response(page, 'GET', '/api/v1/auth/platform-context', () =>
+    page.getByRole('button', { name: 'Повторить', exact: true }).click(),
+  );
+  const body = await context.json();
+  expect(body.core_company_id).toBe(company.id);
+  expect(body.company.id).toBe(state.erp!.company_id);
+  expect(body.user.id).toBe(state.erp!.user_id);
+  await expect(page.getByTestId('unified-erp-map')).toBeVisible();
+  await expect(page.getByTestId('address-search-input')).toBeVisible();
+  // Same actual IdP JWT is checked by each backend for its OWN explicit audience.
+  const headers = {
+    Authorization: token,
+    'X-Core-Company-Id': company.id,
+    'X-Company-Id': String(body.company.id),
+  };
+  const read = await page.request.get(state.baseUrl + '/api/v1/map/markers', { headers });
+  expect(read.status()).toBe(200);
+  const written = await page.request.post(state.baseUrl + '/api/v1/map/markers', {
+    headers,
+    data: {
+      name: 'Узел SSO',
+      point_type: 'network_node',
+      visibility: 'private',
+      latitude: 55.75,
+      longitude: 37.6,
+      icon_name: 'network-node',
+    },
+  });
+  expect(written.status()).toBe(201);
+  const marker = await written.json();
+  expect(marker.owner_user_id).toBe(body.user.id);
+  const persisted = await page.request.get(state.baseUrl + '/api/v1/map/markers', { headers });
+  expect((await persisted.json()).some((item: { id: number }) => item.id === marker.id)).toBe(true);
+  const other = await page.request.get(state.baseUrl + '/api/v1/map/markers', {
+    headers: { ...headers, 'X-Company-Id': String(body.company.id + 1) },
+  });
+  expect(other.status()).toBe(403);
+  const denied = await page.request.get(state.baseUrl + '/api/v1/map/markers', {
+    headers: { ...headers, 'X-Core-Company-Id': randomUUID() },
+  });
+  expect(denied.status()).toBe(403);
+  expect(legacyAuth).toEqual([]);
+  await expect(page.locator('iframe')).toHaveCount(0);
+  fs.mkdirSync('reports/console-screenshots', { recursive: true });
+  await page.screenshot({
+    path: 'reports/console-screenshots/unified-erp-sso.png',
+    animations: 'disabled',
+  });
+  await page.getByRole('link', { name: 'Компании', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/companies$/);
 });

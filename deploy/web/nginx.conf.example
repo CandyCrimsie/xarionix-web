@@ -1,0 +1,74 @@
+# One public Angular application; Console is part of the same Router and shell.
+# Replace example hosts, certificate paths and issuer origin after operator review.
+server {
+    listen 443 ssl;
+    server_name xarionix.example.test;
+    ssl_certificate /etc/nginx/tls/web.crt;
+    ssl_certificate_key /etc/nginx/tls/web.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    root /srv/xarionix-web/browser;
+    index index.html;
+    server_tokens off;
+    client_max_body_size 128m;
+    access_log off; # No OAuth callback query, credentials or request body logging.
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://id.example.test; frame-src https://id.example.test; img-src 'self' data: blob:; worker-src 'self'; font-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://id.example.test" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    # Keep headers at one level: a location add_header would disable their inheritance.
+    add_header Cache-Control "no-store" always;
+
+    location /core-api/ {
+        proxy_pass https://core.example.test/;
+        proxy_ssl_verify on;
+        proxy_ssl_server_name on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_set_header Host core.example.test;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_set_header Cookie "";
+        proxy_hide_header Set-Cookie;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 180s;
+        proxy_send_timeout 180s;
+        proxy_request_buffering off;
+        proxy_buffering off;
+    }
+    location = /console-config.json {
+        try_files $uri =404;
+    }
+    # Only the reviewed ERP contract; legacy password/setup and unrelated debug
+    # endpoints remain closed at the unified entry. ERP independently verifies JWT.
+    location ~ ^/api/v1/(?:auth/platform-context$|map(?:/|$)|address-objects(?:/|$)|address-types(?:/|$)|buildings(?:/|$)|entrances(?:/|$)|locations(?:/|$)|me/(?:permissions|profile)$) {
+        proxy_pass https://erp.example.test;
+        proxy_ssl_verify on;
+        proxy_ssl_server_name on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_set_header Host erp.example.test;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_set_header Cookie "";
+        proxy_hide_header Set-Cookie;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
+    }
+    location /api/ { return 404; }
+    # Existing signed tile proxy on loopback. It verifies expiry/signature and
+    # holds provider credentials. Never forward a human token to a tile service.
+    location /map/tiles/ {
+        proxy_pass http://127.0.0.1:8088;
+        proxy_set_header Host localhost;
+        proxy_set_header Authorization "";
+        proxy_set_header Cookie "";
+        proxy_hide_header Set-Cookie;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 15s;
+    }
+    location /map/ { return 404; }
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -1,12 +1,2 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { HlmToasterImports } from '@spartan-ng/helm/sonner';
-
-@Component({
-  selector: 'console-root',
-  imports: [RouterOutlet, HlmToasterImports],
-  templateUrl: './app.html',
-  styleUrl: './app.css',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-})
-export class App {}
+// Migration target: the same implementation as the public Web.
+export { App } from '../../../../src/app/platform/app';

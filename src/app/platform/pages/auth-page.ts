@@ -16,8 +16,8 @@ import { UI, ICONS } from '../shared/ui';
             >X</span
           >
           <div class="font-semibold">
-            Xarionix Console
-            <p class="text-xs font-normal text-muted-foreground">Управление платформой</p>
+            Xarionix
+            <p class="text-xs font-normal text-muted-foreground">Рабочее пространство</p>
           </div>
         </div>
         <h1 class="text-xl font-semibold tracking-tight">

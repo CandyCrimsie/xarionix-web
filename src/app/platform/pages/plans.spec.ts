@@ -2,12 +2,12 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { InstallPlanPage } from './install-plan';
-import { runtimeActions } from './runtime';
+import { DeploymentPlanPage, runtimeActions } from './runtime';
 import { Session } from '../core/session';
 import { Clock } from '../core/clock';
 import { RequestScope } from '../core/scope';
 import { Actions } from '../shared/actions';
-import { Installation, InstallPlan, RuntimeDeployment } from '../core/models';
+import { DeploymentPlan, Installation, InstallPlan, RuntimeDeployment } from '../core/models';
 describe('reviewed installation plan authority', () => {
   const now = Date.now();
   const plan = {
@@ -87,5 +87,36 @@ describe('runtime actions follow the actual Core lifecycle', () => {
   it('offers terminal safety inspection without normal restart', () => {
     const runtime = { desired: 'retired', observed: 'stopped' } as RuntimeDeployment;
     expect(runtimeActions(runtime, installed)).toEqual(['inspect', 'stop', 'deprovision']);
+  });
+});
+
+describe('persistent restore approval', () => {
+  it('requires an explicit destructive confirmation and submits only the exact server digest', () => {
+    const plan = {
+      id: '12345678-1234-1234-1234-123456789abc',
+      state: 'pending',
+      digest: 'b'.repeat(64),
+      expires_at: new Date(Date.now() + 60000).toISOString(),
+      body: { operation: 'restore', host_id: 'host', installation_id: 'installation' },
+    } as DeploymentPlan;
+    const post = vi.fn(() => of({ job_id: 'job' }));
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Session, useValue: { api: { get: () => of(plan), post } } },
+        { provide: Clock, useValue: { now: () => Date.now() } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => plan.id } } } },
+      ],
+    });
+    const page = TestBed.runInInjectionContext(() => new DeploymentPlanPage());
+    page.live.value.set(plan);
+    page.approve(plan);
+    const confirmation = TestBed.inject(Actions).current()!;
+    expect(confirmation.destructive).toBe(true);
+    expect(confirmation.description).toContain('Данные вернутся к выбранной копии');
+    expect(post).not.toHaveBeenCalled();
+    confirmation.execute({}).subscribe();
+    expect(post).toHaveBeenCalledWith(`/platform/deployment-plans/${plan.id}/approve`, {
+      digest: plan.digest,
+    });
   });
 });

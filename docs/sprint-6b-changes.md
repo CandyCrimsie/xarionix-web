@@ -1,0 +1,165 @@
+# Sprint 6B — изменённые файлы
+
+Снимок рабочего дерева 7 ноября 2026. Commit/push не выполнялись.
+`M` — изменён, `D` — перенесён из старого дерева Console, `??` — новый файл.
+
+```text
+ M .dockerignore
+ M .gitignore
+ M .gitlab-ci.yml
+ M README.md
+ M angular.json
+ M docs/map-workspace.md
+ M docs/platform-console-api-contract.md
+ M docs/platform-console-architecture.md
+ M docs/platform-console-deployment.md
+ M docs/platform-console-development.md
+ M package.json
+ M projects/xarionix-console/contracts/core-openapi.json
+ M projects/xarionix-console/e2e/console.e2e.ts
+ M projects/xarionix-console/proxy.conf.cjs
+ M projects/xarionix-console/src/app/app.config.ts
+ D projects/xarionix-console/src/app/app.css
+ D projects/xarionix-console/src/app/app.html
+ M projects/xarionix-console/src/app/app.routes.ts
+ M projects/xarionix-console/src/app/app.ts
+ D projects/xarionix-console/src/app/core/api.spec.ts
+ D projects/xarionix-console/src/app/core/api.ts
+ D projects/xarionix-console/src/app/core/auth.spec.ts
+ D projects/xarionix-console/src/app/core/auth.ts
+ D projects/xarionix-console/src/app/core/clock.ts
+ D projects/xarionix-console/src/app/core/config.spec.ts
+ D projects/xarionix-console/src/app/core/config.ts
+ D projects/xarionix-console/src/app/core/errors.ts
+ D projects/xarionix-console/src/app/core/guards.ts
+ D projects/xarionix-console/src/app/core/models.ts
+ D projects/xarionix-console/src/app/core/navigation.spec.ts
+ D projects/xarionix-console/src/app/core/navigation.ts
+ D projects/xarionix-console/src/app/core/polling.spec.ts
+ D projects/xarionix-console/src/app/core/polling.ts
+ D projects/xarionix-console/src/app/core/route-reuse.ts
+ D projects/xarionix-console/src/app/core/scope.ts
+ D projects/xarionix-console/src/app/core/session.spec.ts
+ D projects/xarionix-console/src/app/core/session.ts
+ D projects/xarionix-console/src/app/pages/auth-page.ts
+ D projects/xarionix-console/src/app/pages/companies.ts
+ D projects/xarionix-console/src/app/pages/dashboard.ts
+ D projects/xarionix-console/src/app/pages/hosts.ts
+ D projects/xarionix-console/src/app/pages/install-plan.ts
+ D projects/xarionix-console/src/app/pages/installations.ts
+ D projects/xarionix-console/src/app/pages/packages.ts
+ D projects/xarionix-console/src/app/pages/people.ts
+ D projects/xarionix-console/src/app/pages/plans.spec.ts
+ D projects/xarionix-console/src/app/pages/platform.ts
+ D projects/xarionix-console/src/app/pages/profile.ts
+ D projects/xarionix-console/src/app/pages/publishers.ts
+ D projects/xarionix-console/src/app/pages/roles.ts
+ D projects/xarionix-console/src/app/pages/runtime.ts
+ D projects/xarionix-console/src/app/pages/unavailable.ts
+ D projects/xarionix-console/src/app/shared/actions.spec.ts
+ D projects/xarionix-console/src/app/shared/actions.ts
+ D projects/xarionix-console/src/app/shared/data-table.ts
+ D projects/xarionix-console/src/app/shared/feedback.ts
+ D projects/xarionix-console/src/app/shared/live-data.ts
+ D projects/xarionix-console/src/app/shared/package-upload.ts
+ D projects/xarionix-console/src/app/shared/page-data.ts
+ D projects/xarionix-console/src/app/shared/permission-picker.ts
+ D projects/xarionix-console/src/app/shared/pickers-table.spec.ts
+ D projects/xarionix-console/src/app/shared/report.ts
+ D projects/xarionix-console/src/app/shared/role-picker.ts
+ D projects/xarionix-console/src/app/shared/ui.ts
+ D projects/xarionix-console/src/app/shared/upload.spec.ts
+ D projects/xarionix-console/src/app/shell.ts
+ M projects/xarionix-console/src/index.html
+ M projects/xarionix-console/src/main.ts
+ M projects/xarionix-console/tsconfig.app.json
+ M projects/xarionix-console/tsconfig.spec.json
+ M scripts/check-console-bundle.mjs
+ M scripts/check-console.mjs
+ M scripts/console-ci-checkout.sh
+ M scripts/console-ci-inner.sh
+ M scripts/console-preview.mjs
+ M scripts/console_ci.py
+ M scripts/console_contract.py
+ M scripts/console_integration.py
+ M scripts/verify-map-stage25172.mjs
+ M src/app/core/api/api.config.ts
+ M src/index.html
+ M src/styles.css
+?? deploy/web/nginx.conf.example
+?? docs/sprint-6b-changes.md
+?? docs/sprint-6b-validation.md
+?? docs/unified-web-architecture.md
+?? docs/unified-web-authentication.md
+?? docs/unified-web-migration.md
+?? scripts/erp_fixture.py
+?? scripts/test_console_ci.py
+?? scripts/validate_web_nginx.py
+?? src/app/platform/admin.routes.ts
+?? src/app/platform/app.config.ts
+?? src/app/platform/app.css
+?? src/app/platform/app.html
+?? src/app/platform/app.routes.ts
+?? src/app/platform/app.ts
+?? src/app/platform/core/api.spec.ts
+?? src/app/platform/core/api.ts
+?? src/app/platform/core/auth.spec.ts
+?? src/app/platform/core/auth.ts
+?? src/app/platform/core/clock.ts
+?? src/app/platform/core/config.spec.ts
+?? src/app/platform/core/config.ts
+?? src/app/platform/core/errors.ts
+?? src/app/platform/core/guards.ts
+?? src/app/platform/core/models.ts
+?? src/app/platform/core/navigation.spec.ts
+?? src/app/platform/core/navigation.ts
+?? src/app/platform/core/polling.spec.ts
+?? src/app/platform/core/polling.ts
+?? src/app/platform/core/route-reuse.ts
+?? src/app/platform/core/scope.ts
+?? src/app/platform/core/session.spec.ts
+?? src/app/platform/core/session.ts
+?? src/app/platform/erp/bridge.spec.ts
+?? src/app/platform/erp/bridge.ts
+?? src/app/platform/erp/company-context.ts
+?? src/app/platform/erp/map-page.ts
+?? src/app/platform/pages/auth-page.ts
+?? src/app/platform/pages/companies.ts
+?? src/app/platform/pages/dashboard.ts
+?? src/app/platform/pages/gateway.spec.ts
+?? src/app/platform/pages/gateway.ts
+?? src/app/platform/pages/hello-business.spec.ts
+?? src/app/platform/pages/hello-business.ts
+?? src/app/platform/pages/hosts.ts
+?? src/app/platform/pages/install-plan.ts
+?? src/app/platform/pages/install-plans.ts
+?? src/app/platform/pages/installations.ts
+?? src/app/platform/pages/module-workspace.ts
+?? src/app/platform/pages/packages.ts
+?? src/app/platform/pages/people.ts
+?? src/app/platform/pages/plans.spec.ts
+?? src/app/platform/pages/platform.ts
+?? src/app/platform/pages/profile.ts
+?? src/app/platform/pages/publishers.ts
+?? src/app/platform/pages/roles.ts
+?? src/app/platform/pages/runtime.ts
+?? src/app/platform/pages/unavailable.ts
+?? src/app/platform/shared/actions.spec.ts
+?? src/app/platform/shared/actions.ts
+?? src/app/platform/shared/data-table.ts
+?? src/app/platform/shared/feedback.ts
+?? src/app/platform/shared/live-data.ts
+?? src/app/platform/shared/module-storage-panel.spec.ts
+?? src/app/platform/shared/module-storage-panel.ts
+?? src/app/platform/shared/package-upload.ts
+?? src/app/platform/shared/page-data.ts
+?? src/app/platform/shared/permission-picker.ts
+?? src/app/platform/shared/pickers-table.spec.ts
+?? src/app/platform/shared/report.ts
+?? src/app/platform/shared/role-picker.ts
+?? src/app/platform/shared/ui.ts
+?? src/app/platform/shared/upload.spec.ts
+?? src/app/platform/shell.ts
+?? src/app/platform/unified.spec.ts
+?? src/platform-main.ts
+```

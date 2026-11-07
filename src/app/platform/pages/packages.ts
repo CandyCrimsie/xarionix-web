@@ -62,7 +62,7 @@ export class PackagesPage {
         p.current_trust ? 'Доверенный' : 'Доверие отсутствует',
         (p.size / 1048576).toFixed(2) + ' МиБ',
       ],
-      path: `/platform/packages/${p.id}`,
+      path: `/admin/modules/packages/${p.id}`,
     })),
   );
   constructor() {
@@ -81,7 +81,7 @@ export class PackagesPage {
           hlmBtn
           variant="link"
           class="mb-2 h-auto p-0 text-muted-foreground"
-          routerLink="/platform/packages"
+          routerLink="/admin/modules/packages"
           ><ng-icon name="lucideArrowLeft" />Пакеты</a
         >
         <h1>{{ manifest()?.module?.name || package()?.module_id || 'Пакет' }}</h1>
@@ -274,7 +274,7 @@ export class PackagePage {
       .subscribe({
         next: (p) => {
           this.busy.set(false);
-          void this.router.navigate(['/platform/install-plans', p.id]);
+          void this.router.navigate(['/admin/modules/install-plans', p.id]);
         },
         error: (e) => {
           this.error.set(coreError(e));

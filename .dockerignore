@@ -17,3 +17,5 @@ coverage
 **/*.private
 **/*.dump
 **/__pycache__
+
+.console-erp

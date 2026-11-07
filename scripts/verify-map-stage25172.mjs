@@ -1,5 +1,5 @@
 // Reproducible real-WebGL visual checks. No requests reach Yandex or a real API.
-// npm start -- --port 4217 --host 127.0.0.1
+// npm run erp:legacy:start -- --port 4217 --host 127.0.0.1
 // node scripts/verify-map-stage25172.mjs
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';

@@ -11,10 +11,13 @@
     "console:build": "ng build xarionix-console",
     "console:typecheck": "tsc --noEmit -p projects/xarionix-console/tsconfig.app.json",
     "console:test": "ng test xarionix-console --watch=false",
-    "console:lint": "prettier --check projects/xarionix-console/src projects/xarionix-console/e2e projects/xarionix-console/public/*.json projects/xarionix-console/production/*.json projects/xarionix-console/tsconfig*.json scripts/*console*.mjs && node scripts/check-console.mjs",
+    "console:lint": "prettier --check src/app/platform projects/xarionix-console/src projects/xarionix-console/e2e projects/xarionix-console/public/*.json projects/xarionix-console/production/*.json projects/xarionix-console/tsconfig*.json scripts/*console*.mjs && node scripts/check-console.mjs",
     "console:bundle-check": "node scripts/check-console-bundle.mjs",
     "console:security": "node scripts/console-security.mjs",
-    "console:e2e": "../xarionix-core/.venv/bin/python scripts/console_integration.py --core ../xarionix-core"
+    "console:e2e": "../xarionix-core/.venv/bin/python scripts/console_integration.py --core ../xarionix-core",
+    "erp:legacy:build": "ng build xarionix-erp-legacy",
+    "erp:legacy:start": "ng serve xarionix-erp-legacy",
+    "web:typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "private": true,
   "packageManager": "npm@10.9.2",

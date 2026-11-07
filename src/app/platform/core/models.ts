@@ -262,6 +262,8 @@ export interface DeploymentHost {
   last_seen: string | null;
 }
 export type DeploymentAction =
+  | 'backup'
+  | 'restore'
   | 'provision'
   | 'start'
   | 'stop'
@@ -273,6 +275,21 @@ export type DeploymentAction =
   | 'reconcile'
   | 'quarantine'
   | 'retire';
+export interface DeploymentStorage {
+  epoch_id: UUID;
+  next_epoch_id: UUID;
+  allocation_revision: number;
+  expected_schema_version: number;
+  target_schema_version: number;
+  compatible_minimum: number;
+  compatible_maximum: number;
+  maximum_bytes: number;
+  sdk_sha256: string;
+  package_version: string;
+  backup_id: UUID | null;
+  backup_sha256: string | null;
+  allow_migration: boolean;
+}
 export interface DeploymentPlanBody {
   installation_id: UUID;
   host_id: UUID;
@@ -288,6 +305,7 @@ export interface DeploymentPlanBody {
   resource_policy: Record<string, number>;
   runtime: Record<string, unknown>;
   policy: Record<string, unknown>;
+  storage?: DeploymentStorage;
 }
 export interface DeploymentPlan {
   id: UUID;
@@ -329,6 +347,27 @@ export interface QueuedJob {
   job_id: UUID;
   state: string;
   generation: number;
+}
+
+export interface ModuleDataBackup {
+  id: UUID;
+  data_schema_version: number;
+  sha256: string;
+  size: number;
+  package_version: string;
+  created_at: string;
+}
+export interface ModuleStorageView extends Page<ModuleDataBackup> {
+  allocation: {
+    installation_id: UUID;
+    host_id: UUID;
+    epoch_id: UUID;
+    revision: number;
+    data_schema_version: number;
+    maximum_bytes: number;
+    retained_epoch_count: number;
+    deletion_supported: false;
+  } | null;
 }
 export function runtimeFresh(runtime: RuntimeDeployment, now = Date.now()): boolean {
   return (

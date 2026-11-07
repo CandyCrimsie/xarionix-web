@@ -64,9 +64,17 @@ import type {
             ><ng-icon name="lucideBuilding2" />Выбрать компанию</a
           >
           @if (session.admin() === 'allowed') {
-            <a hlmBtn variant="ghost" class="w-full justify-start" routerLink="/platform/packages"
+            <a
+              hlmBtn
+              variant="ghost"
+              class="w-full justify-start"
+              routerLink="/admin/modules/packages"
               ><ng-icon name="lucidePackage" />Реестр пакетов</a
-            ><a hlmBtn variant="ghost" class="w-full justify-start" routerLink="/platform/runtime"
+            ><a
+              hlmBtn
+              variant="ghost"
+              class="w-full justify-start"
+              routerLink="/admin/modules/runtime"
               ><ng-icon name="lucideActivity" />Состояние runtime</a
             >
           }
@@ -79,7 +87,7 @@ import type {
         <div class="mt-4 divide-y">
           @for (operation of recent(); track operation.id) {
             <a
-              [routerLink]="'/platform/install-plans/' + operation.plan_id"
+              [routerLink]="'/admin/modules/install-plans/' + operation.plan_id"
               class="flex items-center justify-between gap-3 py-3 text-sm"
               ><span class="font-mono text-xs">{{ operation.id }}</span
               ><span>{{ status(operation.state) }}</span></a
@@ -146,14 +154,14 @@ export class Dashboard {
                 title: 'Установленные модули',
                 value: String(result.installations.total ?? result.installations.items.length),
                 hint: 'Метаданные установки',
-                path: '/platform/installations',
+                path: '/admin/modules/installations',
               },
               {
                 title: 'Deployment hosts',
                 value:
                   String(result.hosts.items.length) + (result.hosts.items.length === 20 ? '+' : ''),
                 hint: 'На первой странице, до 20',
-                path: '/platform/hosts',
+                path: '/admin/modules/hosts',
               },
               {
                 title: 'Runtime deployments',
@@ -161,7 +169,7 @@ export class Dashboard {
                   String(result.runtimes.items.length) +
                   (result.runtimes.items.length === 20 ? '+' : ''),
                 hint: 'На первой странице, до 20',
-                path: '/platform/runtime',
+                path: '/admin/modules/runtime',
               },
             ]);
             this.recent.set(result.operations.items);

@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -26,9 +25,9 @@ settings = Settings(
 schema = create_app(settings).openapi()
 # This endpoint's implementation returns dict, so include the actual strict Manifest schema explicitly.
 schema["x-xarionix-manifest"] = Manifest.model_json_schema()
-schema["x-console-core-baseline"] = subprocess.run(
-    ["git", "rev-parse", "HEAD"], cwd=core, capture_output=True, text=True, check=True
-).stdout.strip()
+# API equality and source pinning are separate checks. Including HEAD here made
+# a reviewed, unchanged API fail solely because Core received a new commit.
+# CI checkout still requires an explicitly reviewed immutable commit below.
 target = ROOT / "projects/xarionix-console/contracts/core-openapi.json"
 content = json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
 if args.check:

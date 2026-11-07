@@ -17,9 +17,11 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "browser": "src/main.ts",
+            "browser": "src/platform-main.ts",
             "tsConfig": "tsconfig.app.json",
-            "loader": { ".svg": "text" },
+            "loader": {
+              ".svg": "text"
+            },
             "assets": [
               {
                 "glob": "**/*",
@@ -34,9 +36,23 @@
                 "glob": "maplibre-gl-worker.mjs",
                 "input": "node_modules/maplibre-gl/dist",
                 "output": "assets/maplibre"
+              },
+              {
+                "glob": "console-config.json",
+                "input": "projects/xarionix-console/public"
               }
             ],
-            "styles": ["src/styles.css"]
+            "styles": [
+              "src/styles.css"
+            ],
+            "optimization": {
+              "scripts": true,
+              "styles": {
+                "minify": true,
+                "inlineCritical": false
+              },
+              "fonts": false
+            }
           },
           "configurations": {
             "production": {
@@ -52,7 +68,27 @@
                   "maximumError": "8kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "assets": [
+                {
+                  "glob": "**/*",
+                  "input": "public"
+                },
+                {
+                  "glob": "maplibre-gl.css",
+                  "input": "node_modules/maplibre-gl/dist",
+                  "output": "assets/maplibre"
+                },
+                {
+                  "glob": "maplibre-gl-worker.mjs",
+                  "input": "node_modules/maplibre-gl/dist",
+                  "output": "assets/maplibre"
+                },
+                {
+                  "glob": "console-config.json",
+                  "input": "projects/xarionix-console/production"
+                }
+              ]
             },
             "development": {
               "optimization": false,
@@ -65,7 +101,7 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "proxyConfig": "src/proxy.conf.json"
+            "proxyConfig": "projects/xarionix-console/proxy.conf.cjs"
           },
           "configurations": {
             "production": {
@@ -80,7 +116,9 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "setupFiles": ["src/test-setup.ts"]
+            "setupFiles": [
+              "src/test-setup.ts"
+            ]
           }
         }
       }
@@ -98,27 +136,61 @@
             "browser": "projects/xarionix-console/src/main.ts",
             "optimization": {
               "scripts": true,
-              "styles": { "minify": true, "inlineCritical": false },
+              "styles": {
+                "minify": true,
+                "inlineCritical": false
+              },
               "fonts": false
             },
             "tsConfig": "projects/xarionix-console/tsconfig.app.json",
             "assets": [
               {
                 "glob": "**/*",
+                "input": "public"
+              },
+              {
+                "glob": "maplibre-gl.css",
+                "input": "node_modules/maplibre-gl/dist",
+                "output": "assets/maplibre"
+              },
+              {
+                "glob": "maplibre-gl-worker.mjs",
+                "input": "node_modules/maplibre-gl/dist",
+                "output": "assets/maplibre"
+              },
+              {
+                "glob": "console-config.json",
                 "input": "projects/xarionix-console/public"
               }
             ],
-            "styles": ["projects/xarionix-console/src/styles.css"]
+            "styles": [
+              "src/styles.css"
+            ],
+            "loader": {
+              ".svg": "text"
+            }
           },
           "configurations": {
             "production": {
               "assets": [
                 {
                   "glob": "**/*",
-                  "input": "projects/xarionix-console/public",
-                  "ignore": ["console-config.json"]
+                  "input": "public"
                 },
-                { "glob": "console-config.json", "input": "projects/xarionix-console/production" }
+                {
+                  "glob": "maplibre-gl.css",
+                  "input": "node_modules/maplibre-gl/dist",
+                  "output": "assets/maplibre"
+                },
+                {
+                  "glob": "maplibre-gl-worker.mjs",
+                  "input": "node_modules/maplibre-gl/dist",
+                  "output": "assets/maplibre"
+                },
+                {
+                  "glob": "console-config.json",
+                  "input": "projects/xarionix-console/production"
+                }
               ],
               "budgets": [
                 {
@@ -156,7 +228,99 @@
         },
         "test": {
           "builder": "@angular/build:unit-test",
-          "options": { "setupFiles": ["projects/xarionix-console/src/test-setup.ts"] }
+          "options": {
+            "setupFiles": [
+              "projects/xarionix-console/src/test-setup.ts"
+            ],
+            "include": [
+              "../../../src/app/platform/**/*.spec.ts"
+            ]
+          }
+        }
+      }
+    },
+    "xarionix-erp-legacy": {
+      "projectType": "application",
+      "schematics": {},
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "src/main.ts",
+            "tsConfig": "tsconfig.app.json",
+            "loader": {
+              ".svg": "text"
+            },
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              },
+              {
+                "glob": "maplibre-gl.css",
+                "input": "node_modules/maplibre-gl/dist",
+                "output": "assets/maplibre"
+              },
+              {
+                "glob": "maplibre-gl-worker.mjs",
+                "input": "node_modules/maplibre-gl/dist",
+                "output": "assets/maplibre"
+              }
+            ],
+            "styles": [
+              "src/styles.css"
+            ],
+            "outputPath": "dist/xarionix-erp-legacy"
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "4kB",
+                  "maximumError": "8kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "src/proxy.conf.json"
+          },
+          "configurations": {
+            "production": {
+              "buildTarget": "xarionix-erp-legacy:build:production"
+            },
+            "development": {
+              "buildTarget": "xarionix-erp-legacy:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "setupFiles": [
+              "src/test-setup.ts"
+            ]
+          }
         }
       }
     }

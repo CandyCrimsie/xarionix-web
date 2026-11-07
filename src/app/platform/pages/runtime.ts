@@ -21,7 +21,8 @@ import { LiveData } from '../shared/live-data';
 import { PageData } from '../shared/page-data';
 import { DataTable } from '../shared/data-table';
 import { ErrorBox } from '../shared/feedback';
-import { Actions } from '../shared/actions';
+import { Actions, FormField } from '../shared/actions';
+import { ModuleStoragePanel } from '../shared/module-storage-panel';
 import { Report } from '../shared/report';
 const operations: Record<DeploymentAction, string> = {
   provision: 'Развернуть',
@@ -35,6 +36,8 @@ const operations: Record<DeploymentAction, string> = {
   reconcile: 'Сверить состояние',
   quarantine: 'Карантин',
   retire: 'Вывести из эксплуатации',
+  backup: 'Создать резервную копию',
+  restore: 'Восстановить данные',
 };
 export function runtimeActions(
   runtime: RuntimeDeployment | null,
@@ -60,7 +63,7 @@ export function runtimeActions(
   template: `<div class="page-heading">
       <div>
         <p class="eyebrow">Deployment</p>
-        <h1>Runtime deployments</h1>
+        <h1>Исполнение модулей</h1>
         <p class="description">
           Желаемое и наблюдаемое состояния. Устаревшие данные не подтверждают здоровье runtime.
         </p>
@@ -96,7 +99,7 @@ export class RuntimesPage {
         runtimeFresh(r, this.clock.now()) ? label(r.health) : 'Нет свежего подтверждения',
         `${r.observed_generation} / ${r.generation}`,
       ],
-      path: `/platform/runtime/${r.installation_id}`,
+      path: `/admin/modules/runtime/${r.installation_id}`,
       query: { runtimeOffset: this.offset() },
     })),
   );
@@ -117,7 +120,7 @@ interface RuntimeDetail {
 }
 @Component({
   selector: 'console-runtime',
-  imports: [UI, DataTable, ErrorBox, Report, HlmTabsImports],
+  imports: [UI, DataTable, ErrorBox, Report, HlmTabsImports, ModuleStoragePanel],
   providers: [ICONS],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -127,7 +130,7 @@ interface RuntimeDetail {
           hlmBtn
           variant="link"
           class="mb-2 h-auto p-0 text-muted-foreground"
-          routerLink="/platform/runtime"
+          routerLink="/admin/modules/runtime"
           ><ng-icon name="lucideArrowLeft" />Runtime</a
         >
         <h1>{{ live.value()?.installation?.module_id || 'Runtime модуля' }}</h1>
@@ -145,8 +148,11 @@ interface RuntimeDetail {
           ><button hlmTabsTrigger="configuration">Конфигурация</button
           ><button hlmTabsTrigger="health">Здоровье</button
           ><button hlmTabsTrigger="jobs">Задания</button
-          ><button hlmTabsTrigger="security">Безопасность</button></hlm-tabs-list
-        >
+          ><button hlmTabsTrigger="security">Безопасность</button>
+          @if (runtime()?.profile === 'module-api-stateful-v1') {
+            <button hlmTabsTrigger="data">Данные</button>
+          }
+        </hlm-tabs-list>
         <div hlmTabsContent="overview">
           <section class="panel">
             <h2>Состояние runtime</h2>
@@ -224,11 +230,26 @@ interface RuntimeDetail {
             </div>
           </section>
         </div>
+        <div hlmTabsContent="data">
+          @if (runtime(); as r) {
+            @if (r.profile === 'module-api-stateful-v1') {
+              <app-module-storage
+                [installationId]="id"
+                [runtime]="r"
+                (prepare)="prepare(detail.installation, $event.action, $event.backupId)"
+              />
+            }
+          }
+        </div>
         <div hlmTabsContent="configuration">
           <section class="panel">
             <h2>Подтверждённые параметры</h2>
             <div class="mt-5"><console-report [value]="detail.installation.runtime" /></div>
-            <a hlmBtn variant="outline" class="mt-5" [routerLink]="'/platform/installations/' + id"
+            <a
+              hlmBtn
+              variant="outline"
+              class="mt-5"
+              [routerLink]="'/admin/modules/installations/' + id"
               >Установка и история метаданных</a
             >
           </section>
@@ -292,7 +313,11 @@ interface RuntimeDetail {
               shell недоступны браузеру. Карантин и вывод из эксплуатации доступны из карточки
               установки.
             </p>
-            <a hlmBtn variant="outline" class="mt-5" [routerLink]="'/platform/installations/' + id"
+            <a
+              hlmBtn
+              variant="outline"
+              class="mt-5"
+              [routerLink]="'/admin/modules/installations/' + id"
               >Открыть безопасность установки</a
             >
           </section>
@@ -368,7 +393,7 @@ export class RuntimePage {
   selectJob(id: string): void {
     this.selectedJob.set(this.live.value()?.jobs.items.find((j) => j.id === id) ?? null);
   }
-  prepare(i: Installation, operation: DeploymentAction): void {
+  prepare(i: Installation, operation: DeploymentAction, backupId?: string): void {
     const idempotencyKey = crypto.randomUUID();
     const existingHost = i.runtime['deployment_host_id'];
     const generation = Number(i.runtime['binding_revision'] ?? 0);
@@ -376,6 +401,29 @@ export class RuntimePage {
       .data()
       .items.filter((h) => h.status === 'active')
       .map((h) => ({ value: h.id, label: h.name }));
+    const stateful = this.runtime()?.profile === 'module-api-stateful-v1';
+    const storageFields: FormField[] = stateful
+      ? [
+          {
+            key: 'backup_id',
+            label: 'Резервная копия (UUID)',
+            required: operation === 'restore',
+            initial: backupId ?? '',
+            max: 36,
+            help: 'Для восстановления или миграции используйте проверенную копию из вкладки «Данные».',
+          },
+          ...(['start', 'restart', 'upgrade', 'rollback', 'reconcile'].includes(operation)
+            ? [
+                {
+                  key: 'allow_migration',
+                  type: 'checkbox' as const,
+                  label: 'Подтверждаю миграцию схемы с указанной резервной копией',
+                  initial: false,
+                },
+              ]
+            : []),
+        ]
+      : [];
     this.actions.open({
       title: 'Подготовить deployment-план',
       submitLabel: 'Подготовить',
@@ -396,12 +444,15 @@ export class RuntimePage {
           key: 'profile',
           label: 'Профиль изоляции',
           type: 'select',
-          initial: 'offline-small-v1',
+          initial: this.runtime()?.profile ?? 'offline-small-v1',
           options: [
             { value: 'offline-small-v1', label: 'Small · 256 МиБ / 0.5 CPU' },
             { value: 'offline-medium-v1', label: 'Medium · 512 МиБ / 1 CPU' },
+            { value: 'module-api-private-v1', label: 'API · 256 МиБ · без сети' },
+            { value: 'module-api-stateful-v1', label: 'API + SQLite · 64 МиБ данных' },
           ],
         },
+        ...storageFields,
       ],
       execute: (v) =>
         this.session.api.post<DeploymentPlan>('/platform/deployment-plans', {
@@ -412,9 +463,16 @@ export class RuntimePage {
           expected_installation_generation: i.generation,
           expected_deployment_generation: generation,
           profile: v['profile'],
+          ...(typeof v['backup_id'] === 'string' && v['backup_id']
+            ? { backup_id: uuid(v['backup_id']) }
+            : {}),
+          ...(v['allow_migration'] === true ? { allow_migration: true } : {}),
         }),
       done: (result) =>
-        void this.router.navigate(['/platform/deployment-plans', (result as DeploymentPlan).id]),
+        void this.router.navigate([
+          '/admin/modules/deployment-plans',
+          (result as DeploymentPlan).id,
+        ]),
     });
   }
 }
@@ -471,6 +529,49 @@ export class RuntimePage {
           <div class="mt-5"><console-report [value]="p.body.runtime" /></div>
         </section>
       </div>
+      @if (p.body.storage; as storage) {
+        <section class="panel mt-5" data-testid="deployment-storage-review">
+          <h2>Постоянные данные</h2>
+          <dl class="detail-list">
+            <dt>Хранилище</dt>
+            <dd>SQLite · {{ storage.maximum_bytes / 1048576 }} МиБ</dd>
+            <dt>Схема данных</dt>
+            <dd>{{ storage.expected_schema_version }} → {{ storage.target_schema_version }}</dd>
+            <dt>Поддерживаемые схемы</dt>
+            <dd>{{ storage.compatible_minimum }}–{{ storage.compatible_maximum }}</dd>
+            <dt>Ревизия данных</dt>
+            <dd>{{ storage.allocation_revision }}</dd>
+            <dt>Текущая эпоха</dt>
+            <dd class="font-mono text-xs break-all">{{ storage.epoch_id }}</dd>
+            @if (storage.next_epoch_id !== storage.epoch_id) {
+              <dt>Новая эпоха</dt>
+              <dd class="font-mono text-xs break-all">{{ storage.next_epoch_id }}</dd>
+            }
+            <dt>Миграция схемы</dt>
+            <dd>{{ storage.allow_migration ? 'Явно разрешена этим планом' : 'Не разрешена' }}</dd>
+            @if (storage.backup_id) {
+              <dt>Резервная копия</dt>
+              <dd class="font-mono text-xs break-all">{{ storage.backup_id }}</dd>
+            }
+            @if (storage.backup_sha256) {
+              <dt>SHA-256 копии</dt>
+              <dd class="font-mono text-xs break-all">{{ storage.backup_sha256 }}</dd>
+            }
+          </dl>
+          @if (p.body.operation === 'restore') {
+            <p class="mt-4 text-sm text-destructive">
+              Данные будут восстановлены на момент выбранной копии в новую эпоху. Прежняя эпоха
+              сохранится; writer должен быть остановлен.
+            </p>
+          }
+          @if (storage.expected_schema_version === 0) {
+            <p class="mt-4 text-sm text-muted-foreground">
+              Будет инициализирована новая база. Данные прежнего runtime в памяти автоматически не
+              переносятся.
+            </p>
+          }
+        </section>
+      }
       @if (queued(); as job) {
         <section class="panel mt-5" role="status">
           <h2>Задание поставлено в очередь</h2>
@@ -483,7 +584,7 @@ export class RuntimePage {
             hlmBtn
             variant="outline"
             class="mt-4"
-            [routerLink]="'/platform/runtime/' + p.body.installation_id"
+            [routerLink]="'/admin/modules/runtime/' + p.body.installation_id"
             >Отслеживать выполнение</a
           >
         </section>
@@ -494,7 +595,10 @@ export class RuntimePage {
         </p>
       }
       <footer class="mt-6 flex justify-end gap-3">
-        <a hlmBtn variant="outline" [routerLink]="'/platform/runtime/' + p.body.installation_id"
+        <a
+          hlmBtn
+          variant="outline"
+          [routerLink]="'/admin/modules/runtime/' + p.body.installation_id"
           >К runtime</a
         >
         @if (p.state === 'pending') {
@@ -530,9 +634,9 @@ export class DeploymentPlanPage {
     if (this.expired()) return;
     this.actions.open({
       title: 'Одобрить deployment-план?',
-      description: `${operations[p.body.operation]} · host ${p.body.host_id}. Только digest ${p.digest}. Задание выполнит deployment agent.`,
+      description: `${operations[p.body.operation]} · host ${p.body.host_id}. Только digest ${p.digest}. ${p.body.operation === 'restore' ? 'Данные вернутся к выбранной копии; прежняя эпоха сохранится. ' : ''}Задание выполнит deployment agent.`,
       confirm: true,
-      destructive: ['deprovision', 'retire', 'quarantine'].includes(p.body.operation),
+      destructive: ['deprovision', 'retire', 'quarantine', 'restore'].includes(p.body.operation),
       submitLabel: 'Одобрить',
       execute: () =>
         this.session.api.post(`/platform/deployment-plans/${p.id}/approve`, { digest: p.digest }),

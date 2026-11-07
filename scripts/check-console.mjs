@@ -2,8 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 
-const root = path.resolve('projects/xarionix-console/src');
+const root = path.resolve('src/app/platform');
 const errors = [];
+// Audited numeric ERP adapter only. Core DTO clients remain isolated.
+const erpImports = new Map([
+  ['app.config.ts', new Set(['../core/company/company-context.service'])],
+  [
+    'erp/map-page.ts',
+    new Set(['../../pages/addresses/addresses', '../../core/permissions/permission.service']),
+  ],
+  ['erp/bridge.ts', new Set(['../../core/auth/auth.models', '../../core/company/company.models'])],
+]);
 function files(dir) {
   return fs
     .readdirSync(dir, { withFileTypes: true })
@@ -30,9 +39,10 @@ for (const filename of files(root)) {
       const name = node.moduleSpecifier.text;
       if (
         name.startsWith('.') &&
-        path.resolve(path.dirname(filename), name).startsWith(path.resolve('src'))
+        !path.resolve(path.dirname(filename), name).startsWith(root + path.sep) &&
+        !erpImports.get(path.relative(root, filename))?.has(name)
       )
-        errors.push(`${filename}: ERP import`);
+        errors.push(`${filename}: ERP import outside the reviewed compatibility adapter`);
     }
     if (
       ts.isCallExpression(node) &&
@@ -61,8 +71,19 @@ const erp = angular.projects['xarionix-web'],
   consoleApp = angular.projects['xarionix-console'];
 if (erp.sourceRoot !== 'src' || consoleApp.sourceRoot !== 'projects/xarionix-console/src')
   errors.push('ERP/Console source isolation changed');
-if (erp.architect.serve.options.proxyConfig !== 'src/proxy.conf.json')
-  errors.push('ERP proxy changed');
+if (erp.architect.build.options.browser !== 'src/platform-main.ts')
+  errors.push('Public Web must use the unified OIDC entry');
+if (
+  angular.projects['xarionix-erp-legacy'].architect.serve.options.proxyConfig !==
+  'src/proxy.conf.json'
+)
+  errors.push('Legacy ERP proxy changed');
+if (
+  !fs
+    .readFileSync('projects/xarionix-console/src/main.ts', 'utf8')
+    .includes("import '../../../src/platform-main'")
+)
+  errors.push('Console compatibility target must use the same entry');
 if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;

@@ -5,6 +5,7 @@ import { Session } from './session';
 import { CoreApi } from './api';
 import { Auth } from './auth';
 import { CoreError } from './errors';
+import { RequestScope } from './scope';
 import { Company, EffectivePermissions, UUID } from './models';
 describe('server-derived capabilities and company isolation', () => {
   const api = { get: vi.fn() };
@@ -38,6 +39,15 @@ describe('server-derived capabilities and company isolation', () => {
     const session = TestBed.inject(Session);
     await session.probeAdmin();
     expect(session.admin()).toBe('unknown');
+  });
+  it('revokes stale administrative navigation after a server refusal', () => {
+    const session = TestBed.inject(Session);
+    session.admin.set('allowed');
+    TestBed.inject(RequestScope).denied.next({
+      path: '/core-api/api/v1/platform/users',
+      mfa: false,
+    });
+    expect(session.admin()).toBe('denied');
   });
   it('discards a late permission response from the previous company', async () => {
     const old = new Subject<EffectivePermissions>();

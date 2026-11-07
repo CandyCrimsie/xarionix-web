@@ -178,6 +178,7 @@ def main():
         help="Keep the isolated test stack until Ctrl-C, not production data",
     )
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--erp", type=Path, help="Reviewed ERP checkout with the opt-in OIDC bridge")
     parser.add_argument(
         "--runtime-socket",
         type=Path,
@@ -247,10 +248,21 @@ def main():
     )
     definition = yaml.safe_load((core / "compose.dev.yaml").read_text())
     services = definition["services"]
+    erp = None
+    if args.erp:
+        from erp_fixture import ErpFixture
+        erp = ErpFixture(args.erp.resolve(), folder, config["OIDC_ISSUER"], config["PUBLIC_URL"], "xarionix-console", port)
+        services.update(erp.services())
     bootstrap = folder / "10-app-user.sh"
     write(bootstrap, (core / "deploy/postgres/10-app-user.sh").read_text(), 0o755)
     deployment_secret = secrets.token_hex(32)
     realm_data = browser_realm(setup, config, users)
+    if erp:
+        realm_data["clients"][1]["protocolMappers"].append({
+            "name": "explicit-erp-audience", "protocol": "openid-connect",
+            "protocolMapper": "oidc-audience-mapper",
+            "config": {"included.custom.audience": "xarionix-erp", "access.token.claim": "true", "id.token.claim": "false"},
+        })
     realm_data["clients"].append(
         {
             "clientId": "console-deployment",
@@ -345,6 +357,8 @@ def main():
         "mfaAcr": "urn:xarionix:mfa",
         "maxPackageBytes": 134217728,
     }
+    if erp:
+        public_config["erpEnabled"] = True
     public_file = folder / "console-config.json"
     write(public_file, json.dumps(public_config))
     preview = None
@@ -363,6 +377,8 @@ def main():
             timeout=1500,
         )
         wait_for(config["PUBLIC_URL"] + "/health/ready")
+        if erp:
+            erp.start(wait_for)
         wait_for(config["OIDC_ISSUER"] + "/.well-known/openid-configuration")
         with psycopg.connect(
             host="localhost",
@@ -502,6 +518,7 @@ def main():
             "platform": contract["platform"],
             "deployment": deployment,
             "nativeRuntime": bool(runtime_info),
+            "erp": {"company_id": erp.company, "user_id": erp.user} if erp else None,
         }
         (folder / "operator").mkdir()
         state_file = folder / "state.json"
@@ -511,13 +528,14 @@ def main():
                 "node",
                 "scripts/console-preview.mjs",
                 "--root",
-                "dist/xarionix-console/browser",
+                "dist/xarionix-web/browser",
                 "--config",
                 str(public_file),
                 "--core",
                 config["PUBLIC_URL"],
                 "--port",
                 str(web_port),
+                *(["--erp", erp.base_url] if erp else []),
             ],
             cwd=ROOT,
             stdout=subprocess.DEVNULL,
@@ -550,6 +568,12 @@ def main():
                     continue
                 seen.add(message.name)
                 value = json.loads(message.read_text())
+                if value.get("operation") == "bind-erp":
+                    if erp is None:
+                        raise RuntimeError("ERP fixture was not selected")
+                    erp.bind(users["admin"]["user_id"], users["admin"]["subject"], value["company_id"])
+                    write(message.with_suffix(".done"), "bound")
+                    continue
                 if value.get("operation") == "start-agent":
                     if not runtime_info or agent is not None:
                         raise RuntimeError(
@@ -608,6 +632,8 @@ def main():
         print("Real Console browser integration passed", flush=True)
     finally:
         cleanup_failed = False
+        if erp:
+            erp.close()
         if agent:
             agent.terminate()
             try:

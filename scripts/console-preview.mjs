@@ -9,6 +9,7 @@ const { values } = parseArgs({
     config: { type: 'string' },
     port: { type: 'string' },
     core: { type: 'string' },
+    erp: { type: 'string' },
   },
 });
 if (!values.root || !values.config || !values.port || !values.core)
@@ -18,6 +19,9 @@ const root = path.resolve(values.root),
   core = new URL(values.core);
 if (!['localhost', '127.0.0.1'].includes(core.hostname) || core.protocol !== 'http:')
   throw new Error('Preview accepts only a local disposable Core');
+const erp = values.erp ? new URL(values.erp) : null;
+if (erp && (!['localhost', '127.0.0.1'].includes(erp.hostname) || erp.protocol !== 'http:'))
+  throw new Error('ERP fixture must be a local disposable service');
 const issuer = new URL(config.issuer);
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -35,13 +39,14 @@ const server = http.createServer((request, response) => {
   response.setHeader('Referrer-Policy', 'no-referrer');
   response.setHeader(
     'Content-Security-Policy',
-    `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ${issuer.origin}; frame-src ${issuer.origin}; img-src 'self' data:; font-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' ${issuer.origin}`,
+    `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ${issuer.origin}; frame-src ${issuer.origin}; img-src 'self' data: blob:; worker-src 'self'; font-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' ${issuer.origin}`,
   );
-  if (url.pathname.startsWith('/core-api/')) {
-    const headers = { ...request.headers, host: core.host };
+  if (url.pathname.startsWith('/core-api/') || (erp && url.pathname.startsWith('/api/v1/'))) {
+    const target = url.pathname.startsWith('/core-api/') ? core : erp;
+    const headers = { ...request.headers, host: target.host };
     delete headers.cookie;
     const upstream = http.request(
-      new URL(url.pathname.replace(/^\/core-api/, '') + url.search, core),
+      new URL(url.pathname.replace(/^\/core-api/, '') + url.search, target),
       { method: request.method, headers },
       (result) => {
         response.writeHead(result.statusCode ?? 502, result.headers);

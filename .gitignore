@@ -51,3 +51,5 @@ Thumbs.db
 /.console-core/
 /projects/xarionix-console/e2e/reports/
 /scripts/__pycache__/
+
+.console-erp/

@@ -83,7 +83,7 @@ draft: режим блокируется до его сохранения или
 ```bash
 npx ng test --watch=false
 npm run build
-npm start -- --port 4217 --host 127.0.0.1 --hmr=false --live-reload=false
+npm run erp:legacy:start -- --port 4217 --host 127.0.0.1 --hmr=false --live-reload=false
 ```
 
 В другом терминале:

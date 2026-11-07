@@ -42,6 +42,19 @@ const codes: Record<string, string> = {
   signing_trust_revoked: 'Доверие к подписи отозвано.',
   installation_plan_expired: 'План истёк. Подготовьте новый план.',
   deployment_plan_expired: 'План истёк. Подготовьте новый план.',
+  storage_stop_writer_required:
+    'Сначала остановите runtime. Backup и restore выполняются без работающего writer.',
+  storage_schema_incompatible:
+    'Версия модуля не поддерживает текущую схему данных. Нужен совместимый пакет или явный restore.',
+  storage_restore_schema_incompatible: 'Выбранная копия несовместима с целевой версией модуля.',
+  storage_migration_requires_fresh_backup_and_approval:
+    'Миграция требует свежей резервной копии текущей ревизии и отдельного подтверждения плана.',
+  storage_host_binding_immutable:
+    'Хранилище закреплено за исходным сервером. Автоматический перенос данных недоступен.',
+  storage_allocation_revision_conflict:
+    'Состояние хранилища изменилось. Обновите данные и подготовьте новый план.',
+  gateway_timeout_outcome_unknown:
+    'Время ответа истекло. Результат записи неизвестен: сначала обновите список, прежде чем повторять добавление.',
 };
 export function coreError(error: unknown): CoreError {
   if (error instanceof CoreError) return error;

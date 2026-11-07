@@ -1,5 +1,9 @@
 # Xarionix Platform Console — архитектура
 
+Ниже зафиксирована архитектура Sprint 5. В Sprint 6B функции перенесены в общий
+`src/app/platform`; primary target `xarionix-web` использует единую OIDC shell.
+Актуальные решения и граница ERP migration: [Unified Web](unified-web-architecture.md).
+
 Sprint 5 добавляет target `xarionix-console` в существующий Angular workspace. Исходная ERP — target `xarionix-web`, её `src/`, `/api/**`, числовые company ID, password authentication, карта и бизнес-модели не переносятся в Console.
 
 Core baseline: `c6ab57707a0b2b486715017316e67d52b80b6d4e`. Соседний Core используется как read-only источник API, CLI и тестовых fixtures. ERP backend не изменяется.

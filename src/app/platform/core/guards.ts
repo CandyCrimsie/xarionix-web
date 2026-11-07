@@ -12,14 +12,14 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   if (!session.profile()) return router.createUrlTree(['/unavailable']);
   return true;
 };
-export const adminGuard: CanActivateFn = async () => {
+export const adminGuard: CanActivateFn = async (_route, state) => {
   const session = inject(Session),
     router = inject(Router);
   if (!session.profile()) await session.load();
   await session.probeAdmin();
-  return ['allowed', 'mfa'].includes(session.admin())
+  return session.admin() === 'allowed'
     ? true
-    : router.createUrlTree(['/unavailable']);
+    : router.createUrlTree(['/unavailable'], { queryParams: { returnTo: state.url } });
 };
 export const companyGuard: CanActivateFn = async (route) => {
   const session = inject(Session),

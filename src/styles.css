@@ -83,3 +83,27 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .page-heading {
+    @apply mb-7 flex flex-wrap items-start justify-between gap-4;
+  }
+  .eyebrow {
+    @apply mb-2 text-xs font-medium tracking-wide text-muted-foreground;
+  }
+  .description {
+    @apply mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground;
+  }
+  .panel {
+    @apply rounded-xl border bg-card p-5 sm:p-6;
+  }
+  .detail-list {
+    @apply mt-5 grid grid-cols-[minmax(7rem,1fr)_2fr] gap-x-5 gap-y-4 text-sm;
+  }
+  .detail-list dt {
+    @apply text-muted-foreground;
+  }
+  .detail-list dd {
+    @apply min-w-0 break-words;
+  }
+}

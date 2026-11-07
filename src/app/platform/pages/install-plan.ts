@@ -112,7 +112,7 @@ import { Report } from '../shared/report';
       @if (p.state === 'applied') {
         <section class="panel mt-5">
           <h2>План применён</h2>
-          <a hlmBtn variant="outline" class="mt-4" routerLink="/platform/installations"
+          <a hlmBtn variant="outline" class="mt-4" routerLink="/admin/modules/installations"
             >Открыть установленные модули</a
           >
         </section>
@@ -208,7 +208,7 @@ export class InstallPlanPage {
       execute: () =>
         this.session.api.post<InstallPlan>(`/platform/module-install-plans/${p.id}/refresh`),
       done: (result) =>
-        void this.router.navigate(['/platform/install-plans', (result as InstallPlan).id]),
+        void this.router.navigate(['/admin/modules/install-plans', (result as InstallPlan).id]),
     });
   }
 }

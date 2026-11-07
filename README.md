@@ -1,15 +1,28 @@
+## Sprint 6B — единый Web
+
+Основной `npm start` / `npm run build` использует одну OIDC-оболочку Xarionix.
+Администрирование встроено в `/admin`; отдельный порт Console не требуется.
+Карта и адреса подключаются к той же Keycloak session через opt-in verified ERP
+adapter и явные operator bindings. Сохранённый ERP target служит миграции остальных
+исторических workflow и regression tests. Данные автоматически не связываются.
+
+- [Архитектура и аудит](docs/unified-web-architecture.md)
+- [Вход и права](docs/unified-web-authentication.md)
+- [Миграция и production routing](docs/unified-web-migration.md)
+
 # XarionixWeb
 
 ## Xarionix Platform Console · Sprint 5
 
-В workspace теперь два независимых приложения:
+Историческое разделение Sprint 5 заменено общей оболочкой Sprint 6B:
 
 | Приложение | Разработка | Production build | API/auth |
 |---|---|---|---|
-| Существующая ERP | `npm start` · порт 4200 | `npm run build` | ERP `/api/**`, существующая авторизация |
-| Platform Console | `npm run console:start` · порт 4300 | `npm run console:build` | Core `/core-api/**`, UUID, Keycloak PKCE |
+| Единый Xarionix Web | `npm start` · порт 4200 | `npm run build` | Core `/core-api/**`, UUID, Keycloak PKCE |
+| Совместимая Console | `npm run console:start` | `npm run console:build` | Та же оболочка и маршруты; не второй production entry point |
+| Сохранённая ERP | отдельный `xarionix-erp-legacy` target | `npm run erp:legacy:build` | Прежние ERP contracts и старые клиенты; карта в общей оболочке использует отдельный OIDC adapter |
 
-Console реализует управление компаниями, участниками, сотрудниками, приглашениями, RBAC, администраторами платформы, доверенными издателями/ключами, `.xpkg`, установками, планами и runtime. Пароли, deployment secrets и исполнение пакетов в браузер не переносятся. Core/ERP backend repositories не меняются.
+Общие feature pages сохраняют управление компаниями, участниками, сотрудниками, приглашениями, RBAC, администраторами платформы, доверенными издателями/ключами, `.xpkg`, установками, планами и runtime. Пароли, deployment secrets и исполнение пакетов в браузер не переносятся. В 6B добавлены Gateway identity metadata, backup/restore и скомпилированный раздел «Деловые записи». Для новых storage API требуется Core Sprint 6B.
 
 Начните с [локальной разработки и настоящих E2E](docs/platform-console-development.md), [настройки OIDC](docs/platform-console-authentication.md) и [проверенного API contract](docs/platform-console-api-contract.md). Другие документы: [архитектура](docs/platform-console-architecture.md), [UI](docs/platform-console-ui.md), [Module Manager](docs/platform-console-module-manager.md), [deployment](docs/platform-console-deployment.md), [безопасность и dependency exception](docs/platform-console-security.md), [результаты Sprint 5](docs/sprint-5-validation.md).
 
@@ -22,7 +35,8 @@ npm run console:build
 npm run console:bundle-check
 ```
 
-Существующие ERP-команды ниже относятся к target `xarionix-web`; при прямом вызове Angular CLI указывайте его явно: `ng serve xarionix-web`, `ng build xarionix-web`, `ng test xarionix-web`.
+Основные команды относятся к единому `xarionix-web`. Для старой ERP используйте
+`npm run erp:legacy:start` / `npm run erp:legacy:build`; все прежние tests сохранены.
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.6.
 
@@ -36,9 +50,10 @@ ng serve xarionix-web
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
-The development proxy sends `/api/**` to FastAPI on `127.0.0.1:3000` and
-`/map/**` to the dedicated tile proxy on `127.0.0.1:8088`. Start and configure
-the backend infrastructure before opening the map on `/addresses`.
+В едином Web `/core-api` направлен в Core, `/api/v1` — в OIDC-совместимый ERP
+(`XARIONIX_WEB_ERP_TARGET`, по умолчанию localhost:8001). Включите `erpEnabled`
+после настройки [bindings и audience](../xarionix-erp/docs/platform-oidc.md).
+Legacy proxy `/api` → localhost:3000 и `/map` → localhost:8088 сохранён отдельно.
 
 ## Address map deployment
 

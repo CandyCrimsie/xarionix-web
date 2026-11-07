@@ -50,19 +50,33 @@ def git_identity(archive, folder, prefix):
     git = folder / ".git"
     if not git.is_dir() or git.is_symlink():
         raise RuntimeError("A regular audited Core checkout is required")
+    directories = {git}
+    files = []
     for entry in ("HEAD", "index", "shallow", "packed-refs", "objects", "refs"):
         item = git / entry
-        files = item.rglob("*") if item.is_dir() else [item]
-        for file in files:
-            if not file.exists() or file.is_dir():
-                continue
-            if file.is_symlink() or not file.resolve().is_relative_to(git):
-                raise RuntimeError("Unsafe Git identity entry")
-            info = archive.gettarinfo(
-                str(file), arcname=prefix + "/" + file.relative_to(folder).as_posix()
-            )
-            info.uid = info.gid = 0
-            info.uname = info.gname = ""
+        if item.is_dir():
+            directories.add(item)
+            for child in item.rglob("*"):
+                if child.is_symlink():
+                    raise RuntimeError("Unsafe Git identity entry")
+                if child.is_dir():
+                    directories.add(child)
+                else:
+                    files.append(child)
+        elif item.exists():
+            files.append(item)
+    # Packed detached CI refs may be empty; Git still requires these directories.
+    for file in [*sorted(directories), *files]:
+        if file.is_symlink() or not file.resolve().is_relative_to(git):
+            raise RuntimeError("Unsafe Git identity entry")
+        info = archive.gettarinfo(
+            str(file), arcname=prefix + "/" + file.relative_to(folder).as_posix()
+        )
+        info.uid = info.gid = 0
+        info.uname = info.gname = ""
+        if file in directories:
+            archive.addfile(info)
+        else:
             with file.open("rb") as stream:
                 archive.addfile(info, stream)
     config = b"[core]\nrepositoryformatversion = 0\nbare = false\n"
@@ -77,8 +91,10 @@ def git_identity(archive, folder, prefix):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--core", type=Path, required=True)
+    parser.add_argument("--erp", type=Path, required=True)
     args = parser.parse_args()
     core = args.core.resolve()
+    erp = args.erp.resolve()
     spec = importlib.util.spec_from_file_location(
         "core_docker_bridge", core / "scripts/docker_job.py"
     )
@@ -174,6 +190,7 @@ def main():
             with tarfile.open(fileobj=stream, mode="w") as archive:
                 source(archive, ROOT, "web")
                 source(archive, core, "core")
+                source(archive, erp, "erp")
                 git_identity(archive, core, "core")
             stream.seek(0)
             bridge.command(

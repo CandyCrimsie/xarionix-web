@@ -1,5 +1,10 @@
 # Deployment, runtime и публикация Console
 
+Sprint 6B использует один public build `dist/xarionix-web/browser` и маршруты
+`/admin/*`. Разделы runtime ниже переиспользуются общей оболочкой; прежние примеры
+отдельной Console publication относятся к Sprint 5. Актуальная production схема:
+[единый Web](unified-web-migration.md), `deploy/web/nginx.conf.example`.
+
 ## Runtime
 
 Host registration принимает только metadata: host UUID, name, issuer/subject/client ID существующей deployment identity, engine ID, platform. Никаких client secrets, SSH passwords или Docker sockets в форме. Enable/disable/revoke передают показанный `expected_revision`; conflict требует перечитать host.

@@ -242,6 +242,53 @@
         "title": "AuditView",
         "type": "object"
       },
+      "BackupMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "data_schema_version": {
+            "maximum": 128.0,
+            "minimum": 1.0,
+            "title": "Data Schema Version",
+            "type": "integer"
+          },
+          "epoch_id": {
+            "format": "uuid",
+            "title": "Epoch Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "package_version": {
+            "maxLength": 120,
+            "title": "Package Version",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size": {
+            "maximum": 67108864.0,
+            "minimum": 1.0,
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "epoch_id",
+          "data_schema_version",
+          "sha256",
+          "size",
+          "package_version"
+        ],
+        "title": "BackupMetadata",
+        "type": "object"
+      },
       "BindInstance": {
         "additionalProperties": false,
         "properties": {
@@ -633,6 +680,33 @@
         "title": "CompanyView",
         "type": "object"
       },
+      "Correlation": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "request_id"
+        ],
+        "title": "Correlation",
+        "type": "object"
+      },
       "EmployeeCreate": {
         "additionalProperties": false,
         "properties": {
@@ -939,6 +1013,78 @@
           "platform"
         ],
         "title": "HostCreate",
+        "type": "object"
+      },
+      "IdentityCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "issuer": {
+            "maxLength": 512,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "subject": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issuer",
+          "subject",
+          "client_id"
+        ],
+        "title": "IdentityCreate",
+        "type": "object"
+      },
+      "IdentityStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "disabled",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "IdentityStatus",
         "type": "object"
       },
       "InstanceCreate": {
@@ -2059,6 +2205,40 @@
         "title": "PlanDigest",
         "type": "object"
       },
+      "Poll": {
+        "additionalProperties": false,
+        "properties": {
+          "capacity": {
+            "default": 4,
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sequence": {
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "sequence"
+        ],
+        "title": "Poll",
+        "type": "object"
+      },
       "Pong": {
         "additionalProperties": false,
         "properties": {
@@ -2379,6 +2559,80 @@
           "created_at"
         ],
         "title": "RequestView",
+        "type": "object"
+      },
+      "Result": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "deployment_generation": {
+            "minimum": 1.0,
+            "title": "Deployment Generation",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "enum": [
+                  "module_unavailable",
+                  "module_timeout",
+                  "module_response_invalid",
+                  "runtime_binding_changed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "installation_generation": {
+            "minimum": 1.0,
+            "title": "Installation Generation",
+            "type": "integer"
+          },
+          "installation_id": {
+            "format": "uuid",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "request_id",
+          "installation_id",
+          "installation_generation",
+          "deployment_generation"
+        ],
+        "title": "Result",
         "type": "object"
       },
       "Retirement": {
@@ -2765,6 +3019,16 @@
             ],
             "title": "State",
             "type": "string"
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StorageReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2962,6 +3226,27 @@
         "title": "ServiceView",
         "type": "object"
       },
+      "SessionOpen": {
+        "additionalProperties": false,
+        "properties": {
+          "protocol": {
+            "const": "module-gateway-poll-v1",
+            "title": "Protocol",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "protocol"
+        ],
+        "title": "SessionOpen",
+        "type": "object"
+      },
       "SettingsPatch": {
         "additionalProperties": false,
         "properties": {
@@ -3036,6 +3321,38 @@
           "invitations_enabled"
         ],
         "title": "SettingsView",
+        "type": "object"
+      },
+      "StorageReport": {
+        "additionalProperties": false,
+        "properties": {
+          "backup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackupMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_schema_version": {
+            "maximum": 128.0,
+            "minimum": 0.0,
+            "title": "Data Schema Version",
+            "type": "integer"
+          },
+          "epoch_id": {
+            "format": "uuid",
+            "title": "Epoch Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "epoch_id",
+          "data_schema_version"
+        ],
+        "title": "StorageReport",
         "type": "object"
       },
       "TemplateView": {
@@ -3281,6 +3598,23 @@
       "app__domains__deployments__contracts__PlanCreate": {
         "additionalProperties": false,
         "properties": {
+          "allow_migration": {
+            "default": false,
+            "title": "Allow Migration",
+            "type": "boolean"
+          },
+          "backup_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup Id"
+          },
           "expected_deployment_generation": {
             "minimum": 0.0,
             "title": "Expected Deployment Generation",
@@ -3318,7 +3652,9 @@
               "inspect",
               "reconcile",
               "quarantine",
-              "retire"
+              "retire",
+              "backup",
+              "restore"
             ],
             "title": "Operation",
             "type": "string"
@@ -3327,7 +3663,9 @@
             "default": "offline-small-v1",
             "enum": [
               "offline-small-v1",
-              "offline-medium-v1"
+              "offline-medium-v1",
+              "module-api-private-v1",
+              "module-api-stateful-v1"
             ],
             "title": "Profile",
             "type": "string"
@@ -4556,6 +4894,86 @@
         "summary": "Revoke Role"
       }
     },
+    "/api/v1/companies/{company_id}/modules/{module_id}/operations/{operation_id}": {
+      "post": {
+        "operationId": "operation_api_v1_companies__company_id__modules__module_id__operations__operation_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "module_id",
+            "required": true,
+            "schema": {
+              "title": "Module Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "title": "Operation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Operation Api V1 Companies  Company Id  Modules  Module Id  Operations  Operation Id  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Operation",
+        "tags": [
+          "module-gateway"
+        ]
+      }
+    },
     "/api/v1/companies/{company_id}/roles": {
       "get": {
         "operationId": "roles_api_v1_companies__company_id__roles_get",
@@ -5749,6 +6167,250 @@
         "summary": "Metadata"
       }
     },
+    "/api/v1/module-gateway/hosts/{host_id}/claim": {
+      "post": {
+        "operationId": "claim_api_v1_module_gateway_hosts__host_id__claim_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Correlation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Claim Api V1 Module Gateway Hosts  Host Id  Claim Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Claim",
+        "tags": [
+          "module-gateway"
+        ]
+      }
+    },
+    "/api/v1/module-gateway/hosts/{host_id}/poll": {
+      "post": {
+        "operationId": "poll_api_v1_module_gateway_hosts__host_id__poll_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Poll"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Poll Api V1 Module Gateway Hosts  Host Id  Poll Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Poll",
+        "tags": [
+          "module-gateway"
+        ]
+      }
+    },
+    "/api/v1/module-gateway/hosts/{host_id}/result": {
+      "post": {
+        "operationId": "result_api_v1_module_gateway_hosts__host_id__result_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Result"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Result Api V1 Module Gateway Hosts  Host Id  Result Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Result",
+        "tags": [
+          "module-gateway"
+        ]
+      }
+    },
+    "/api/v1/module-gateway/hosts/{host_id}/sessions": {
+      "post": {
+        "operationId": "session_open_api_v1_module_gateway_hosts__host_id__sessions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionOpen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Session Open Api V1 Module Gateway Hosts  Host Id  Sessions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Session Open",
+        "tags": [
+          "module-gateway"
+        ]
+      }
+    },
     "/api/v1/permissions": {
       "get": {
         "operationId": "catalog_api_v1_permissions_get",
@@ -6350,6 +7012,172 @@
         ]
       }
     },
+    "/api/v1/platform/deployment-hosts/{host_id}/gateway-identity": {
+      "get": {
+        "operationId": "identity_detail_api_v1_platform_deployment_hosts__host_id__gateway_identity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Identity Detail Api V1 Platform Deployment Hosts  Host Id  Gateway Identity Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Identity Detail",
+        "tags": [
+          "module-gateway"
+        ]
+      },
+      "patch": {
+        "operationId": "identity_status_api_v1_platform_deployment_hosts__host_id__gateway_identity_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Identity Status Api V1 Platform Deployment Hosts  Host Id  Gateway Identity Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Identity Status",
+        "tags": [
+          "module-gateway"
+        ]
+      },
+      "post": {
+        "operationId": "bind_identity_api_v1_platform_deployment_hosts__host_id__gateway_identity_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "host_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Host Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Bind Identity Api V1 Platform Deployment Hosts  Host Id  Gateway Identity Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Bind Identity",
+        "tags": [
+          "module-gateway"
+        ]
+      }
+    },
     "/api/v1/platform/deployment-hosts/{host_id}/{action}": {
       "post": {
         "operationId": "host_status_api_v1_platform_deployment_hosts__host_id___action__post",
@@ -6816,6 +7644,68 @@
       }
     },
     "/api/v1/platform/module-install-plans": {
+      "get": {
+        "operationId": "plans_api_v1_platform_module_install_plans_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Plans Api V1 Platform Module Install Plans Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Plans",
+        "tags": [
+          "module-manager"
+        ]
+      },
       "post": {
         "operationId": "create_api_v1_platform_module_install_plans_post",
         "requestBody": {
@@ -8798,6 +9688,53 @@
         "summary": "Manifest"
       }
     },
+    "/api/v1/platform/packages/{package_id}/sdk": {
+      "get": {
+        "operationId": "sdk_detail_api_v1_platform_packages__package_id__sdk_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Package Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sdk Detail Api V1 Platform Packages  Package Id  Sdk Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Sdk Detail"
+      }
+    },
     "/api/v1/platform/packages/{package_id}/verify": {
       "post": {
         "operationId": "reverify_api_v1_platform_packages__package_id__verify_post",
@@ -8978,6 +9915,80 @@
           }
         ],
         "summary": "History",
+        "tags": [
+          "deployment"
+        ]
+      }
+    },
+    "/api/v1/platform/runtime-deployments/{installation_id}/storage": {
+      "get": {
+        "operationId": "storage_detail_api_v1_platform_runtime_deployments__installation_id__storage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Installation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Storage Detail Api V1 Platform Runtime Deployments  Installation Id  Storage Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Storage Detail",
         "tags": [
           "deployment"
         ]
@@ -9248,7 +10259,6 @@
       }
     }
   },
-  "x-console-core-baseline": "c6ab57707a0b2b486715017316e67d52b80b6d4e",
   "x-xarionix-manifest": {
     "$defs": {
       "Artifact": {

@@ -22,7 +22,7 @@ interface NavItem {
   permission?: string;
 }
 @Component({
-  selector: 'console-shell',
+  selector: 'app-platform-shell',
   imports: [
     UI,
     RouterOutlet,
@@ -34,16 +34,14 @@ interface NavItem {
   providers: [ICONS],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div hlmSidebarWrapper>
+    <div hlmSidebarWrapper data-testid="unified-shell">
       <hlm-sidebar collapsible="icon">
         <div hlmSidebarHeader class="px-4 py-5">
           <a routerLink="/dashboard" class="flex items-center gap-3 font-semibold tracking-tight"
             ><span
               class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm"
               >X</span
-            ><span class="group-data-[collapsible=icon]:hidden"
-              >Xarionix <span class="font-normal text-muted-foreground">Console</span></span
-            ></a
+            ><span class="group-data-[collapsible=icon]:hidden">Xarionix</span></a
           >
         </div>
         <div hlmSidebarContent>
@@ -87,7 +85,7 @@ interface NavItem {
           }
           @if (session.admin() === 'allowed' || session.admin() === 'mfa') {
             <div hlmSidebarGroup>
-              <div hlmSidebarGroupLabel>Платформа</div>
+              <div hlmSidebarGroupLabel>Администрирование</div>
               <ul hlmSidebarMenu>
                 @for (item of platform; track item.path) {
                   <li hlmSidebarMenuItem>
@@ -120,7 +118,7 @@ interface NavItem {
         >
           <div class="flex min-w-0 items-center gap-3">
             <button hlmSidebarTrigger aria-label="Открыть навигацию"></button
-            ><span class="text-sm text-muted-foreground">Платформа</span
+            ><span class="text-sm text-muted-foreground">Xarionix</span
             ><span class="text-muted-foreground/40">/</span
             ><span class="truncate text-sm font-medium">{{ title() }}</span>
           </div>
@@ -175,7 +173,7 @@ interface NavItem {
                 hlmBtn
                 variant="outline"
                 size="sm"
-                (click)="session.auth.login(router.url, true)"
+                (click)="session.auth.login(stepUpReturn(), true)"
               >
                 Подтвердить MFA
               </button>
@@ -195,21 +193,25 @@ export class Shell {
   readonly main: NavItem[] = [
     { label: 'Обзор', path: '/dashboard', icon: 'lucideLayoutDashboard' },
     { label: 'Компании', path: '/companies', icon: 'lucideBuilding2' },
+    { label: 'Карта и адреса', path: '/addresses', icon: 'lucideMapPin' },
+    { label: 'Модули', path: '/modules', icon: 'lucidePackage' },
     { label: 'Мои заявки', path: '/company-requests', icon: 'lucideClipboard' },
   ];
   readonly platform: NavItem[] = [
-    { label: 'Пользователи', path: '/platform/users', icon: 'lucideUsers' },
-    { label: 'Компании', path: '/platform/companies', icon: 'lucideBuilding2' },
-    { label: 'Заявки', path: '/platform/requests', icon: 'lucideClipboard' },
-    { label: 'Администраторы', path: '/platform/admins', icon: 'lucideShieldCheck' },
-    { label: 'Издатели', path: '/platform/publishers', icon: 'lucideKeyRound' },
-    { label: 'Пакеты', path: '/platform/packages', icon: 'lucideFileBox' },
-    { label: 'Установленные модули', path: '/platform/installations', icon: 'lucidePackage' },
-    { label: 'Deployment hosts', path: '/platform/hosts', icon: 'lucideServer' },
-    { label: 'Runtime', path: '/platform/runtime', icon: 'lucideActivity' },
-    { label: 'Операции', path: '/platform/operations', icon: 'lucideRefreshCw' },
-    { label: 'Аудит', path: '/platform/audit', icon: 'lucideClipboard' },
-    { label: 'Настройки', path: '/platform/settings', icon: 'lucideSettings' },
+    { label: 'Планы установки', path: '/admin/modules/install-plans', icon: 'lucideClipboard' },
+    { label: 'Gateway', path: '/admin/modules/gateway', icon: 'lucideNetwork' },
+    { label: 'Пользователи', path: '/admin/users', icon: 'lucideUsers' },
+    { label: 'Компании', path: '/admin/companies', icon: 'lucideBuilding2' },
+    { label: 'Заявки', path: '/admin/requests', icon: 'lucideClipboard' },
+    { label: 'Администраторы', path: '/admin/admins', icon: 'lucideShieldCheck' },
+    { label: 'Издатели', path: '/admin/publishers', icon: 'lucideKeyRound' },
+    { label: 'Пакеты', path: '/admin/modules/packages', icon: 'lucideFileBox' },
+    { label: 'Установленные модули', path: '/admin/modules/installations', icon: 'lucidePackage' },
+    { label: 'Серверы развёртывания', path: '/admin/modules/hosts', icon: 'lucideServer' },
+    { label: 'Исполнение модулей', path: '/admin/modules/runtime', icon: 'lucideActivity' },
+    { label: 'Операции', path: '/admin/modules/operations', icon: 'lucideRefreshCw' },
+    { label: 'Аудит', path: '/admin/audit', icon: 'lucideClipboard' },
+    { label: 'Настройки', path: '/admin/settings', icon: 'lucideSettings' },
   ];
   readonly companyNav = computed(() => {
     const id = this.session.company()?.id;
@@ -252,11 +254,19 @@ export class Shell {
       if (this.session.auth.state() === 'expired')
         void this.router.navigate(['/login'], { queryParams: { returnTo: this.router.url } });
     });
+    effect(() => {
+      if (this.session.admin() === 'denied' && this.router.url.startsWith('/admin'))
+        void this.router.navigate(['/unavailable']);
+    });
     this.router.events.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe(() => {
       let route = this.router.routerState.snapshot.root;
       while (route.firstChild) route = route.firstChild;
-      this.title.set(String(route.data['title'] ?? 'Console'));
+      this.title.set(String(route.data['title'] ?? 'Xarionix'));
     });
+  }
+  stepUpReturn(): string {
+    const requested = this.router.parseUrl(this.router.url).queryParams['returnTo'];
+    return typeof requested === 'string' ? requested : this.router.url;
   }
   toggleTheme(): void {
     this.dark.update((v) => !v);

@@ -23,7 +23,7 @@ export class Session {
   constructor() {
     const denied = this.scope.denied.subscribe(({ path, mfa }) => {
       if (path.includes('/companies/')) this.permissions.set(null);
-      if (mfa) this.admin.set('mfa');
+      if (path.includes('/platform/')) this.admin.set(mfa ? 'mfa' : 'denied');
     });
     inject(DestroyRef).onDestroy(() => denied.unsubscribe());
     effect(() => {

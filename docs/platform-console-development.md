@@ -1,5 +1,10 @@
 # Разработка и CI Console
 
+В Sprint 6B основная оболочка запускается через `npm start` на 4200; Console target
+ниже сохранён для совместимости. Для production и привязки Core CI commit смотрите
+[переход на единый Web](unified-web-migration.md). ERP-карта доступна в общей оболочке через opt-in bridge; legacy target
+`npm run erp:legacy:start` сохранён для остальных regression/migration сценариев.
+
 Нужны Node 22.12+ (в CI закреплён Node 22), npm, sibling `xarionix-core` с установленным dev environment, Docker Compose v2. Для native positive runtime — отдельно выбранный пустой rootless Linux daemon с cgroup v2 delegation; это не frontend Runner.
 
 ```bash
@@ -7,7 +12,7 @@ npm ci
 npm run console:start
 ```
 
-Console: `http://localhost:4300`. ERP продолжает запускаться командой `npm start` на своём target. В dev config задать публичный issuer, clientId, mfaAcr. Core target proxy задаётся `XARIONIX_CONSOLE_CORE_TARGET`, по умолчанию `http://127.0.0.1:8000`. Настроить public Keycloak client по [authentication](platform-console-authentication.md). Нельзя использовать secret-bearing `.env` для Angular environment replacement.
+Console: `http://localhost:4300`. Основной единый Web запускается через `npm start` на 4200. В dev config задать публичный issuer, clientId, mfaAcr. Core target proxy задаётся `XARIONIX_CONSOLE_CORE_TARGET`, по умолчанию `http://127.0.0.1:8000`. Настроить public Keycloak client по [authentication](platform-console-authentication.md). Нельзя использовать secret-bearing `.env` для Angular environment replacement.
 
 ```bash
 npm run console:typecheck
@@ -20,7 +25,8 @@ npm test -- --watch=false
 npm run build
 ```
 
-Консоль и ERP test/build targets явные, поэтому добавление второго app не меняет смысл существующих npm commands. Core/ERP backend trees не изменяются.
+Compatibility targets используют явные имена; production entry point один.
+Для ERP bridge нужен reviewed ERP checkout и настроенные operator bindings.
 
 Brain закреплён на исходной совместимой версии `1.3.4`. Автоматический переход на `1.9.0` через старый диапазон затрагивал контракты Dialog и ломал существующие ERP tests. Console использует фактически установленные primitives без правок общих Helm-компонентов.
 
@@ -28,7 +34,7 @@ Brain закреплён на исходной совместимой верси
 
 ```bash
 npx playwright install chromium
-../xarionix-core/.venv/bin/python scripts/console_integration.py --core ../xarionix-core
+../xarionix-core/.venv/bin/python scripts/console_integration.py --core ../xarionix-core --erp ../xarionix-erp
 ```
 
 Harness поднимает PostgreSQL Core и Keycloak, миграции, реальный Core image, public browser client с Code/PKCE и реальным OTP flow. Создание первоначальной human/admin identity выполняется явно доверенным тестовым оператором, не первым JWT. Создаются случайные отдельные Compose project/volumes. Существующие dev/prod базы не затрагиваются.

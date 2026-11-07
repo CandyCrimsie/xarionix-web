@@ -38,7 +38,7 @@ import { Report } from '../shared/report';
           Состояние установки метаданных и доступность runtime учитываются отдельно.
         </p>
       </div>
-      <a hlmBtn variant="outline" routerLink="/platform/packages">Реестр пакетов</a>
+      <a hlmBtn variant="outline" routerLink="/admin/modules/packages">Реестр пакетов</a>
     </div>
     <console-table
       [rows]="rows()"
@@ -66,7 +66,7 @@ export class InstallationsPage {
         label(runtimeObservation(i.runtime, this.clock.now())['state']),
         String(i.generation),
       ],
-      path: `/platform/installations/${i.id}`,
+      path: `/admin/modules/installations/${i.id}`,
     })),
   );
   constructor() {
@@ -87,7 +87,7 @@ export class InstallationsPage {
           hlmBtn
           variant="link"
           class="mb-2 h-auto p-0 text-muted-foreground"
-          routerLink="/platform/installations"
+          routerLink="/admin/modules/installations"
           ><ng-icon name="lucideArrowLeft" />Модули</a
         >
         <h1>{{ live.value()?.module_id || 'Модуль' }}</h1>
@@ -117,7 +117,7 @@ export class InstallationsPage {
             <dd>
               <a
                 class="underline underline-offset-4"
-                [routerLink]="'/platform/packages/' + i.package_id"
+                [routerLink]="'/admin/modules/packages/' + i.package_id"
                 >Открыть пакет</a
               >
             </dd>
@@ -135,7 +135,7 @@ export class InstallationsPage {
         <section class="panel">
           <div class="flex justify-between">
             <h2>Runtime</h2>
-            <a hlmBtn variant="outline" size="sm" [routerLink]="'/platform/runtime/' + i.id"
+            <a hlmBtn variant="outline" size="sm" [routerLink]="'/admin/modules/runtime/' + i.id"
               >Управление</a
             >
           </div>
@@ -242,7 +242,7 @@ export class InstallationPage {
           idempotency_key: idempotencyKey,
         }),
       done: (result) =>
-        void this.router.navigate(['/platform/install-plans', (result as InstallPlan).id]),
+        void this.router.navigate(['/admin/modules/install-plans', (result as InstallPlan).id]),
     });
   }
   bind(i: Installation): void {
@@ -310,7 +310,7 @@ export class OperationsPage {
       title: o.id,
       subtitle: o.correlation_id,
       cells: [label(o.state), String(o.attempts), o.safe_error_code ?? '—'],
-      path: `/platform/install-plans/${o.plan_id}`,
+      path: `/admin/modules/install-plans/${o.plan_id}`,
     })),
   );
   constructor() {

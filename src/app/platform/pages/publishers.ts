@@ -48,7 +48,7 @@ export class PublishersPage {
       id: p.id,
       title: p.display_name,
       cells: [p.publisher_id, label(p.status)],
-      path: `/platform/publishers/${p.id}`,
+      path: `/admin/publishers/${p.id}`,
     })),
   );
   constructor() {
@@ -88,7 +88,7 @@ export class PublishersPage {
           hlmBtn
           variant="link"
           class="mb-2 h-auto p-0 text-muted-foreground"
-          routerLink="/platform/publishers"
+          routerLink="/admin/publishers"
           ><ng-icon name="lucideArrowLeft" />Издатели</a
         >
         <h1>{{ publisher()?.display_name || 'Издатель' }}</h1>
