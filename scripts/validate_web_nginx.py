@@ -13,15 +13,18 @@ def main():
     with tempfile.TemporaryDirectory(prefix="web-nginx-", dir=ROOT / ".ci-tmp") as directory:
         temporary = Path(directory)
         tls = temporary / "tls"
-        tls.mkdir(mode=0o755)
+        tls.mkdir()
         subprocess.run(
             ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
              "-subj", "/CN=xarionix.example.test", "-keyout", str(tls / "web.key"),
              "-out", str(tls / "web.crt")],
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
-        # Disposable test key only; host parent stays 0700. No production cert is read.
-        (tls / "web.key").chmod(0o644)
+        # The CI controller uses umask 077. Nginx needs to traverse the bind-mounted
+        # directory and read both generated files. The private parent stays 0700.
+        tls.chmod(0o755)
+        for name in ("web.crt", "web.key"):
+            (tls / name).chmod(0o644)
         config = (ROOT / "deploy/web/nginx.conf.example").read_text()
         (temporary / "nginx.conf").write_text("pid /tmp/nginx.pid;\nerror_log /dev/stderr warn;\nevents {}\nhttp {\n" + config + "\n}\n")
         (temporary / "nginx.conf").chmod(0o644)
